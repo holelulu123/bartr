@@ -65,7 +65,7 @@ describe('User routes', () => {
   describe('PUT /users/me', () => {
     it('updates bio', async () => {
       const user = await createTestUser('upd1');
-      const token = signAccessToken({ sub: user.id, nickname: user.nickname });
+      const token = await signAccessToken({ sub: user.id, nickname: user.nickname });
 
       const res = await app.inject({
         method: 'PUT',
@@ -80,7 +80,7 @@ describe('User routes', () => {
 
     it('updates nickname', async () => {
       const user = await createTestUser('upd2');
-      const token = signAccessToken({ sub: user.id, nickname: user.nickname });
+      const token = await signAccessToken({ sub: user.id, nickname: user.nickname });
 
       const res = await app.inject({
         method: 'PUT',
@@ -95,7 +95,7 @@ describe('User routes', () => {
 
     it('rejects short nickname', async () => {
       const user = await createTestUser('upd3');
-      const token = signAccessToken({ sub: user.id, nickname: user.nickname });
+      const token = await signAccessToken({ sub: user.id, nickname: user.nickname });
 
       const res = await app.inject({
         method: 'PUT',
@@ -109,7 +109,7 @@ describe('User routes', () => {
 
     it('rejects bio over 500 chars', async () => {
       const user = await createTestUser('upd4');
-      const token = signAccessToken({ sub: user.id, nickname: user.nickname });
+      const token = await signAccessToken({ sub: user.id, nickname: user.nickname });
 
       const res = await app.inject({
         method: 'PUT',
@@ -124,7 +124,7 @@ describe('User routes', () => {
     it('rejects duplicate nickname', async () => {
       const user1 = await createTestUser('dup1');
       const user2 = await createTestUser('dup2');
-      const token = signAccessToken({ sub: user2.id, nickname: user2.nickname });
+      const token = await signAccessToken({ sub: user2.id, nickname: user2.nickname });
 
       const res = await app.inject({
         method: 'PUT',

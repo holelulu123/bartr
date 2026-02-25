@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import { SignJWT, jwtVerify } from 'jose';
 import crypto from 'node:crypto';
 import { env } from '../config/env.js';
 
@@ -8,18 +8,32 @@ export interface JwtPayload {
   jti?: string;
 }
 
-export function signAccessToken(payload: JwtPayload): string {
-  return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtAccessExpiry });
+const secret = new TextEncoder().encode(env.jwtSecret);
+
+export async function signAccessToken(payload: JwtPayload): Promise<string> {
+  return new SignJWT({ nickname: payload.nickname })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(payload.sub)
+    .setIssuedAt()
+    .setExpirationTime(env.jwtAccessExpiry)
+    .sign(secret);
 }
 
-export function signRefreshToken(payload: JwtPayload): string {
-  return jwt.sign(
-    { ...payload, jti: crypto.randomUUID() },
-    env.jwtSecret,
-    { expiresIn: env.jwtRefreshExpiry },
-  );
+export async function signRefreshToken(payload: JwtPayload): Promise<string> {
+  return new SignJWT({ nickname: payload.nickname })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(payload.sub)
+    .setJti(crypto.randomUUID())
+    .setIssuedAt()
+    .setExpirationTime(env.jwtRefreshExpiry)
+    .sign(secret);
 }
 
-export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, env.jwtSecret) as JwtPayload;
+export async function verifyToken(token: string): Promise<JwtPayload> {
+  const { payload } = await jwtVerify(token, secret);
+  return {
+    sub: payload.sub as string,
+    nickname: payload.nickname as string,
+    jti: payload.jti,
+  };
 }

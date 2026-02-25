@@ -44,7 +44,7 @@ describe('Auth routes', () => {
       expect(body.refresh_token).toBeDefined();
 
       // Verify the access token is valid
-      const payload = verifyToken(body.access_token);
+      const payload = await verifyToken(body.access_token);
       expect(payload.nickname).toBe('testuser_one');
     });
 

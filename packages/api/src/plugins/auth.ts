@@ -20,7 +20,7 @@ export default fp(async (fastify) => {
 
     const token = authHeader.slice(7);
     try {
-      request.user = verifyToken(token);
+      request.user = await verifyToken(token);
     } catch {
       return reply.status(401).send({ error: 'Invalid or expired token' });
     }

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import bcrypt from 'bcrypt';
+import * as argon2 from 'argon2';
 import crypto from 'node:crypto';
 import { signAccessToken, signRefreshToken, verifyToken } from '../lib/jwt.js';
 import { env } from '../config/env.js';
@@ -65,8 +65,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       if (existing.rows.length > 0) {
         // Existing user — issue tokens
         const user = existing.rows[0];
-        const accessToken = signAccessToken({ sub: user.id, nickname: user.nickname });
-        const refreshToken = signRefreshToken({ sub: user.id, nickname: user.nickname });
+        const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname });
+        const refreshToken = await signRefreshToken({ sub: user.id, nickname: user.nickname });
 
         await storeRefreshToken(fastify, user.id, refreshToken);
         await fastify.pg.query('UPDATE users SET last_active = now() WHERE id = $1', [user.id]);
@@ -117,7 +117,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.status(409).send({ error: 'Google account already registered' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const emailEncrypted = email ? Buffer.from(email) : null; // TODO: real encryption in Task 10
 
     const result = await fastify.pg.query(
@@ -128,8 +128,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
     );
 
     const user = result.rows[0];
-    const accessToken = signAccessToken({ sub: user.id, nickname: user.nickname });
-    const refreshToken = signRefreshToken({ sub: user.id, nickname: user.nickname });
+    const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname });
+    const refreshToken = await signRefreshToken({ sub: user.id, nickname: user.nickname });
 
     await storeRefreshToken(fastify, user.id, refreshToken);
 
@@ -148,7 +148,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     let payload;
     try {
-      payload = verifyToken(refresh_token);
+      payload = await verifyToken(refresh_token);
     } catch {
       return reply.status(401).send({ error: 'Invalid or expired refresh token' });
     }
@@ -167,8 +167,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
     // Rotate: delete old, issue new
     await fastify.pg.query('DELETE FROM refresh_tokens WHERE token_hash = $1', [tokenHash]);
 
-    const newAccessToken = signAccessToken({ sub: payload.sub, nickname: payload.nickname });
-    const newRefreshToken = signRefreshToken({ sub: payload.sub, nickname: payload.nickname });
+    const newAccessToken = await signAccessToken({ sub: payload.sub, nickname: payload.nickname });
+    const newRefreshToken = await signRefreshToken({ sub: payload.sub, nickname: payload.nickname });
     await storeRefreshToken(fastify, payload.sub, newRefreshToken);
 
     return reply.send({ access_token: newAccessToken, refresh_token: newRefreshToken });
