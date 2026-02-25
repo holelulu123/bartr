@@ -1,0 +1,115 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - nextjs
+      - api
+
+  nextjs:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm --filter @bartr/shared build && pnpm --filter @bartr/web dev"
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - nextjs_pnpm_store:/app/.pnpm-store
+      - nextjs_node_modules:/app/node_modules
+      - nextjs_web_modules:/app/packages/web/node_modules
+      - nextjs_shared_modules:/app/packages/shared/node_modules
+    env_file: .env
+    depends_on:
+      - api
+
+  api:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm --filter @bartr/shared build && pnpm --filter @bartr/api dev"
+    ports:
+      - "4000:4000"
+    volumes:
+      - .:/app
+      - api_pnpm_store:/app/.pnpm-store
+      - api_node_modules:/app/node_modules
+      - api_api_modules:/app/packages/api/node_modules
+      - api_shared_modules:/app/packages/shared/node_modules
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  workers:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm --filter @bartr/shared build && pnpm --filter @bartr/workers dev"
+    volumes:
+      - .:/app
+      - workers_pnpm_store:/app/.pnpm-store
+      - workers_node_modules:/app/node_modules
+      - workers_workers_modules:/app/packages/workers/node_modules
+      - workers_shared_modules:/app/packages/shared/node_modules
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    env_file: .env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+
+volumes:
+  pgdata:
+  minio-data:
+  nextjs_pnpm_store:
+  nextjs_node_modules:
+  nextjs_web_modules:
+  nextjs_shared_modules:
+  api_pnpm_store:
+  api_node_modules:
+  api_api_modules:
+  api_shared_modules:
+  workers_pnpm_store:
+  workers_node_modules:
+  workers_workers_modules:
+  workers_shared_modules:
