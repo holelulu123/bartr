@@ -2,7 +2,7 @@
 
 ## Phase 1: Foundation
 - [x] **Task 1 — Project Scaffold**: Monorepo, Docker Compose (7 services), DB schema (11 tables), health endpoint, landing page
-- [ ] **Task 2 — Auth System**: Google OAuth 2.0 + JWT. Routes: `/auth/google`, `/auth/refresh`, `/auth/logout`. next-auth on frontend.
+- [x] **Task 2 — Auth System**: Google OAuth 2.0 + JWT. Routes: `/auth/google`, `/auth/refresh`, `/auth/logout`, `/auth/register`, `/auth/me`. Refresh token rotation. 16 tests.
 - [ ] **Task 3 — User Profiles**: Nickname, avatar upload (MinIO), public profile page, EXIF stripping in workers
 
 ## Phase 2: Core Marketplace

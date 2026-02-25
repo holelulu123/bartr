@@ -3,4 +3,11 @@ export const env = {
   host: process.env.API_HOST || '0.0.0.0',
   databaseUrl: process.env.DATABASE_URL || 'postgresql://bartr:bartr_dev_password@localhost:5432/bartr',
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+  jwtSecret: process.env.JWT_SECRET || 'bartr-dev-jwt-secret-change-in-production',
+  jwtAccessExpiry: process.env.JWT_ACCESS_EXPIRY || '15m',
+  jwtRefreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
+  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost/api/auth/google/callback',
+  clientUrl: process.env.CLIENT_URL || 'http://localhost',
 } as const;
