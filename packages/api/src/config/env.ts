@@ -10,4 +10,8 @@ export const env = {
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost/api/auth/google/callback',
   clientUrl: process.env.CLIENT_URL || 'http://localhost',
+  minioEndpoint: process.env.MINIO_ENDPOINT || 'http://localhost:9000',
+  minioAccessKey: process.env.MINIO_ROOT_USER || 'bartr',
+  minioSecretKey: process.env.MINIO_ROOT_PASSWORD || 'bartr_dev_password',
+  minioBucket: process.env.MINIO_BUCKET || 'listing-images',
 } as const;
