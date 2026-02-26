@@ -37,6 +37,26 @@ export default async function userRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // Get a user's public key (needed by sender to encrypt a message to them)
+  fastify.get<{ Params: { nickname: string } }>(
+    '/users/:nickname/public-key',
+    async (request, reply) => {
+      const { nickname } = request.params;
+      const result = await fastify.pg.query(
+        'SELECT public_key FROM users WHERE nickname = $1',
+        [nickname],
+      );
+      if (result.rows.length === 0) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+      const { public_key } = result.rows[0];
+      if (!public_key) {
+        return reply.status(404).send({ error: 'User has no public key (legacy account)' });
+      }
+      return reply.send({ public_key });
+    },
+  );
+
   // Update own profile (protected)
   fastify.put<{ Body: { nickname?: string; bio?: string } }>(
     '/users/me',

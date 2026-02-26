@@ -86,9 +86,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // Complete registration (new user sets nickname + password)
   fastify.post<{
-    Body: { google_id: string; email: string; nickname: string; password: string };
+    Body: {
+      google_id: string;
+      email: string;
+      nickname: string;
+      password: string;
+      public_key?: string;
+      private_key_blob?: string;   // base64
+      recovery_key_blob?: string;  // base64
+    };
   }>('/auth/register', async (request, reply) => {
-    const { google_id, email, nickname, password } = request.body;
+    const { google_id, email, nickname, password, public_key, private_key_blob, recovery_key_blob } = request.body;
 
     if (!google_id || !nickname || !password) {
       return reply.status(400).send({ error: 'google_id, nickname, and password are required' });
@@ -121,11 +129,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const emailEncrypted = email ? encrypt(email) : null;
 
+    const privateKeyBlobBuf = private_key_blob
+      ? Buffer.from(private_key_blob, 'base64')
+      : null;
+    const recoveryKeyBlobBuf = recovery_key_blob
+      ? Buffer.from(recovery_key_blob, 'base64')
+      : null;
+
     const result = await fastify.pg.query(
-      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, public_key, private_key_blob, recovery_key_blob)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, nickname`,
-      [google_id, nickname, emailEncrypted, passwordHash],
+      [google_id, nickname, emailEncrypted, passwordHash, public_key ?? null, privateKeyBlobBuf, recoveryKeyBlobBuf],
     );
 
     const user = result.rows[0];
@@ -198,6 +213,31 @@ export default async function authRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'User not found' });
       }
       return reply.send(user.rows[0]);
+    },
+  );
+
+  // Get key blobs for the current user (called after login to load E2E keys)
+  fastify.get(
+    '/auth/key-blobs',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const result = await fastify.pg.query(
+        'SELECT public_key, private_key_blob, recovery_key_blob FROM users WHERE id = $1',
+        [request.user!.sub],
+      );
+      if (result.rows.length === 0) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+      const { public_key, private_key_blob, recovery_key_blob } = result.rows[0];
+      return reply.send({
+        public_key: public_key ?? null,
+        private_key_blob: private_key_blob
+          ? (private_key_blob as Buffer).toString('base64')
+          : null,
+        recovery_key_blob: recovery_key_blob
+          ? (recovery_key_blob as Buffer).toString('base64')
+          : null,
+      });
     },
   );
 }

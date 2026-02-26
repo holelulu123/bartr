@@ -3,6 +3,11 @@ import { buildApp } from '../app.js';
 import type { FastifyInstance } from 'fastify';
 import { signAccessToken } from '../lib/jwt.js';
 
+// Helper: fake base64 ciphertext (simulates what the client would produce)
+function fakeCiphertext(text: string): string {
+  return Buffer.from(text).toString('base64');
+}
+
 describe('Message routes', () => {
   let app: FastifyInstance;
 
@@ -118,7 +123,7 @@ describe('Message routes', () => {
   });
 
   describe('POST /threads/:threadId/messages', () => {
-    it('sends a message in a thread', async () => {
+    it('sends an encrypted message and returns body_encrypted', async () => {
       const user1 = await createTestUser('send1a');
       const user2 = await createTestUser('send1b');
       const token1 = await getToken(user1);
@@ -130,20 +135,25 @@ describe('Message routes', () => {
         payload: { recipient_nickname: user2.nickname },
       });
       const threadId = threadRes.json().id;
+      const ciphertext = fakeCiphertext('Hey, interested in trading!');
 
       const res = await app.inject({
         method: 'POST',
         url: `/threads/${threadId}/messages`,
         headers: { authorization: `Bearer ${token1}` },
-        payload: { body: 'Hey, interested in trading!' },
+        payload: { body_encrypted: ciphertext },
       });
 
       expect(res.statusCode).toBe(201);
-      expect(res.json().body).toBe('Hey, interested in trading!');
-      expect(res.json().sender_id).toBe(user1.id);
+      const body = res.json();
+      expect(body.body_encrypted).toBe(ciphertext);
+      expect(body.sender_id).toBe(user1.id);
+      expect(body.recipient_id).toBe(user2.id);
+      // Server must not expose any plaintext field
+      expect(body.body).toBeUndefined();
     });
 
-    it('rejects empty message', async () => {
+    it('rejects missing body_encrypted', async () => {
       const user1 = await createTestUser('empty1a');
       const user2 = await createTestUser('empty1b');
       const token1 = await getToken(user1);
@@ -159,10 +169,34 @@ describe('Message routes', () => {
         method: 'POST',
         url: `/threads/${threadRes.json().id}/messages`,
         headers: { authorization: `Bearer ${token1}` },
-        payload: { body: '' },
+        payload: { body_encrypted: '' },
       });
 
       expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('body_encrypted');
+    });
+
+    it('rejects oversized ciphertext', async () => {
+      const user1 = await createTestUser('big1a');
+      const user2 = await createTestUser('big1b');
+      const token1 = await getToken(user1);
+
+      const threadRes = await app.inject({
+        method: 'POST',
+        url: '/threads',
+        headers: { authorization: `Bearer ${token1}` },
+        payload: { recipient_nickname: user2.nickname },
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/threads/${threadRes.json().id}/messages`,
+        headers: { authorization: `Bearer ${token1}` },
+        payload: { body_encrypted: 'A'.repeat(8193) },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('too large');
     });
 
     it('rejects non-participant', async () => {
@@ -183,7 +217,7 @@ describe('Message routes', () => {
         method: 'POST',
         url: `/threads/${threadRes.json().id}/messages`,
         headers: { authorization: `Bearer ${outsiderToken}` },
-        payload: { body: 'Sneaky message' },
+        payload: { body_encrypted: fakeCiphertext('Sneaky message') },
       });
 
       expect(res.statusCode).toBe(403);
@@ -191,7 +225,7 @@ describe('Message routes', () => {
   });
 
   describe('GET /threads/:threadId/messages', () => {
-    it('retrieves messages in a thread', async () => {
+    it('retrieves messages as base64 ciphertext — never plaintext', async () => {
       const user1 = await createTestUser('get1a');
       const user2 = await createTestUser('get1b');
       const token1 = await getToken(user1);
@@ -205,18 +239,20 @@ describe('Message routes', () => {
       });
       const threadId = threadRes.json().id;
 
-      // Send messages back and forth
+      const ct1 = fakeCiphertext('Hello!');
+      const ct2 = fakeCiphertext('Hi there!');
+
       await app.inject({
         method: 'POST',
         url: `/threads/${threadId}/messages`,
         headers: { authorization: `Bearer ${token1}` },
-        payload: { body: 'Hello!' },
+        payload: { body_encrypted: ct1 },
       });
       await app.inject({
         method: 'POST',
         url: `/threads/${threadId}/messages`,
         headers: { authorization: `Bearer ${token2}` },
-        payload: { body: 'Hi there!' },
+        payload: { body_encrypted: ct2 },
       });
 
       const res = await app.inject({
@@ -228,9 +264,35 @@ describe('Message routes', () => {
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body.messages).toHaveLength(2);
-      expect(body.messages[0].body).toBe('Hello!');
-      expect(body.messages[1].body).toBe('Hi there!');
+      // Server returns ciphertext as base64 — opaque to server
+      expect(body.messages[0].body_encrypted).toBe(ct1);
+      expect(body.messages[1].body_encrypted).toBe(ct2);
+      // No plaintext field ever returned
+      expect(body.messages[0].body).toBeUndefined();
       expect(body.pagination.total).toBe(2);
+    });
+
+    it('rejects non-participant from reading thread', async () => {
+      const user1 = await createTestUser('readp1a');
+      const user2 = await createTestUser('readp1b');
+      const outsider = await createTestUser('readp1c');
+      const token1 = await getToken(user1);
+      const outsiderToken = await getToken(outsider);
+
+      const threadRes = await app.inject({
+        method: 'POST',
+        url: '/threads',
+        headers: { authorization: `Bearer ${token1}` },
+        payload: { recipient_nickname: user2.nickname },
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/threads/${threadRes.json().id}/messages`,
+        headers: { authorization: `Bearer ${outsiderToken}` },
+      });
+
+      expect(res.statusCode).toBe(403);
     });
   });
 

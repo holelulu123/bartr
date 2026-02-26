@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify';
-import { encrypt, decrypt } from '../lib/crypto.js';
 
 export default async function messageRoutes(fastify: FastifyInstance) {
   // Create or get a message thread (between two users, optionally about a listing)
@@ -107,22 +106,25 @@ export default async function messageRoutes(fastify: FastifyInstance) {
   );
 
   // Send a message in a thread
+  // body_encrypted: base64-encoded AES-256-GCM ciphertext produced by the client.
+  // The server stores it opaquely — it cannot decrypt it.
   fastify.post<{
     Params: { threadId: string };
-    Body: { body: string };
+    Body: { body_encrypted: string };
   }>(
     '/threads/:threadId/messages',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const userId = request.user!.sub;
       const { threadId } = request.params;
-      const { body } = request.body;
+      const { body_encrypted } = request.body;
 
-      if (!body || body.trim().length === 0) {
-        return reply.status(400).send({ error: 'Message body is required' });
+      if (!body_encrypted || body_encrypted.trim().length === 0) {
+        return reply.status(400).send({ error: 'body_encrypted is required' });
       }
-      if (body.length > 5000) {
-        return reply.status(400).send({ error: 'Message must be 5000 characters or less' });
+      // base64 overhead ~33%, so 5000 bytes plaintext ≈ 6800 base64 chars + IV/tag overhead
+      if (body_encrypted.length > 8192) {
+        return reply.status(400).send({ error: 'Encrypted message too large' });
       }
 
       // Verify thread exists and user is participant
@@ -141,18 +143,16 @@ export default async function messageRoutes(fastify: FastifyInstance) {
 
       const recipientId = t.participant_1 === userId ? t.participant_2 : t.participant_1;
 
-      const bodyEncrypted = encrypt(body);
-
       const result = await fastify.pg.query(
         `INSERT INTO messages (thread_id, sender_id, recipient_id, body_encrypted)
          VALUES ($1, $2, $3, $4)
          RETURNING id, thread_id, sender_id, recipient_id, created_at`,
-        [threadId, userId, recipientId, bodyEncrypted],
+        [threadId, userId, recipientId, Buffer.from(body_encrypted, 'base64')],
       );
 
       return reply.status(201).send({
         ...result.rows[0],
-        body, // Return plaintext to sender
+        body_encrypted, // Return ciphertext back to sender (base64)
       });
     },
   );
@@ -204,12 +204,13 @@ export default async function messageRoutes(fastify: FastifyInstance) {
         [threadId, limitNum, offset],
       );
 
+      // Server returns ciphertext as base64 — client decrypts using E2E keys
       const messages = result.rows.map((msg) => ({
         id: msg.id,
         sender_id: msg.sender_id,
         sender_nickname: msg.sender_nickname,
         recipient_id: msg.recipient_id,
-        body: decrypt(msg.body_encrypted),
+        body_encrypted: (msg.body_encrypted as Buffer).toString('base64'),
         created_at: msg.created_at,
       }));
 

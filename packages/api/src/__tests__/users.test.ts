@@ -62,6 +62,47 @@ describe('User routes', () => {
     });
   });
 
+  describe('GET /users/:nickname/public-key', () => {
+    it('returns public key for user that has one', async () => {
+      const result = await app.pg.query(
+        `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, public_key)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, nickname`,
+        ['google_prof_pk1', 'proftest_pk1', null, 'hash', '', 'MCowBQYDK2VuAyEAsome_pub_key'],
+      );
+      await app.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [result.rows[0].id]);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/users/proftest_pk1/public-key',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().public_key).toBe('MCowBQYDK2VuAyEAsome_pub_key');
+    });
+
+    it('returns 404 for user with no public key', async () => {
+      const user = await createTestUser('nopk1');
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/users/${user.nickname}/public-key`,
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(res.json().error).toContain('no public key');
+    });
+
+    it('returns 404 for nonexistent user', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/users/no_such_user_xyz/public-key',
+      });
+
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
   describe('PUT /users/me', () => {
     it('updates bio', async () => {
       const user = await createTestUser('upd1');

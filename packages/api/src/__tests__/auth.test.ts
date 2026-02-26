@@ -219,6 +219,83 @@ describe('Auth routes', () => {
     });
   });
 
+  describe('POST /auth/register with E2E key blobs', () => {
+    it('stores key blobs when provided', async () => {
+      const pubKey = 'MCowBQYDK2VuAyEAtest_public_key_base64';
+      const privBlob = Buffer.from('encrypted_private_key').toString('base64');
+      const recovBlob = Buffer.from('recovery_wrapped_key').toString('base64');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register',
+        payload: {
+          google_id: 'google_e2e_test',
+          email: 'e2e@example.com',
+          nickname: 'testuser_e2e',
+          password: 'securepassword123',
+          public_key: pubKey,
+          private_key_blob: privBlob,
+          recovery_key_blob: recovBlob,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const { access_token } = res.json();
+
+      // Verify blobs are stored and retrievable
+      const keyRes = await app.inject({
+        method: 'GET',
+        url: '/auth/key-blobs',
+        headers: { authorization: `Bearer ${access_token}` },
+      });
+
+      expect(keyRes.statusCode).toBe(200);
+      const keys = keyRes.json();
+      expect(keys.public_key).toBe(pubKey);
+      expect(keys.private_key_blob).toBe(privBlob);
+      expect(keys.recovery_key_blob).toBe(recovBlob);
+    });
+
+    it('registers without key blobs (legacy path)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register',
+        payload: {
+          google_id: 'google_nokeys_test',
+          email: 'nokeys@example.com',
+          nickname: 'testuser_nokeys',
+          password: 'securepassword123',
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const { access_token } = res.json();
+
+      const keyRes = await app.inject({
+        method: 'GET',
+        url: '/auth/key-blobs',
+        headers: { authorization: `Bearer ${access_token}` },
+      });
+
+      expect(keyRes.statusCode).toBe(200);
+      const keys = keyRes.json();
+      expect(keys.public_key).toBeNull();
+      expect(keys.private_key_blob).toBeNull();
+      expect(keys.recovery_key_blob).toBeNull();
+    });
+  });
+
+  describe('GET /auth/key-blobs', () => {
+    it('requires authentication', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/auth/key-blobs',
+      });
+
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
   describe('GET /auth/me', () => {
     it('returns user info with valid token', async () => {
       const regRes = await app.inject({
