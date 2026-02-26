@@ -7,7 +7,7 @@ describe('Trade routes', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    app = await buildApp();
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
   });
 

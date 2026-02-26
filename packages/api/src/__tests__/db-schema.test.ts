@@ -20,7 +20,7 @@ describe('Database schema', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    app = await buildApp();
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
   });
 

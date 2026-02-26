@@ -7,7 +7,7 @@ describe('Listing routes', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    app = await buildApp();
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
 
     // Run migration for FTS + categories if not already present

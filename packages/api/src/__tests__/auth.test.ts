@@ -9,7 +9,7 @@ describe('Auth routes', () => {
   let testUserId: string;
 
   beforeAll(async () => {
-    app = await buildApp();
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
   });
 

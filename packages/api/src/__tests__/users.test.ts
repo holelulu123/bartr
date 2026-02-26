@@ -9,7 +9,7 @@ describe('User routes', () => {
   beforeAll(async () => {
     // Build app with MinIO for full route registration
     // MinIO is available via Docker
-    app = await buildApp();
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
   });
 
