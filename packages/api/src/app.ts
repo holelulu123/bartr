@@ -9,6 +9,7 @@ import authPlugin from './plugins/auth.js';
 import healthRoutes from './routes/health.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
+import listingRoutes from './routes/listings.js';
 
 export interface BuildAppOptions {
   skipMinio?: boolean;
@@ -30,6 +31,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await app.register(authRoutes);
   if (!opts.skipMinio) {
     await app.register(userRoutes);
+    await app.register(listingRoutes);
   }
 
   return app;
