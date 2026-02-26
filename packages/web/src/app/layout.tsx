@@ -5,6 +5,7 @@ import { AuthProvider } from '@/contexts/auth-context';
 import { CryptoProvider } from '@/contexts/crypto-context';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
+import { GlobalAuthGuard } from '@/components/global-auth-guard';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -20,11 +21,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <QueryProvider>
             <AuthProvider>
               <CryptoProvider>
-              <Navbar />
-              <main className="flex-1">
-                {children}
-              </main>
-              <Footer />
+              <GlobalAuthGuard>
+                <Navbar />
+                <main className="flex-1">
+                  {children}
+                </main>
+                <Footer />
+              </GlobalAuthGuard>
               </CryptoProvider>
             </AuthProvider>
           </QueryProvider>
