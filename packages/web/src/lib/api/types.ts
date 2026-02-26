@@ -1,0 +1,266 @@
+import type { ListingStatus, TradeStatus, PaymentMethod, ReputationTier, ModerationStatus } from '@bartr/shared';
+
+// Common
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+export interface PaginatedResponse<T> {
+  pagination: Pagination;
+  [key: string]: T[] | Pagination;
+}
+
+// Auth
+export interface TokenPair {
+  access_token: string;
+  refresh_token: string;
+}
+
+export interface CurrentUser {
+  id: string;
+  nickname: string;
+  created_at: string;
+  last_active: string;
+}
+
+export interface RegisterPayload {
+  google_id: string;
+  email: string;
+  nickname: string;
+  password: string;
+}
+
+// Users
+export interface UserProfile {
+  id: string;
+  nickname: string;
+  bio: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  last_active: string;
+  reputation: {
+    composite_score: number;
+    rating_avg: number;
+    tier: ReputationTier;
+  };
+}
+
+export interface UpdateProfilePayload {
+  nickname?: string;
+  bio?: string;
+}
+
+// Listings
+export interface ListingSummary {
+  id: string;
+  title: string;
+  price_indication: string | null;
+  currency: string | null;
+  payment_methods: PaymentMethod[];
+  status: ListingStatus;
+  created_at: string;
+  seller_nickname: string;
+  category_name: string | null;
+  category_slug: string | null;
+  thumbnail: string | null;
+}
+
+export interface ListingDetail {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  category_id: number | null;
+  payment_methods: PaymentMethod[];
+  price_indication: string | null;
+  currency: string | null;
+  status: ListingStatus;
+  created_at: string;
+  updated_at: string;
+  seller_nickname: string;
+  category_name: string | null;
+  category_slug: string | null;
+  images: ListingImage[];
+}
+
+export interface ListingImage {
+  id: string;
+  storage_key: string;
+  order_index: number;
+}
+
+export interface CreateListingPayload {
+  title: string;
+  description: string;
+  category_id?: number;
+  payment_methods: PaymentMethod[];
+  price_indication?: string;
+  currency?: string;
+}
+
+export interface UpdateListingPayload {
+  title?: string;
+  description?: string;
+  category_id?: number;
+  payment_methods?: PaymentMethod[];
+  price_indication?: string;
+  currency?: string;
+  status?: ListingStatus;
+}
+
+export interface ListingsResponse {
+  listings: ListingSummary[];
+  pagination: Pagination;
+}
+
+export interface ListingsFilter {
+  q?: string;
+  category?: string;
+  payment_method?: PaymentMethod;
+  status?: ListingStatus;
+  user_id?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  parent_id: number | null;
+}
+
+// Trades
+export interface Trade {
+  id: string;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  status: TradeStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TradeSummary extends Trade {
+  listing_title: string;
+  buyer_nickname: string;
+  seller_nickname: string;
+}
+
+export interface TradeEvent {
+  id: string;
+  event_type: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface TradeDetail extends TradeSummary {
+  events: TradeEvent[];
+}
+
+export interface TradesResponse {
+  trades: TradeSummary[];
+  pagination: Pagination;
+}
+
+export interface TradesFilter {
+  role?: 'buyer' | 'seller';
+  status?: TradeStatus;
+  page?: number;
+  limit?: number;
+}
+
+export interface CompleteTradeResponse {
+  id: string;
+  status: TradeStatus;
+  message: string;
+}
+
+// Ratings
+export interface Rating {
+  id: string;
+  trade_id: string;
+  from_user_id: string;
+  to_user_id: string;
+  score: number;
+  comment: string | null;
+  created_at: string;
+}
+
+export interface RateTradePayload {
+  score: number;
+  comment?: string;
+}
+
+export interface UserRatingsResponse {
+  ratings: Rating[];
+  pagination: Pagination;
+}
+
+// Messages
+export interface MessageThread {
+  id: string;
+  listing_id: string | null;
+  created_at: string;
+  participant_1_nickname: string;
+  participant_2_nickname: string;
+  listing_title: string | null;
+  last_message_at: string | null;
+}
+
+export interface Message {
+  id: string;
+  sender_id: string;
+  sender_nickname: string;
+  recipient_id: string;
+  body: string;
+  created_at: string;
+}
+
+export interface ThreadsResponse {
+  threads: MessageThread[];
+  pagination: Pagination;
+}
+
+export interface MessagesResponse {
+  messages: Message[];
+  pagination: Pagination;
+}
+
+export interface CreateThreadPayload {
+  recipient_nickname: string;
+  listing_id?: string;
+}
+
+// Moderation
+export interface Flag {
+  id: string;
+  target_type: 'listing' | 'user' | 'message';
+  target_id: string;
+  reason: string;
+  status: ModerationStatus;
+  created_at: string;
+}
+
+export interface CreateFlagPayload {
+  target_type: 'listing' | 'user' | 'message';
+  target_id: string;
+  reason: string;
+}
+
+export interface AdminFlag extends Flag {
+  reporter_nickname: string;
+}
+
+export interface AdminFlagsResponse {
+  flags: AdminFlag[];
+  pagination: Pagination;
+}
+
+export interface ModerationCheckResponse {
+  allowed: boolean;
+  blocked_keyword: string | null;
+}
