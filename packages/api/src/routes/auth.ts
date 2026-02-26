@@ -91,15 +91,19 @@ export default async function authRoutes(fastify: FastifyInstance) {
       email: string;
       nickname: string;
       password: string;
-      public_key?: string;
-      private_key_blob?: string;   // base64
-      recovery_key_blob?: string;  // base64
+      public_key: string;
+      private_key_blob: string;   // base64
+      recovery_key_blob: string;  // base64
     };
   }>('/auth/register', async (request, reply) => {
     const { google_id, email, nickname, password, public_key, private_key_blob, recovery_key_blob } = request.body;
 
     if (!google_id || !nickname || !password) {
       return reply.status(400).send({ error: 'google_id, nickname, and password are required' });
+    }
+
+    if (!public_key || !private_key_blob || !recovery_key_blob) {
+      return reply.status(400).send({ error: 'public_key, private_key_blob, and recovery_key_blob are required' });
     }
 
     if (nickname.length < 3 || nickname.length > 30) {
@@ -129,18 +133,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const emailEncrypted = email ? encrypt(email) : null;
 
-    const privateKeyBlobBuf = private_key_blob
-      ? Buffer.from(private_key_blob, 'base64')
-      : null;
-    const recoveryKeyBlobBuf = recovery_key_blob
-      ? Buffer.from(recovery_key_blob, 'base64')
-      : null;
+    const privateKeyBlobBuf = Buffer.from(private_key_blob, 'base64');
+    const recoveryKeyBlobBuf = Buffer.from(recovery_key_blob, 'base64');
 
     const result = await fastify.pg.query(
       `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, public_key, private_key_blob, recovery_key_blob)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, nickname`,
-      [google_id, nickname, emailEncrypted, passwordHash, public_key ?? null, privateKeyBlobBuf, recoveryKeyBlobBuf],
+      [google_id, nickname, emailEncrypted, passwordHash, public_key, privateKeyBlobBuf, recoveryKeyBlobBuf],
     );
 
     const user = result.rows[0];

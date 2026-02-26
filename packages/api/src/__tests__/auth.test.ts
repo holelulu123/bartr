@@ -4,9 +4,15 @@ import type { FastifyInstance } from 'fastify';
 import { signAccessToken, signRefreshToken, verifyToken } from '../lib/jwt.js';
 import crypto from 'node:crypto';
 
+// Every register call must include key blobs — no legacy path exists
+const TEST_KEYS = {
+  public_key: 'MCowBQYDK2VuAyEAtest_public_key_base64',
+  private_key_blob: Buffer.from('encrypted_private_key').toString('base64'),
+  recovery_key_blob: Buffer.from('recovery_wrapped_key').toString('base64'),
+};
+
 describe('Auth routes', () => {
   let app: FastifyInstance;
-  let testUserId: string;
 
   beforeAll(async () => {
     app = await buildApp({ skipRateLimit: true });
@@ -14,13 +20,11 @@ describe('Auth routes', () => {
   });
 
   afterAll(async () => {
-    // Clean up test data
     await app.pg.query("DELETE FROM users WHERE nickname LIKE 'testuser_%'");
     await app.close();
   });
 
   beforeEach(async () => {
-    // Clean test users between tests
     await app.pg.query("DELETE FROM users WHERE nickname LIKE 'testuser_%'");
     await app.pg.query('DELETE FROM refresh_tokens WHERE user_id NOT IN (SELECT id FROM users)');
   });
@@ -35,6 +39,7 @@ describe('Auth routes', () => {
           email: 'test@example.com',
           nickname: 'testuser_one',
           password: 'securepassword123',
+          ...TEST_KEYS,
         },
       });
 
@@ -43,7 +48,6 @@ describe('Auth routes', () => {
       expect(body.access_token).toBeDefined();
       expect(body.refresh_token).toBeDefined();
 
-      // Verify the access token is valid
       const payload = await verifyToken(body.access_token);
       expect(payload.nickname).toBe('testuser_one');
     });
@@ -57,6 +61,7 @@ describe('Auth routes', () => {
           email: 'test2@example.com',
           nickname: 'ab',
           password: 'securepassword123',
+          ...TEST_KEYS,
         },
       });
 
@@ -73,6 +78,7 @@ describe('Auth routes', () => {
           email: 'test3@example.com',
           nickname: 'testuser_three',
           password: 'short',
+          ...TEST_KEYS,
         },
       });
 
@@ -80,8 +86,23 @@ describe('Auth routes', () => {
       expect(res.json().error).toContain('8 characters');
     });
 
+    it('rejects registration without key blobs', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register',
+        payload: {
+          google_id: 'google_nokeys_test',
+          email: 'nokeys@example.com',
+          nickname: 'testuser_nokeys',
+          password: 'securepassword123',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('required');
+    });
+
     it('rejects duplicate nickname', async () => {
-      // Create first user
       await app.inject({
         method: 'POST',
         url: '/auth/register',
@@ -90,10 +111,10 @@ describe('Auth routes', () => {
           email: 'dup1@example.com',
           nickname: 'testuser_dup',
           password: 'securepassword123',
+          ...TEST_KEYS,
         },
       });
 
-      // Try duplicate nickname
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register',
@@ -102,6 +123,7 @@ describe('Auth routes', () => {
           email: 'dup2@example.com',
           nickname: 'testuser_dup',
           password: 'securepassword123',
+          ...TEST_KEYS,
         },
       });
 
@@ -118,6 +140,7 @@ describe('Auth routes', () => {
           email: 'first@example.com',
           nickname: 'testuser_first',
           password: 'securepassword123',
+          ...TEST_KEYS,
         },
       });
 
@@ -129,6 +152,7 @@ describe('Auth routes', () => {
           email: 'second@example.com',
           nickname: 'testuser_second',
           password: 'securepassword123',
+          ...TEST_KEYS,
         },
       });
 
@@ -137,9 +161,50 @@ describe('Auth routes', () => {
     });
   });
 
+  describe('POST /auth/register — E2E key blobs', () => {
+    it('stores key blobs and returns them via GET /auth/key-blobs', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register',
+        payload: {
+          google_id: 'google_e2e_test',
+          email: 'e2e@example.com',
+          nickname: 'testuser_e2e',
+          password: 'securepassword123',
+          ...TEST_KEYS,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const { access_token } = res.json();
+
+      const keyRes = await app.inject({
+        method: 'GET',
+        url: '/auth/key-blobs',
+        headers: { authorization: `Bearer ${access_token}` },
+      });
+
+      expect(keyRes.statusCode).toBe(200);
+      const keys = keyRes.json();
+      expect(keys.public_key).toBe(TEST_KEYS.public_key);
+      expect(keys.private_key_blob).toBe(TEST_KEYS.private_key_blob);
+      expect(keys.recovery_key_blob).toBe(TEST_KEYS.recovery_key_blob);
+    });
+  });
+
+  describe('GET /auth/key-blobs', () => {
+    it('requires authentication', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/auth/key-blobs',
+      });
+
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
   describe('POST /auth/refresh', () => {
     it('rotates refresh token and returns new tokens', async () => {
-      // Register a user to get tokens
       const regRes = await app.inject({
         method: 'POST',
         url: '/auth/register',
@@ -148,6 +213,7 @@ describe('Auth routes', () => {
           email: 'refresh@example.com',
           nickname: 'testuser_refresh',
           password: 'securepassword123',
+          ...TEST_KEYS,
         },
       });
 
@@ -163,9 +229,8 @@ describe('Auth routes', () => {
       const body = res.json();
       expect(body.access_token).toBeDefined();
       expect(body.refresh_token).toBeDefined();
-      expect(body.refresh_token).not.toBe(refresh_token); // jti makes each token unique
+      expect(body.refresh_token).not.toBe(refresh_token);
 
-      // Old token should no longer work (rotation invalidates it)
       const oldRes = await app.inject({
         method: 'POST',
         url: '/auth/refresh',
@@ -195,6 +260,7 @@ describe('Auth routes', () => {
           email: 'logout@example.com',
           nickname: 'testuser_logout',
           password: 'securepassword123',
+          ...TEST_KEYS,
         },
       });
 
@@ -209,90 +275,12 @@ describe('Auth routes', () => {
       expect(logoutRes.statusCode).toBe(200);
       expect(logoutRes.json().ok).toBe(true);
 
-      // Refresh should now fail
       const refreshRes = await app.inject({
         method: 'POST',
         url: '/auth/refresh',
         payload: { refresh_token },
       });
       expect(refreshRes.statusCode).toBe(401);
-    });
-  });
-
-  describe('POST /auth/register with E2E key blobs', () => {
-    it('stores key blobs when provided', async () => {
-      const pubKey = 'MCowBQYDK2VuAyEAtest_public_key_base64';
-      const privBlob = Buffer.from('encrypted_private_key').toString('base64');
-      const recovBlob = Buffer.from('recovery_wrapped_key').toString('base64');
-
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_e2e_test',
-          email: 'e2e@example.com',
-          nickname: 'testuser_e2e',
-          password: 'securepassword123',
-          public_key: pubKey,
-          private_key_blob: privBlob,
-          recovery_key_blob: recovBlob,
-        },
-      });
-
-      expect(res.statusCode).toBe(201);
-      const { access_token } = res.json();
-
-      // Verify blobs are stored and retrievable
-      const keyRes = await app.inject({
-        method: 'GET',
-        url: '/auth/key-blobs',
-        headers: { authorization: `Bearer ${access_token}` },
-      });
-
-      expect(keyRes.statusCode).toBe(200);
-      const keys = keyRes.json();
-      expect(keys.public_key).toBe(pubKey);
-      expect(keys.private_key_blob).toBe(privBlob);
-      expect(keys.recovery_key_blob).toBe(recovBlob);
-    });
-
-    it('registers without key blobs (legacy path)', async () => {
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_nokeys_test',
-          email: 'nokeys@example.com',
-          nickname: 'testuser_nokeys',
-          password: 'securepassword123',
-        },
-      });
-
-      expect(res.statusCode).toBe(201);
-      const { access_token } = res.json();
-
-      const keyRes = await app.inject({
-        method: 'GET',
-        url: '/auth/key-blobs',
-        headers: { authorization: `Bearer ${access_token}` },
-      });
-
-      expect(keyRes.statusCode).toBe(200);
-      const keys = keyRes.json();
-      expect(keys.public_key).toBeNull();
-      expect(keys.private_key_blob).toBeNull();
-      expect(keys.recovery_key_blob).toBeNull();
-    });
-  });
-
-  describe('GET /auth/key-blobs', () => {
-    it('requires authentication', async () => {
-      const res = await app.inject({
-        method: 'GET',
-        url: '/auth/key-blobs',
-      });
-
-      expect(res.statusCode).toBe(401);
     });
   });
 
@@ -306,6 +294,7 @@ describe('Auth routes', () => {
           email: 'me@example.com',
           nickname: 'testuser_me',
           password: 'securepassword123',
+          ...TEST_KEYS,
         },
       });
 
