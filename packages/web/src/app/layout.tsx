@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { ThemeProvider } from '@/components/theme-provider';
 import { QueryProvider } from '@/components/query-provider';
 import { AuthProvider } from '@/contexts/auth-context';
+import { CryptoProvider } from '@/contexts/crypto-context';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import './globals.css';
@@ -18,11 +19,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <QueryProvider>
             <AuthProvider>
+              <CryptoProvider>
               <Navbar />
               <main className="flex-1">
                 {children}
               </main>
               <Footer />
+              </CryptoProvider>
             </AuthProvider>
           </QueryProvider>
         </ThemeProvider>
