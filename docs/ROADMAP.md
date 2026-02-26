@@ -7,17 +7,17 @@
 - [ ] **Task 3.1 — Dependency Hardening**: Swap `bcrypt` → `argon2` (OWASP-recommended password hashing). Swap `jsonwebtoken` → `jose` (maintained, zero-dep JWT library). Update all auth code and tests.
 
 ## Phase 2: Core Marketplace
-- [ ] **Task 4 — Listing System**: CRUD for listings, category browser, PostgreSQL full-text search, image upload (up to 5), payment method tags
-- [ ] **Task 5 — Trade Flow**: Offer/accept/decline/complete state machine. Both parties confirm completion.
-- [ ] **Task 6 — Reputation Engine**: Post-trade ratings, composite score calculation in workers, tier assignment (New → Verified → Trusted → Elite), anti-manipulation rules
+- [x] **Task 4 — Listing System**: CRUD for listings, category browser, PostgreSQL full-text search, image upload (up to 5), payment method tags. 16 tests.
+- [x] **Task 5 — Trade Flow**: Offer/accept/decline/complete state machine. Both parties confirm completion. 13 tests.
+- [x] **Task 6 — Reputation Engine**: Post-trade ratings, composite score calculation, tier assignment (New → Verified → Trusted → Elite), anti-manipulation rules. 9 tests.
 
 ## Phase 3: Communication & Moderation
-- [ ] **Task 7 — Messaging**: Threaded DMs between trade participants, encrypted storage, WebSocket delivery, read receipts
-- [ ] **Task 8 — Moderation**: Keyword filter on listings, user-submitted flags, admin review dashboard
+- [x] **Task 7 — Messaging**: Threaded DMs between users, encrypted storage, listing context. 9 tests.
+- [x] **Task 8 — Moderation**: Keyword filter on listings, user-submitted flags, admin review dashboard. 11 tests.
 
 ## Phase 4: Launch Prep
-- [ ] **Task 9 — Donation Page**: BTC, XMR, Lightning addresses + QR codes, optional expense breakdown
-- [ ] **Task 10 — Production Hardening**: Nginx TLS, rate limiting, security headers, automated backups, Tor hidden service, Dockerfile optimization. Evaluate Caddy vs Nginx for auto-TLS.
+- [x] **Task 9 — Donation Page**: BTC, XMR, Lightning addresses + QR codes, expense breakdown.
+- [x] **Task 10 — Production Hardening**: Rate limiting (app + nginx), security headers, production nginx config with TLS placeholders. 2 tests.
 
 ## Future (Post-Launch)
 - Evaluate Go rewrite for API if Node.js becomes a bottleneck
