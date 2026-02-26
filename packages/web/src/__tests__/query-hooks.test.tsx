@@ -27,6 +27,7 @@ vi.mock('@/lib/api', () => ({
   users: {
     getUser: vi.fn(),
     getUserRatings: vi.fn(),
+    getUserPublicKey: vi.fn(),
     updateProfile: vi.fn(),
     uploadAvatar: vi.fn(),
   },
@@ -38,11 +39,24 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
+// ── Mock CryptoContext ────────────────────────────────────────────────────────
+const mockEncrypt = vi.fn(async (plaintext: string) => `encrypted:${plaintext}`);
+const mockDecrypt = vi.fn(async (ciphertext: string) => ciphertext.replace('encrypted:', ''));
+
+vi.mock('@/contexts/crypto-context', () => ({
+  useCrypto: () => ({
+    encrypt: mockEncrypt,
+    decrypt: mockDecrypt,
+    isUnlocked: true,
+  }),
+  CryptoProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 import * as api from '@/lib/api';
 import { listingKeys, useListings, useListing, useCategories, useCreateListing, useDeleteListing } from '@/hooks/use-listings';
 import { tradeKeys, useTrades, useTrade, useCreateOffer } from '@/hooks/use-trades';
 import { userKeys, useUser } from '@/hooks/use-users';
-import { messageKeys, useThreads, useSendMessage } from '@/hooks/use-messages';
+import { messageKeys, useThreads, useSendMessage, decryptMessages } from '@/hooks/use-messages';
 
 // ── Test helpers ──────────────────────────────────────────────────────────────
 function makeClient() {
@@ -313,15 +327,17 @@ describe('useThreads', () => {
   });
 });
 
-// ── useSendMessage ────────────────────────────────────────────────────────────
+// ── useSendMessage — encrypts before sending ──────────────────────────────────
 describe('useSendMessage', () => {
-  it('calls sendMessage and invalidates thread queries', async () => {
+  it('fetches recipient public key, encrypts, then calls sendMessage', async () => {
+    vi.mocked(api.users.getUserPublicKey).mockResolvedValue({ public_key: 'bob-pub-key' });
     vi.mocked(api.messages.sendMessage).mockResolvedValue({ id: 'msg-1' });
+
     const client = makeClient();
     const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
 
     function Component() {
-      const { mutate } = useSendMessage('th1');
+      const { mutate } = useSendMessage('th1', 'bob');
       return <button onClick={() => mutate('hello')}>send</button>;
     }
 
@@ -329,8 +345,38 @@ describe('useSendMessage', () => {
 
     await act(async () => screen.getByText('send').click());
 
-    await waitFor(() => expect(api.messages.sendMessage).toHaveBeenCalledWith('th1', 'hello'));
+    await waitFor(() => expect(api.messages.sendMessage).toHaveBeenCalled());
+
+    // Should have looked up bob's public key
+    expect(api.users.getUserPublicKey).toHaveBeenCalledWith('bob');
+    // Should have encrypted the plaintext
+    expect(mockEncrypt).toHaveBeenCalledWith('hello', 'bob-pub-key');
+    // Should have sent the ciphertext, not plaintext
+    expect(api.messages.sendMessage).toHaveBeenCalledWith('th1', 'encrypted:hello');
+    // Should invalidate relevant queries
     expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: messageKeys.messages('th1') }));
     expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: messageKeys.threads() }));
+  });
+});
+
+// ── decryptMessages utility ───────────────────────────────────────────────────
+describe('decryptMessages', () => {
+  it('decrypts all messages using sender public key', async () => {
+    vi.mocked(api.users.getUserPublicKey).mockResolvedValue({ public_key: 'alice-pub-key' });
+
+    const fakeResponse = {
+      messages: [
+        { id: '1', sender_id: 'a', sender_nickname: 'alice', recipient_id: 'b', body_encrypted: 'encrypted:hello', created_at: '' },
+        { id: '2', sender_id: 'a', sender_nickname: 'alice', recipient_id: 'b', body_encrypted: 'encrypted:world', created_at: '' },
+      ],
+      pagination: { page: 1, limit: 50, total: 2, pages: 1 },
+    };
+
+    const result = await decryptMessages(fakeResponse, 'alice', mockDecrypt);
+
+    expect(result[0].body).toBe('hello');
+    expect(result[1].body).toBe('world');
+    expect(mockDecrypt).toHaveBeenCalledWith('encrypted:hello', 'alice-pub-key');
+    expect(mockDecrypt).toHaveBeenCalledWith('encrypted:world', 'alice-pub-key');
   });
 });

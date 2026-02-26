@@ -1,5 +1,5 @@
 import { get, post } from './client';
-import type { TokenPair, CurrentUser, RegisterPayload } from './types';
+import type { TokenPair, CurrentUser, RegisterPayload, KeyBlobs } from './types';
 
 export function register(payload: RegisterPayload): Promise<TokenPair> {
   return post<TokenPair>('/auth/register', payload);
@@ -15,6 +15,10 @@ export function logout(refresh_token: string): Promise<void> {
 
 export function getMe(): Promise<CurrentUser> {
   return get<CurrentUser>('/auth/me');
+}
+
+export function getKeyBlobs(): Promise<KeyBlobs> {
+  return get<KeyBlobs>('/auth/key-blobs');
 }
 
 export function getGoogleAuthUrl(): string {

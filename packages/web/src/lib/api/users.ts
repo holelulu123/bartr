@@ -15,6 +15,10 @@ export function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
   return uploadPut<{ avatar_url: string }>('/users/me/avatar', formData);
 }
 
+export function getUserPublicKey(nickname: string): Promise<{ public_key: string }> {
+  return get<{ public_key: string }>(`/users/${nickname}/public-key`);
+}
+
 export function getUserRatings(
   nickname: string,
   page = 1,

@@ -31,6 +31,15 @@ export interface RegisterPayload {
   email: string;
   nickname: string;
   password: string;
+  public_key: string;
+  private_key_blob: string;
+  recovery_key_blob: string;
+}
+
+export interface KeyBlobs {
+  public_key: string | null;
+  private_key_blob: string | null;
+  recovery_key_blob: string | null;
 }
 
 // Users
@@ -216,7 +225,7 @@ export interface Message {
   sender_id: string;
   sender_nickname: string;
   recipient_id: string;
-  body: string;
+  body_encrypted: string;  // base64 ciphertext — decrypt client-side
   created_at: string;
 }
 

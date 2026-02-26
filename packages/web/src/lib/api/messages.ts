@@ -13,6 +13,6 @@ export function getMessages(threadId: string, page = 1, limit = 50): Promise<Mes
   return get<MessagesResponse>(`/threads/${threadId}/messages?page=${page}&limit=${limit}`);
 }
 
-export function sendMessage(threadId: string, body: string): Promise<{ id: string }> {
-  return post<{ id: string }>(`/threads/${threadId}/messages`, { body });
+export function sendMessage(threadId: string, body_encrypted: string): Promise<{ id: string }> {
+  return post<{ id: string }>(`/threads/${threadId}/messages`, { body_encrypted });
 }
