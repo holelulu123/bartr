@@ -1,6 +1,6 @@
 # Bartr — Launch Roadmap v3
 
-> Last updated: 2026-02-26
+> Last updated: 2026-02-27
 
 ---
 
@@ -21,14 +21,17 @@ V2 was written before E2E encryption and auth pages existed. Everything in Phase
 - All endpoints: listings, trades, ratings, users, messages, moderation
 - **107/107 tests passing**
 
-### Frontend (packages/web) — Foundation + Auth complete
+### Frontend (packages/web) — Foundation + Auth + Listings (partial) complete
 - Next.js 14 App Router, Tailwind, shadcn/ui, React Query, React Hook Form + Zod
-- Full provider stack: ThemeProvider → QueryProvider → AuthProvider → CryptoProvider
+- Full provider stack: ThemeProvider → QueryProvider → AuthProvider → CryptoProvider → GlobalAuthGuard
 - All domain API modules and React Query hooks
 - E2E crypto library: X25519 keypair generation, PBKDF2 key wrapping, recovery key, ECDH message encrypt/decrypt
 - CryptoProvider: in-memory private key, register/unlock/encrypt/decrypt/lock
 - Auth pages: `/login`, `/auth/callback`, `/register` (with recovery key screen)
-- **134/134 tests passing**
+- GlobalAuthGuard: site-wide auth enforcement, only `/donate` and `/auth/*` are public
+- Listings UI: browse page (`/listings`), detail page (`/listings/[id]`), create listing (`/listings/new`)
+- Components: `ListingCard`, `ListingCardSkeleton`, `ReputationBadge`
+- **245/245 tests passing**
 
 ---
 
@@ -40,34 +43,42 @@ V2 was written before E2E encryption and auth pages existed. Everything in Phase
 | 4.5 — E2E Encryption | DB migration, backend blind messages, frontend crypto lib, CryptoProvider, wired hooks | — |
 | 5 — Frontend Foundation | deps, design tokens, UI components, API client, AuthProvider, React Query, app shell | 118 |
 | 6 — Auth Pages | /login, /auth/callback, /register + recovery key screen | 134 total |
+| 7.0–7.4 — Listings (partial) | GlobalAuthGuard, browse, detail, create listing pages, ListingCard, ReputationBadge | 245 total |
 
 ---
 
-## 🔴 Phase 7 — Listings (next — this is the product)
+## 🟡 Phase 7 — Listings (in progress)
+
+### 7.0 — Global auth guard
+- [x] All routes require login except /donate and /auth/*
+- [x] Spinner during auth initialisation, no flash of protected content
 
 ### 7.1 — Browse page (`/listings`)
-- [ ] `ListingCard` component: title, price, payment badges, seller + tier badge, thumbnail, time-ago
-- [ ] Grid with infinite scroll / "Load more" (`useInfiniteListings`)
-- [ ] Empty state
+- [x] `ListingCard` component: title, price, payment badges, seller, thumbnail, time-ago
+- [x] `ReputationBadge` component: New / Verified / Trusted / Elite
+- [x] Grid with "Load more" (`useInfiniteListings`)
+- [x] Empty state
 
 ### 7.2 — Search & filter bar
-- [ ] Debounced full-text search input (synced to URL param `?q=`)
-- [ ] Category dropdown (`useCategories`)
-- [ ] Payment method filter (BTC, XMR, Cash, Bank)
-- [ ] URL-synced state (shareable links)
+- [x] Debounced full-text search input (synced to URL param `?q=`)
+- [x] Category dropdown (`useCategories`)
+- [x] Payment method filter (BTC, XMR, Cash, Bank)
+- [x] URL-synced state (shareable links)
+- [x] Active filter pills + Clear button
 
 ### 7.3 — Listing detail page (`/listings/[id]`)
-- [ ] Full info: title, description, price, payment methods, category
-- [ ] Image gallery
-- [ ] Seller sidebar: avatar, nickname, reputation score + tier badge
-- [ ] Action buttons for visitor: "Message Seller", "Make Offer"
-- [ ] Action buttons for owner: "Edit", "Delete" (with confirm dialog)
+- [x] Full info: title, description, price, payment methods, category
+- [x] Image gallery with thumbnail strip
+- [x] Seller sidebar: avatar initials, nickname link
+- [x] Action buttons for visitor: "Message Seller", "Make Offer"
+- [x] Action buttons for owner: "Edit", "Delete" (with confirm dialog)
+- [x] Make Offer disabled for non-active listings
 
 ### 7.4 — Create listing (`/listings/new`) — protected
-- [ ] Form: title, description, category, payment methods, price
-- [ ] Image upload: drag-and-drop, up to 5, previews
-- [ ] Moderation pre-check on submit
-- [ ] Redirect to new listing on success
+- [x] Form: title, description, category, payment methods, price
+- [x] Image upload: drag-and-drop, up to 5, previews
+- [x] Moderation pre-check on submit
+- [x] Redirect to new listing on success
 
 ### 7.5 — Edit listing (`/listings/[id]/edit`) — owner only
 - [ ] Pre-filled form
@@ -228,8 +239,8 @@ Phase 8 (Profiles) ──→ Phase 9 (Trades) ──────────┤
 | Package | Tests |
 |---|---|
 | packages/api | 107 |
-| packages/web | 134 |
-| **Total** | **241** |
+| packages/web | 245 |
+| **Total** | **352** |
 
 ---
 
@@ -237,7 +248,7 @@ Phase 8 (Profiles) ──→ Phase 9 (Trades) ──────────┤
 
 | Phase | Priority | Rough Size |
 |---|---|---|
-| 7 — Listings | 🔴 next | ~20 tasks |
+| 7 — Listings | 🟡 in progress (7.5, 7.6 remaining) | ~5 tasks |
 | 11 — Key unlock flow | 🔴 next (blocks messaging) | ~5 tasks |
 | 10 — Messaging UI | 🟠 high | ~10 tasks |
 | 8 — User Profiles | 🟠 high | ~10 tasks |
