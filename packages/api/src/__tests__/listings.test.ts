@@ -229,7 +229,7 @@ describe('Listing routes', () => {
 
       const res = await app.inject({
         method: 'GET',
-        url: '/listings?limit=2',
+        url: `/listings?limit=2&user_id=${user.id}`,
       });
 
       expect(res.statusCode).toBe(200);

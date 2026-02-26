@@ -10,6 +10,7 @@ import healthRoutes from './routes/health.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import listingRoutes from './routes/listings.js';
+import tradeRoutes from './routes/trades.js';
 
 export interface BuildAppOptions {
   skipMinio?: boolean;
@@ -32,6 +33,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   if (!opts.skipMinio) {
     await app.register(userRoutes);
     await app.register(listingRoutes);
+    await app.register(tradeRoutes);
   }
 
   return app;
