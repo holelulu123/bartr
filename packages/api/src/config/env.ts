@@ -4,6 +4,8 @@ export const env = {
   databaseUrl: process.env.DATABASE_URL || 'postgresql://bartr:bartr_dev_password@localhost:5432/bartr',
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   jwtSecret: process.env.JWT_SECRET || 'bartr-dev-jwt-secret-change-in-production',
+  // 64-char hex string (32 bytes). Required in production. Dev uses a deterministic fallback.
+  encryptionKey: process.env.ENCRYPTION_KEY,
   jwtAccessExpiry: process.env.JWT_ACCESS_EXPIRY || '15m',
   jwtRefreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
   googleClientId: process.env.GOOGLE_CLIENT_ID || '',

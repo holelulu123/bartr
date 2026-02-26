@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import * as argon2 from 'argon2';
 import crypto from 'node:crypto';
 import { signAccessToken, signRefreshToken, verifyToken } from '../lib/jwt.js';
+import { encrypt } from '../lib/crypto.js';
 import { env } from '../config/env.js';
 
 export default async function authRoutes(fastify: FastifyInstance) {
@@ -118,7 +119,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
 
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-    const emailEncrypted = email ? Buffer.from(email) : null; // TODO: real encryption in Task 10
+    const emailEncrypted = email ? encrypt(email) : null;
 
     const result = await fastify.pg.query(
       `INSERT INTO users (google_id, nickname, email_encrypted, password_hash)
