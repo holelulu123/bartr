@@ -27,9 +27,10 @@ The internet needs a privacy-respecting trading platform. LocalBitcoins shut dow
 | E2E Encryption | Complete — X25519 keypairs, PBKDF2 key wrapping, server-blind messages |
 | Frontend Foundation | Complete — shadcn/ui, React Query, AuthProvider, CryptoProvider |
 | Auth Pages | Complete — /login, /auth/callback, /register with recovery key |
-| Listings UI | In progress |
+| Global Auth Guard | Complete — all routes require login except /donate and /auth/* |
+| Listings UI | Complete — browse, detail, create listing pages |
 
-**Total test coverage: 241 tests passing**
+**Total test coverage: 352 tests passing**
 
 See [docs/ROADMAP_V3.md](docs/ROADMAP_V3.md) for the full development roadmap.
 
@@ -127,7 +128,7 @@ Backend tests require Docker services running (postgres on port 5433, redis on 6
 # Backend (107 tests) — .env.test handles the port automatically
 pnpm --filter @bartr/api test
 
-# Frontend (134 tests) — jsdom, no Docker needed
+# Frontend (245 tests) — jsdom, no Docker needed
 pnpm --filter @bartr/web test
 
 # Both
