@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { encrypt, decrypt } from '../lib/crypto.js';
 
 export default async function messageRoutes(fastify: FastifyInstance) {
   // Create or get a message thread (between two users, optionally about a listing)
@@ -140,8 +141,7 @@ export default async function messageRoutes(fastify: FastifyInstance) {
 
       const recipientId = t.participant_1 === userId ? t.participant_2 : t.participant_1;
 
-      // Store message (body_encrypted is a simple Buffer for now — real encryption in Task 10)
-      const bodyEncrypted = Buffer.from(body, 'utf-8');
+      const bodyEncrypted = encrypt(body);
 
       const result = await fastify.pg.query(
         `INSERT INTO messages (thread_id, sender_id, recipient_id, body_encrypted)
@@ -204,13 +204,12 @@ export default async function messageRoutes(fastify: FastifyInstance) {
         [threadId, limitNum, offset],
       );
 
-      // Decrypt messages (simple Buffer decode for now)
       const messages = result.rows.map((msg) => ({
         id: msg.id,
         sender_id: msg.sender_id,
         sender_nickname: msg.sender_nickname,
         recipient_id: msg.recipient_id,
-        body: msg.body_encrypted.toString('utf-8'),
+        body: decrypt(msg.body_encrypted),
         created_at: msg.created_at,
       }));
 
