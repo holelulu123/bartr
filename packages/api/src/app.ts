@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import listingRoutes from './routes/listings.js';
 import tradeRoutes from './routes/trades.js';
+import ratingRoutes from './routes/ratings.js';
 
 export interface BuildAppOptions {
   skipMinio?: boolean;
@@ -34,6 +35,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     await app.register(userRoutes);
     await app.register(listingRoutes);
     await app.register(tradeRoutes);
+    await app.register(ratingRoutes);
   }
 
   return app;
