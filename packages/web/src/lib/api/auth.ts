@@ -5,6 +5,23 @@ export function register(payload: RegisterPayload): Promise<TokenPair> {
   return post<TokenPair>('/auth/register', payload);
 }
 
+export interface EmailRegisterPayload {
+  email: string;
+  nickname: string;
+  password: string;
+  public_key: string;
+  private_key_blob: string;
+  recovery_key_blob: string;
+}
+
+export function registerEmail(payload: EmailRegisterPayload): Promise<TokenPair> {
+  return post<TokenPair>('/auth/register/email', payload);
+}
+
+export function loginEmail(email: string, password: string): Promise<TokenPair> {
+  return post<TokenPair>('/auth/login/email', { email, password });
+}
+
 export function refreshTokens(refresh_token: string): Promise<TokenPair> {
   return post<TokenPair>('/auth/refresh', { refresh_token });
 }

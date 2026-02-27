@@ -331,4 +331,156 @@ describe('Auth routes', () => {
       expect(res.statusCode).toBe(401);
     });
   });
+
+  // ── Email/password registration ────────────────────────────────────────────
+
+  describe('POST /auth/register/email', () => {
+    it('creates a new user with valid email and password', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register/email',
+        payload: {
+          email: 'newuser@example.com',
+          nickname: 'testuser_email1',
+          password: 'securepassword123',
+          ...TEST_KEYS,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.access_token).toBeDefined();
+      expect(body.refresh_token).toBeDefined();
+    });
+
+    it('rejects missing email', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register/email',
+        payload: { nickname: 'testuser_email2', password: 'securepassword123', ...TEST_KEYS },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects short password', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register/email',
+        payload: {
+          email: 'short@example.com',
+          nickname: 'testuser_email3',
+          password: 'short',
+          ...TEST_KEYS,
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects duplicate email', async () => {
+      const payload = {
+        email: 'dupe@example.com',
+        nickname: 'testuser_email4',
+        password: 'securepassword123',
+        ...TEST_KEYS,
+      };
+      await app.inject({ method: 'POST', url: '/auth/register/email', payload });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register/email',
+        payload: { ...payload, nickname: 'testuser_email5' },
+      });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error).toMatch(/email already registered/i);
+    });
+
+    it('rejects duplicate nickname', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/auth/register/email',
+        payload: { email: 'first@example.com', nickname: 'testuser_email6', password: 'securepassword123', ...TEST_KEYS },
+      });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register/email',
+        payload: { email: 'second@example.com', nickname: 'testuser_email6', password: 'securepassword123', ...TEST_KEYS },
+      });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error).toMatch(/nickname already taken/i);
+    });
+
+    it('rejects missing key blobs', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register/email',
+        payload: { email: 'nokeys@example.com', nickname: 'testuser_email7', password: 'securepassword123' },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
+  // ── Email/password login ───────────────────────────────────────────────────
+
+  describe('POST /auth/login/email', () => {
+    beforeEach(async () => {
+      // Create a test user to log in with
+      await app.inject({
+        method: 'POST',
+        url: '/auth/register/email',
+        payload: {
+          email: 'logintest@example.com',
+          nickname: 'testuser_login1',
+          password: 'correctpassword123',
+          ...TEST_KEYS,
+        },
+      });
+    });
+
+    it('returns tokens for valid credentials', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login/email',
+        payload: { email: 'logintest@example.com', password: 'correctpassword123' },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.access_token).toBeDefined();
+      expect(body.refresh_token).toBeDefined();
+    });
+
+    it('is case-insensitive for email', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login/email',
+        payload: { email: 'LOGINTEST@EXAMPLE.COM', password: 'correctpassword123' },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('rejects wrong password', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login/email',
+        payload: { email: 'logintest@example.com', password: 'wrongpassword' },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('rejects unknown email', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login/email',
+        payload: { email: 'nobody@example.com', password: 'anypassword123' },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('rejects missing fields', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/login/email',
+        payload: { email: 'logintest@example.com' },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
 });

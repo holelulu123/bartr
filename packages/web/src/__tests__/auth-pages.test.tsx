@@ -71,7 +71,7 @@ afterEach(() => {
 describe('/login page', () => {
   it('renders sign-in button', () => {
     render(<LoginPage />);
-    expect(screen.getByRole('button', { name: /sign in with google/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 
   it('shows app tagline', () => {
@@ -79,10 +79,10 @@ describe('/login page', () => {
     expect(screen.getByText(/no kyc/i)).toBeInTheDocument();
   });
 
-  it('redirects authenticated users to home', async () => {
+  it('redirects authenticated users to listings', async () => {
     mockIsAuthenticated = true;
     render(<LoginPage />);
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
   });
 
   it('does not redirect while auth is loading', () => {

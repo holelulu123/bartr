@@ -10,6 +10,11 @@ import authPlugin from './plugins/auth.js';
 import healthRoutes from './routes/health.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
+import listingRoutes from './routes/listings.js';
+import tradeRoutes from './routes/trades.js';
+import messageRoutes from './routes/messages.js';
+import moderationRoutes from './routes/moderation.js';
+import ratingRoutes from './routes/ratings.js';
 
 const app = Fastify({ logger: true });
 
@@ -23,6 +28,11 @@ await app.register(authPlugin);
 await app.register(healthRoutes);
 await app.register(authRoutes);
 await app.register(userRoutes);
+await app.register(listingRoutes);
+await app.register(tradeRoutes);
+await app.register(messageRoutes);
+await app.register(moderationRoutes);
+await app.register(ratingRoutes);
 
 try {
   await app.listen({ port: env.port, host: env.host });

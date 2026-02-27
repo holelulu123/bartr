@@ -1,0 +1,303 @@
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, screen, waitFor, cleanup, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+// ── Mocks ──────────────────────────────────────────────────────────────────
+
+const mockReplace = vi.fn();
+const mockPush = vi.fn();
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mockReplace, push: mockPush }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/login',
+}));
+
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...props }: { href: string; children: React.ReactNode; [k: string]: unknown }) => (
+    <a href={href} {...props}>{children}</a>
+  ),
+}));
+
+const mockSetTokens = vi.fn();
+const mockRefreshUser = vi.fn();
+let mockIsAuthenticated = false;
+let mockIsLoading = false;
+
+vi.mock('@/contexts/auth-context', () => ({
+  useAuth: () => ({
+    isAuthenticated: mockIsAuthenticated,
+    isLoading: mockIsLoading,
+    setTokens: mockSetTokens,
+    refreshUser: mockRefreshUser,
+  }),
+}));
+
+const mockCryptoRegister = vi.fn();
+vi.mock('@/contexts/crypto-context', () => ({
+  useCrypto: () => ({ register: mockCryptoRegister }),
+}));
+
+const mockLoginEmail = vi.fn();
+const mockRegisterEmail = vi.fn();
+const mockGetGoogleAuthUrl = vi.fn(() => 'http://localhost:4000/auth/google');
+
+vi.mock('@/lib/api', () => ({
+  auth: {
+    loginEmail: (...args: unknown[]) => mockLoginEmail(...args),
+    registerEmail: (...args: unknown[]) => mockRegisterEmail(...args),
+    getGoogleAuthUrl: () => mockGetGoogleAuthUrl(),
+  },
+}));
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+  mockIsAuthenticated = false;
+  mockIsLoading = false;
+});
+
+// ── Login page ─────────────────────────────────────────────────────────────
+
+import LoginPage from '@/app/login/page';
+
+describe('LoginPage — email tab (default)', () => {
+  it('renders email and password inputs by default', () => {
+    render(<LoginPage />);
+    expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+  });
+
+  it('renders Sign in button', () => {
+    render(<LoginPage />);
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+  });
+
+  it('renders Create one link pointing to /register/email', () => {
+    render(<LoginPage />);
+    const link = screen.getByRole('link', { name: /create one/i });
+    expect(link).toHaveAttribute('href', '/register/email');
+  });
+
+  it('shows validation error for invalid email', async () => {
+    render(<LoginPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'notanemail');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(screen.getByText(/valid email/i)).toBeInTheDocument());
+  });
+
+  it('calls loginEmail with credentials and redirects on success', async () => {
+    mockLoginEmail.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' });
+    mockRefreshUser.mockResolvedValue(undefined);
+
+    render(<LoginPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'alice@example.com');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    });
+
+    await waitFor(() => expect(mockLoginEmail).toHaveBeenCalledWith('alice@example.com', 'password123'));
+    await waitFor(() => expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
+  });
+
+  it('shows error on invalid credentials', async () => {
+    mockLoginEmail.mockRejectedValue(new Error('401'));
+
+    render(<LoginPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'alice@example.com');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'wrongpass');
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    });
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/invalid email or password/i));
+  });
+});
+
+describe('LoginPage — Google tab', () => {
+  it('shows Google tab', () => {
+    render(<LoginPage />);
+    expect(screen.getByRole('tab', { name: /google/i })).toBeInTheDocument();
+  });
+
+  it('switches to Google tab on click', async () => {
+    render(<LoginPage />);
+    await userEvent.click(screen.getByRole('tab', { name: /google/i }));
+    expect(screen.getByRole('button', { name: /continue with google/i })).toBeInTheDocument();
+  });
+
+  it('email form is hidden when Google tab active', async () => {
+    render(<LoginPage />);
+    await userEvent.click(screen.getByRole('tab', { name: /google/i }));
+    expect(screen.queryByLabelText(/^email$/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('LoginPage — auth redirect', () => {
+  it('redirects to /listings when already authenticated', async () => {
+    mockIsAuthenticated = true;
+    render(<LoginPage />);
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
+  });
+});
+
+// ── Email register page ────────────────────────────────────────────────────
+
+import EmailRegisterPage from '@/app/register/email/page';
+
+describe('EmailRegisterPage — form rendering', () => {
+  it('renders all form fields', () => {
+    render(<EmailRegisterPage />);
+    expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^nickname$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
+  });
+
+  it('renders Create account button', () => {
+    render(<EmailRegisterPage />);
+    expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
+  });
+
+  it('renders Sign in link', () => {
+    render(<EmailRegisterPage />);
+    expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute('href', '/login');
+  });
+});
+
+describe('EmailRegisterPage — validation', () => {
+  it('shows error for invalid email', async () => {
+    render(<EmailRegisterPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'notanemail');
+    await userEvent.click(screen.getByRole('button', { name: /create account/i }));
+    await waitFor(() => expect(screen.getByText(/valid email/i)).toBeInTheDocument());
+  });
+
+  it('shows error for short password', async () => {
+    render(<EmailRegisterPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'a@b.com');
+    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'validnick');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'short');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'short');
+    await userEvent.click(screen.getByRole('button', { name: /create account/i }));
+    await waitFor(() => expect(screen.getByText(/at least 8/i)).toBeInTheDocument());
+  });
+
+  it('shows error when passwords do not match', async () => {
+    render(<EmailRegisterPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'a@b.com');
+    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'validnick');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'different123');
+    await userEvent.click(screen.getByRole('button', { name: /create account/i }));
+    await waitFor(() => expect(screen.getByText(/do not match/i)).toBeInTheDocument());
+  });
+});
+
+describe('EmailRegisterPage — successful registration', () => {
+  beforeEach(() => {
+    mockCryptoRegister.mockResolvedValue({
+      publicKeyBase64: 'pubkey',
+      privateKeyBlob: 'privblob',
+      recoveryKeyHex: 'aabbccdd1122',
+      recoveryKeyBlob: 'recblob',
+    });
+    mockRegisterEmail.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' });
+    mockRefreshUser.mockResolvedValue(undefined);
+  });
+
+  it('shows recovery key screen after registration', async () => {
+    render(<EmailRegisterPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
+    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'newnick');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: /create account/i }));
+    });
+
+    await waitFor(() => expect(screen.getByText(/save your recovery key/i)).toBeInTheDocument());
+    expect(screen.getByText('aabbccdd1122')).toBeInTheDocument();
+  });
+
+  it('calls registerEmail with correct payload', async () => {
+    render(<EmailRegisterPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
+    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'newnick');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: /create account/i }));
+    });
+
+    await waitFor(() =>
+      expect(mockRegisterEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'new@example.com', nickname: 'newnick' }),
+      ),
+    );
+  });
+
+  it('redirects to /listings after saving recovery key', async () => {
+    render(<EmailRegisterPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
+    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'newnick');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: /create account/i }));
+    });
+
+    await waitFor(() => screen.getByText(/save your recovery key/i));
+    await userEvent.click(screen.getByRole('button', { name: /i have saved/i }));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
+  });
+});
+
+describe('EmailRegisterPage — server errors', () => {
+  it('shows error for duplicate email', async () => {
+    mockCryptoRegister.mockResolvedValue({ publicKeyBase64: 'pk', privateKeyBlob: 'priv', recoveryKeyHex: 'hex', recoveryKeyBlob: 'rec' });
+    mockRegisterEmail.mockRejectedValue(new Error('409: email already registered'));
+
+    render(<EmailRegisterPage />);
+    await userEvent.type(screen.getByLabelText(/^email$/i), 'dupe@example.com');
+    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'validnick');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: /create account/i }));
+    });
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/email already registered/i));
+  });
+});
+
+// ── GlobalAuthGuard — /register/email is public ───────────────────────────
+
+import { GlobalAuthGuard } from '@/components/global-auth-guard';
+
+describe('GlobalAuthGuard — /register/email is public', () => {
+  it('renders children without redirect on /register/email', () => {
+    // patch pathname
+    vi.doMock('next/navigation', () => ({
+      useRouter: () => ({ replace: mockReplace }),
+      usePathname: () => '/register/email',
+    }));
+
+    render(
+      <GlobalAuthGuard>
+        <div data-testid="content">Register form</div>
+      </GlobalAuthGuard>,
+    );
+    // Since mockIsAuthenticated is false and path is public, children render
+    expect(screen.getByTestId('content')).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+});

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 
 // Routes that are accessible without authentication
-const PUBLIC_PATHS = ['/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover'];
+const PUBLIC_PATHS = ['/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover', '/register/email'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
