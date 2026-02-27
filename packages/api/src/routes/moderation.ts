@@ -111,12 +111,11 @@ export default async function moderationRoutes(fastify: FastifyInstance) {
   );
 
   // Admin: list all pending flags
-  // For now, any authenticated user can view (admin role TBD in production)
   fastify.get<{
     Querystring: { status?: string; target_type?: string; page?: string; limit?: string };
   }>(
     '/admin/flags',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.requireAdmin] },
     async (request, reply) => {
       const { status = 'pending', target_type, page = '1', limit = '20' } = request.query;
 
@@ -170,7 +169,7 @@ export default async function moderationRoutes(fastify: FastifyInstance) {
     Body: { status: string };
   }>(
     '/admin/flags/:id',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.requireAdmin] },
     async (request, reply) => {
       const { id } = request.params;
       const { status } = request.body;

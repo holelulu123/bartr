@@ -37,7 +37,7 @@ describe('Auth routes', () => {
   // Email addresses used in tests — clean all of them between runs
   const TEST_EMAILS_HMAC = [
     'newuser@example.com', 'short@example.com', 'dupe@example.com',
-    'nokeys@example.com', 'logintest@example.com',
+    'nokeys@example.com', 'logintest@example.com', 'rolecheck@example.com',
   ];
 
   afterAll(async () => {
@@ -340,6 +340,22 @@ describe('Auth routes', () => {
       const payload = await verifyToken(body.access_token);
       expect(payload.nickname).toBeTruthy();
       expect(typeof payload.nickname).toBe('string');
+    });
+
+    it('embeds role=user in the access token for new registrations', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/auth/register/email',
+        payload: {
+          email: 'rolecheck@example.com',
+          password: 'securepassword123',
+          ...TEST_KEYS,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const payload = await verifyToken(res.json().access_token);
+      expect(payload.role).toBe('user');
     });
 
     it('rejects missing email', async () => {

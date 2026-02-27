@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import * as argon2 from 'argon2';
 import crypto from 'node:crypto';
-import { signAccessToken, signRefreshToken, verifyToken } from '../lib/jwt.js';
+import { signAccessToken, signRefreshToken, verifyToken, type JwtPayload } from '../lib/jwt.js';
 import { encrypt } from '../lib/crypto.js';
 import { env } from '../config/env.js';
 import { generateUniqueNickname } from '../lib/nickname.js';
@@ -65,14 +65,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       // Check if user exists
       const existing = await fastify.pg.query(
-        'SELECT id, nickname FROM users WHERE google_id = $1',
+        'SELECT id, nickname, role FROM users WHERE google_id = $1',
         [googleId],
       );
 
       if (existing.rows.length > 0) {
         // Existing user — issue tokens
         const user = existing.rows[0];
-        const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname });
+        const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname, role: user.role });
         const refreshToken = await signRefreshToken({ sub: user.id, nickname: user.nickname });
 
         await storeRefreshToken(fastify, user.id, refreshToken);
@@ -97,7 +97,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const createdUser = newUser.rows[0];
       await fastify.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [createdUser.id]);
 
-      const newAccessToken = await signAccessToken({ sub: createdUser.id, nickname: createdUser.nickname });
+      const newAccessToken = await signAccessToken({ sub: createdUser.id, nickname: createdUser.nickname, role: 'user' });
       const newRefreshToken = await signRefreshToken({ sub: createdUser.id, nickname: createdUser.nickname });
       await storeRefreshToken(fastify, createdUser.id, newRefreshToken);
 
@@ -133,7 +133,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     // Find existing user created during OAuth callback
     const existing = await fastify.pg.query(
-      'SELECT id, nickname FROM users WHERE google_id = $1',
+      'SELECT id, nickname, role FROM users WHERE google_id = $1',
       [google_id],
     );
     if (existing.rows.length === 0) {
@@ -151,7 +151,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       [passwordHash, public_key, privateKeyBlobBuf, recoveryKeyBlobBuf, user.id],
     );
 
-    const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname });
+    const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname, role: user.role });
     const refreshToken = await signRefreshToken({ sub: user.id, nickname: user.nickname });
     await storeRefreshToken(fastify, user.id, refreshToken);
 
@@ -186,7 +186,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
     // Rotate: delete old, issue new
     await fastify.pg.query('DELETE FROM refresh_tokens WHERE token_hash = $1', [tokenHash]);
 
-    const newAccessToken = await signAccessToken({ sub: payload.sub, nickname: payload.nickname });
+    // Fetch fresh role from DB (role may have changed since token was issued)
+    const userRow = await fastify.pg.query('SELECT role FROM users WHERE id = $1', [payload.sub]);
+    const role = userRow.rows[0]?.role as JwtPayload['role'] | undefined;
+
+    const newAccessToken = await signAccessToken({ sub: payload.sub, nickname: payload.nickname, role });
     const newRefreshToken = await signRefreshToken({ sub: payload.sub, nickname: payload.nickname });
     await storeRefreshToken(fastify, payload.sub, newRefreshToken);
 
@@ -265,7 +269,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     );
 
     const user = result.rows[0];
-    const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname });
+    const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname, role: 'user' });
     const refreshToken = await signRefreshToken({ sub: user.id, nickname: user.nickname });
 
     await storeRefreshToken(fastify, user.id, refreshToken);
@@ -286,7 +290,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     const hash = emailHmac(email);
     const result = await fastify.pg.query(
-      'SELECT id, nickname, password_hash FROM users WHERE email_hash = $1',
+      'SELECT id, nickname, password_hash, role FROM users WHERE email_hash = $1',
       [hash],
     );
 
@@ -300,7 +304,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
 
     const user = result.rows[0];
-    const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname });
+    const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname, role: user.role });
     const refreshToken = await signRefreshToken({ sub: user.id, nickname: user.nickname });
 
     await storeRefreshToken(fastify, user.id, refreshToken);

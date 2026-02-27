@@ -5,13 +5,16 @@ import { env } from '../config/env.js';
 export interface JwtPayload {
   sub: string; // user id
   nickname: string;
+  role?: 'user' | 'admin';
   jti?: string;
 }
 
 const secret = new TextEncoder().encode(env.jwtSecret);
 
 export async function signAccessToken(payload: JwtPayload): Promise<string> {
-  return new SignJWT({ nickname: payload.nickname })
+  const claims: Record<string, string> = { nickname: payload.nickname };
+  if (payload.role) claims.role = payload.role;
+  return new SignJWT(claims)
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(payload.sub)
     .setIssuedAt()
@@ -34,6 +37,7 @@ export async function verifyToken(token: string): Promise<JwtPayload> {
   return {
     sub: payload.sub as string,
     nickname: payload.nickname as string,
+    role: payload.role as JwtPayload['role'] | undefined,
     jti: payload.jti,
   };
 }
