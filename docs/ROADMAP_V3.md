@@ -249,6 +249,13 @@ Emails may land in spam on new IPs — add a visible notice to users on registra
 
 ---
 
+## Phase 13.7 — Registration UX
+
+- [ ] Password strength meter on `/register/email`: colour bar (red → yellow → green) that checks: 8+ chars, English letters, uppercase, lowercase, special char (`!@#$%^&*()`). All five conditions must be met for green. Block submit until green.
+- [ ] Improved identicons: replace the 5×5 pixel grid with a more visually interesting avatar style (e.g. geometric shapes, rings, or a mini art generator) — still deterministic from nickname, still pure SVG, no external deps.
+
+---
+
 ## Phase 14 — Launch Checklist
 
 - [ ] Responsive design pass (mobile / tablet / desktop)
