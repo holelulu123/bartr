@@ -25,5 +25,6 @@ INSERT INTO categories (name, slug, parent_id) VALUES
   ('Home & Garden', 'home-garden', NULL),
   ('Services', 'services', NULL),
   ('Crypto', 'crypto', NULL),
+  ('Cash & Currency', 'cash-currency', NULL),
   ('Other', 'other', NULL)
 ON CONFLICT (slug) DO NOTHING;
