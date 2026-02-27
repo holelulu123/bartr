@@ -49,8 +49,8 @@ export default function HomePage() {
             <span className="text-orange-400">privately</span>
           </h1>
           <p className="text-lg sm:text-xl text-neutral-400 max-w-2xl mx-auto mb-10">
-            Bartr is a volunteer-run, peer-to-peer marketplace for crypto, goods, and skills.
-            No fees, no KYC, no surveillance — built by the community, for the community.
+            A free, community-run marketplace for crypto, cash, and goods.
+            No fees, no KYC, no surveillance.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild size="lg" className="bg-orange-500 hover:bg-orange-600 text-white">

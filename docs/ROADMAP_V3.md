@@ -178,7 +178,7 @@ They need to enter their password to unwrap it before they can read/send message
 ### 12.2 — Supporting pages
 - [ ] `/about` — project ethos, no-KYC philosophy, how it works
 - [ ] `/privacy` — what data is stored, E2E encryption explanation
-- [ ] `/donate` — real BTC/XMR addresses, QR codes (local, no external image service)
+- [ ] `/donate` — set real BTC + Lightning addresses, replace SVG placeholder with `react-qr-code` for actual scannable QR codes
 
 ---
 
