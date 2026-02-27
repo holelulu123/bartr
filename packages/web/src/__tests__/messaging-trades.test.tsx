@@ -47,6 +47,11 @@ vi.mock('@/contexts/crypto-context', () => ({
   }),
 }));
 
+// CryptoGuard uses useCrypto + useAuth — mock it so it just renders children in tests
+vi.mock('@/components/crypto-guard', () => ({
+  CryptoGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 // threads query mock
 const mockUseThreads = vi.fn();
 const mockUseMessages = vi.fn();
@@ -257,23 +262,7 @@ describe('ChatPage — rendering', () => {
     await waitFor(() => expect(screen.getByText(/no messages yet/i)).toBeInTheDocument());
   });
 
-  it('shows locked banner when keys not unlocked', () => {
-    mockIsUnlocked = false;
-    setupChat({ messages: [] });
-    render(<ChatPage />);
-    expect(screen.getByText(/end-to-end encrypted/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /unlock your keys/i })).toHaveAttribute('href', '/auth/unlock');
-  });
-
-  it('does not show locked banner when keys are unlocked', () => {
-    mockIsUnlocked = true;
-    setupChat({ messages: [] });
-    render(<ChatPage />);
-    expect(screen.queryByText(/end-to-end encrypted/i)).not.toBeInTheDocument();
-  });
-
-  it('disables send button when keys are locked', () => {
-    mockIsUnlocked = false;
+  it('send button is disabled when no text', () => {
     setupChat({ messages: [] });
     render(<ChatPage />);
     const sendBtn = screen.getByRole('button');

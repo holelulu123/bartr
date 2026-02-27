@@ -5,6 +5,7 @@ import { MessageSquare, Clock } from 'lucide-react';
 import { useThreads } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CryptoGuard } from '@/components/crypto-guard';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -35,7 +36,7 @@ function InboxSkeleton() {
   );
 }
 
-export default function MessagesPage() {
+function MessagesInner() {
   const { user } = useAuth();
   const { data, isLoading } = useThreads();
 
@@ -104,5 +105,13 @@ export default function MessagesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <CryptoGuard>
+      <MessagesInner />
+    </CryptoGuard>
   );
 }

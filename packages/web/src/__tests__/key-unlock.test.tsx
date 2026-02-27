@@ -6,11 +6,13 @@ import userEvent from '@testing-library/user-event';
 
 const mockReplace = vi.fn();
 const mockPush = vi.fn();
+let mockSearchParams = new URLSearchParams();
+let mockPathname = '/auth/unlock';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mockReplace, push: mockPush }),
-  useSearchParams: () => new URLSearchParams(),
-  usePathname: () => '/auth/unlock',
+  useSearchParams: () => mockSearchParams,
+  usePathname: () => mockPathname,
 }));
 
 vi.mock('next/link', () => ({
@@ -20,11 +22,13 @@ vi.mock('next/link', () => ({
 }));
 
 let mockIsAuthenticated = true; // unlock/recover pages assume already logged in
+let mockIsLoading = false;
+let mockIsUnlocked = false;
 
 vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({
     isAuthenticated: mockIsAuthenticated,
-    isLoading: false,
+    isLoading: mockIsLoading,
   }),
 }));
 
@@ -35,6 +39,7 @@ vi.mock('@/contexts/crypto-context', () => ({
   useCrypto: () => ({
     unlock: mockUnlock,
     unlockWithRecovery: mockUnlockWithRecovery,
+    isUnlocked: mockIsUnlocked,
   }),
 }));
 
@@ -50,6 +55,10 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   mockIsAuthenticated = true;
+  mockIsLoading = false;
+  mockIsUnlocked = false;
+  mockSearchParams = new URLSearchParams();
+  mockPathname = '/auth/unlock';
 });
 
 // ── UnlockPage ─────────────────────────────────────────────────────────────
@@ -238,5 +247,76 @@ describe('RecoverPage — error handling', () => {
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(/no recovery key found/i),
     );
+  });
+});
+
+// ── ?next= param support ───────────────────────────────────────────────────
+
+describe('UnlockPage — ?next= redirect', () => {
+  beforeEach(() => {
+    mockGetKeyBlobs.mockResolvedValue({ private_key_blob: 'blob', recovery_key_blob: 'r', public_key: 'p' });
+    mockUnlock.mockResolvedValue(undefined);
+  });
+
+  it('redirects to ?next= path after successful unlock', async () => {
+    mockSearchParams = new URLSearchParams('next=%2Fmessages%2Fthread-1');
+    render(<UnlockPage />);
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'mypassword');
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: /^unlock$/i }));
+    });
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/messages/thread-1'));
+  });
+
+  it('skip link points to ?next= path', () => {
+    mockSearchParams = new URLSearchParams('next=%2Fmessages');
+    render(<UnlockPage />);
+    expect(screen.getByRole('link', { name: /skip for now/i })).toHaveAttribute('href', '/messages');
+  });
+});
+
+// ── CryptoGuard ────────────────────────────────────────────────────────────
+
+import { CryptoGuard } from '@/components/crypto-guard';
+
+describe('CryptoGuard', () => {
+  beforeEach(() => {
+    mockPathname = '/messages';
+  });
+
+  it('renders children when keys are unlocked', () => {
+    mockIsUnlocked = true;
+    render(
+      <CryptoGuard>
+        <div data-testid="content">Messages</div>
+      </CryptoGuard>,
+    );
+    expect(screen.getByTestId('content')).toBeInTheDocument();
+  });
+
+  it('redirects to /auth/unlock?next=<pathname> when keys are locked', async () => {
+    mockIsUnlocked = false;
+    mockIsAuthenticated = true;
+    mockIsLoading = false;
+    render(
+      <CryptoGuard>
+        <div data-testid="content">Messages</div>
+      </CryptoGuard>,
+    );
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith('/auth/unlock?next=%2Fmessages'),
+    );
+    expect(screen.queryByTestId('content')).not.toBeInTheDocument();
+  });
+
+  it('does not redirect while auth is loading', () => {
+    mockIsUnlocked = false;
+    mockIsLoading = true;
+    render(
+      <CryptoGuard>
+        <div data-testid="content">Messages</div>
+      </CryptoGuard>,
+    );
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });

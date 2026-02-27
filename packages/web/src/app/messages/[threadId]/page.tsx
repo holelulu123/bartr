@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Send, Lock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Send, AlertCircle } from 'lucide-react';
 import { useMessages, useSendMessage, messageKeys } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
@@ -11,6 +11,7 @@ import { users as usersApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CryptoGuard } from '@/components/crypto-guard';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Message } from '@/lib/api';
 
@@ -90,21 +91,6 @@ function ChatSkeleton() {
   );
 }
 
-function LockedBanner() {
-  return (
-    <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs shrink-0">
-      <Lock className="h-3.5 w-3.5 shrink-0" />
-      <span>
-        End-to-end encrypted.{' '}
-        <Link href="/auth/unlock" className="underline font-medium">
-          Unlock your keys
-        </Link>{' '}
-        to read and send messages.
-      </span>
-    </div>
-  );
-}
-
 // ── Hook: send message via mutation, stable ref so we can call in callbacks ──
 
 function useSendMessageStable(threadId: string, recipientNickname: string) {
@@ -118,7 +104,7 @@ function useSendMessageStable(threadId: string, recipientNickname: string) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function ChatPage() {
+function ChatInner() {
   const { threadId } = useParams<{ threadId: string }>();
   const { user } = useAuth();
   const { decrypt, isUnlocked } = useCrypto();
@@ -243,9 +229,6 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* E2E locked banner */}
-      {!isUnlocked && <LockedBanner />}
-
       {/* Message stream */}
       <div className="flex-1 overflow-y-auto p-4">
         {isLoading ? (
@@ -274,18 +257,14 @@ export default function ChatPage() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={
-              isUnlocked
-                ? 'Type a message… (Enter to send)'
-                : 'Unlock your keys to send messages'
-            }
-            disabled={!isUnlocked || sending}
+            placeholder="Type a message… (Enter to send)"
+            disabled={sending}
             rows={1}
             className="resize-none min-h-[40px] max-h-32 flex-1"
           />
           <Button
             onClick={doSend}
-            disabled={!isUnlocked || !text.trim() || sending}
+            disabled={!text.trim() || sending}
             size="icon"
             className="shrink-0"
           >
@@ -296,3 +275,12 @@ export default function ChatPage() {
     </div>
   );
 }
+
+export default function ChatPage() {
+  return (
+    <CryptoGuard>
+      <ChatInner />
+    </CryptoGuard>
+  );
+}
+

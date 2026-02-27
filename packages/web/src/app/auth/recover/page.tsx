@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -26,6 +26,8 @@ type FormData = z.infer<typeof schema>;
 
 export default function RecoverPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next') ?? '/listings';
   const { isAuthenticated } = useAuth();
   const { unlockWithRecovery } = useCrypto();
   const [recoverError, setRecoverError] = useState('');
@@ -50,7 +52,7 @@ export default function RecoverPage() {
         return;
       }
       await unlockWithRecovery(blobs.recovery_key_blob, data.recoveryKey.toLowerCase().trim());
-      router.replace('/listings');
+      router.replace(next);
     } catch {
       setRecoverError('Invalid recovery key. Please check and try again.');
     }
@@ -104,7 +106,10 @@ export default function RecoverPage() {
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">
-              <Link href="/auth/unlock" className="text-primary hover:underline">
+              <Link
+                href={`/auth/unlock${next !== '/listings' ? `?next=${encodeURIComponent(next)}` : ''}`}
+                className="text-primary hover:underline"
+              >
                 Back to password unlock
               </Link>
             </p>

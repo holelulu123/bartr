@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -23,6 +23,8 @@ type FormData = z.infer<typeof schema>;
 
 export default function UnlockPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next') ?? '/listings';
   const { isAuthenticated } = useAuth();
   const { unlock } = useCrypto();
   const [unlockError, setUnlockError] = useState('');
@@ -44,12 +46,11 @@ export default function UnlockPage() {
     try {
       const blobs = await auth.getKeyBlobs();
       if (!blobs.private_key_blob) {
-        // No key blobs — new user, go straight to listings
-        router.replace('/listings');
+        router.replace(next);
         return;
       }
       await unlock(blobs.private_key_blob, data.password);
-      router.replace('/listings');
+      router.replace(next);
     } catch {
       setUnlockError('Incorrect password. Try again or use your recovery key.');
     }
@@ -106,7 +107,7 @@ export default function UnlockPage() {
             </p>
 
             <p className="text-center text-sm text-muted-foreground">
-              <Link href="/listings" className="text-muted-foreground hover:underline text-xs">
+              <Link href={next} className="text-muted-foreground hover:underline text-xs">
                 Skip for now (messaging disabled)
               </Link>
             </p>
