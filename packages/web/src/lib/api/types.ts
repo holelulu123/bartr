@@ -24,6 +24,7 @@ export interface CurrentUser {
   nickname: string;
   created_at: string;
   last_active: string;
+  role?: string;
 }
 
 export interface RegisterPayload {

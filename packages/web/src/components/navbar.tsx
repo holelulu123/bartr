@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Menu, X, MessageSquare, Package, Plus, Heart } from 'lucide-react';
+import { Menu, X, MessageSquare, Package, Plus, Heart, Moon, Sun } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { resolvedTheme, setTheme } = useTheme();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -92,7 +94,19 @@ export function Navbar() {
                     <Link href="/dashboard/trades">My Trades</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/settings/profile">Settings</Link>
+                    <Link href="/settings">Settings</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                    className="cursor-pointer"
+                    data-testid="navbar-theme-toggle"
+                  >
+                    {resolvedTheme === 'dark' ? (
+                      <Sun className="h-4 w-4 mr-2" />
+                    ) : (
+                      <Moon className="h-4 w-4 mr-2" />
+                    )}
+                    {resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

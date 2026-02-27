@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Clock, Edit, MessageSquare, Trash2 } from 'lucide-react';
+import { ArrowLeft, Clock, Edit, Flag, MessageSquare, Trash2 } from 'lucide-react';
 import { useListing, useDeleteListing } from '@/hooks/use-listings';
 import { useAuth } from '@/contexts/auth-context';
 import { useCreateThread } from '@/hooks/use-messages';
+import { useSubmitFlag } from '@/hooks/use-moderation';
 import { ReputationBadge } from '@/components/reputation-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { ListingDetail } from '@/lib/api';
 
@@ -136,8 +139,13 @@ export default function ListingDetailPage() {
   const { data: listing, isLoading, isError } = useListing(id);
   const deleteMutation = useDeleteListing();
   const createThreadMutation = useCreateThread();
+  const submitFlagMutation = useSubmitFlag();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportSuccess, setReportSuccess] = useState(false);
+  const [reportError, setReportError] = useState('');
 
   const isOwner = !!(user && listing && user.nickname === listing.seller_nickname);
 
@@ -165,6 +173,22 @@ export default function ListingDetailPage() {
       listing_id: id,
     });
     router.push(`/messages/${thread.id}`);
+  }
+
+  async function handleReport() {
+    setReportError('');
+    try {
+      await submitFlagMutation.mutateAsync({
+        target_type: 'listing',
+        target_id: id,
+        reason: reportReason,
+      });
+      setReportSuccess(true);
+      setReportReason('');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to submit report';
+      setReportError(msg.includes('409') ? 'You already reported this listing.' : 'Failed to submit report. Please try again.');
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -326,12 +350,72 @@ export default function ListingDetailPage() {
                   >
                     {createThreadMutation.isPending ? 'Opening…' : 'Message Seller'}
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-muted-foreground hover:text-destructive"
+                    onClick={() => { setReportSuccess(false); setReportError(''); setReportDialogOpen(true); }}
+                    data-testid="report-button"
+                  >
+                    <Flag className="h-3.5 w-3.5 mr-1.5" />
+                    Report listing
+                  </Button>
                 </>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* ── Report dialog ── */}
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report listing</DialogTitle>
+            <DialogDescription>
+              Describe why this listing violates the rules. The moderation team will review it.
+            </DialogDescription>
+          </DialogHeader>
+          {reportSuccess ? (
+            <p className="text-sm text-green-500 py-2" role="status" data-testid="report-success">
+              Report submitted. Thank you for helping keep Bartr safe.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="report-reason">Reason</Label>
+                <Textarea
+                  id="report-reason"
+                  placeholder="e.g. This listing is selling counterfeit goods…"
+                  rows={4}
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  data-testid="report-reason-input"
+                />
+                <p className="text-xs text-muted-foreground">{reportReason.length} / 1000 (min 5)</p>
+              </div>
+              {reportError && (
+                <p className="text-sm text-destructive" role="alert" data-testid="report-error">{reportError}</p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReportDialogOpen(false)}>
+              {reportSuccess ? 'Close' : 'Cancel'}
+            </Button>
+            {!reportSuccess && (
+              <Button
+                variant="destructive"
+                onClick={handleReport}
+                disabled={submitFlagMutation.isPending || reportReason.trim().length < 5}
+                data-testid="report-submit"
+              >
+                {submitFlagMutation.isPending ? 'Submitting…' : 'Submit report'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Delete confirmation dialog ── */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

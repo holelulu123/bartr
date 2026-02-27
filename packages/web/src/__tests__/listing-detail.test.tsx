@@ -47,6 +47,11 @@ vi.mock('@/hooks/use-messages', () => ({
   useCreateThread: () => mockCreateThreadMutation,
 }));
 
+const mockSubmitFlagMutation = { mutateAsync: vi.fn(), isPending: false };
+vi.mock('@/hooks/use-moderation', () => ({
+  useSubmitFlag: () => mockSubmitFlagMutation,
+}));
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 import type { ListingDetail } from '@/lib/api';
@@ -284,6 +289,80 @@ describe('ListingDetailPage — owner actions', () => {
     await userEvent.click(screen.getByRole('button', { name: /^delete$/i }));
     await waitFor(() => expect(mockDeleteMutation.mutateAsync).toHaveBeenCalledWith('listing-1'));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/listings'));
+  });
+});
+
+describe('ListingDetailPage — report listing', () => {
+  beforeEach(() => {
+    setupListing(makeListing({ seller_nickname: 'alice' }));
+    mockUser = { id: 'user-2', nickname: 'bob' }; // non-owner
+  });
+
+  it('shows Report listing button for non-owners', () => {
+    render(<ListingDetailPage />);
+    expect(screen.getByTestId('report-button')).toBeInTheDocument();
+  });
+
+  it('does not show Report button for owners', () => {
+    mockUser = { id: 'user-1', nickname: 'alice' };
+    setupListing(makeListing({ seller_nickname: 'alice' }));
+    render(<ListingDetailPage />);
+    expect(screen.queryByTestId('report-button')).not.toBeInTheDocument();
+  });
+
+  it('opens report dialog on click', async () => {
+    const user = userEvent.setup();
+    render(<ListingDetailPage />);
+    await user.click(screen.getByTestId('report-button'));
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('report-reason-input')).toBeInTheDocument();
+  });
+
+  it('submit is disabled when reason is too short', async () => {
+    const user = userEvent.setup();
+    render(<ListingDetailPage />);
+    await user.click(screen.getByTestId('report-button'));
+    await waitFor(() => expect(screen.getByTestId('report-reason-input')).toBeInTheDocument());
+    await user.type(screen.getByTestId('report-reason-input'), 'hi');
+    expect(screen.getByTestId('report-submit')).toBeDisabled();
+  });
+
+  it('submit is enabled when reason is 5+ chars', async () => {
+    const user = userEvent.setup();
+    render(<ListingDetailPage />);
+    await user.click(screen.getByTestId('report-button'));
+    await waitFor(() => expect(screen.getByTestId('report-reason-input')).toBeInTheDocument());
+    await user.type(screen.getByTestId('report-reason-input'), 'This is a scam listing');
+    expect(screen.getByTestId('report-submit')).not.toBeDisabled();
+  });
+
+  it('submits flag and shows success message', async () => {
+    mockSubmitFlagMutation.mutateAsync.mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<ListingDetailPage />);
+    await user.click(screen.getByTestId('report-button'));
+    await waitFor(() => expect(screen.getByTestId('report-reason-input')).toBeInTheDocument());
+    await user.type(screen.getByTestId('report-reason-input'), 'This is a scam listing');
+    await user.click(screen.getByTestId('report-submit'));
+    await waitFor(() => expect(screen.getByTestId('report-success')).toBeInTheDocument());
+  });
+
+  it('calls submitFlag with correct payload', async () => {
+    mockSubmitFlagMutation.mutateAsync.mockResolvedValue({});
+    const user = userEvent.setup();
+    render(<ListingDetailPage />);
+    await user.click(screen.getByTestId('report-button'));
+    await waitFor(() => expect(screen.getByTestId('report-reason-input')).toBeInTheDocument());
+    await user.type(screen.getByTestId('report-reason-input'), 'Selling stolen goods');
+    await user.click(screen.getByTestId('report-submit'));
+    await waitFor(() =>
+      expect(mockSubmitFlagMutation.mutateAsync).toHaveBeenCalledWith({
+        target_type: 'listing',
+        target_id: 'listing-1',
+        reason: 'Selling stolen goods',
+      }),
+    );
   });
 });
 
