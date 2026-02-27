@@ -42,11 +42,6 @@ vi.mock('@/hooks/use-listings', () => ({
   useDeleteListing: () => mockUseDeleteListing(),
 }));
 
-const mockCreateOfferMutation = { mutateAsync: vi.fn(), isPending: false };
-vi.mock('@/hooks/use-trades', () => ({
-  useCreateOffer: () => mockCreateOfferMutation,
-}));
-
 const mockCreateThreadMutation = { mutateAsync: vi.fn(), isPending: false };
 vi.mock('@/hooks/use-messages', () => ({
   useCreateThread: () => mockCreateThreadMutation,
@@ -222,11 +217,11 @@ describe('ListingDetailPage — visitor actions', () => {
     expect(screen.queryByRole('button', { name: /delete listing/i })).not.toBeInTheDocument();
   });
 
-  it('Make Offer creates trade and navigates to trade page', async () => {
-    mockCreateOfferMutation.mutateAsync.mockResolvedValue({ id: 'trade-1', listing_id: 'listing-1', buyer_id: 'u2', seller_id: 'u1', status: 'pending', created_at: '', updated_at: '' });
+  it('Make Offer opens chat thread and navigates to messages page', async () => {
+    mockCreateThreadMutation.mutateAsync.mockResolvedValue({ id: 'thread-1', listing_id: 'listing-1', created_at: '', participant_1_nickname: 'alice', participant_2_nickname: 'bob', listing_title: null, last_message_at: null });
     render(<ListingDetailPage />);
     await userEvent.click(screen.getByRole('button', { name: /make offer/i }));
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/trades/trade-1'));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/messages/thread-1'));
   });
 
   it('Message Seller creates thread and navigates to messages page', async () => {

@@ -7,7 +7,6 @@ import Image from 'next/image';
 import { ArrowLeft, Clock, Edit, MessageSquare, Trash2 } from 'lucide-react';
 import { useListing, useDeleteListing } from '@/hooks/use-listings';
 import { useAuth } from '@/contexts/auth-context';
-import { useCreateOffer } from '@/hooks/use-trades';
 import { useCreateThread } from '@/hooks/use-messages';
 import { ReputationBadge } from '@/components/reputation-badge';
 import { Badge } from '@/components/ui/badge';
@@ -136,7 +135,6 @@ export default function ListingDetailPage() {
 
   const { data: listing, isLoading, isError } = useListing(id);
   const deleteMutation = useDeleteListing();
-  const createOfferMutation = useCreateOffer();
   const createThreadMutation = useCreateThread();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -151,9 +149,14 @@ export default function ListingDetailPage() {
     router.push('/listings');
   }
 
+  // "Make Offer" opens a chat thread with the seller.
+  // Price negotiation happens inside the chat (offer cards).
   async function handleMakeOffer() {
-    const trade = await createOfferMutation.mutateAsync(id);
-    router.push(`/trades/${trade.id}`);
+    const thread = await createThreadMutation.mutateAsync({
+      recipient_nickname: listing!.seller_nickname,
+      listing_id: id,
+    });
+    router.push(`/messages/${thread.id}`);
   }
 
   async function handleMessageSeller() {
@@ -310,9 +313,10 @@ export default function ListingDetailPage() {
                   <Button
                     className="w-full"
                     onClick={handleMakeOffer}
-                    disabled={createOfferMutation.isPending || listing.status !== 'active'}
+                    disabled={createThreadMutation.isPending || listing.status !== 'active'}
                   >
-                    {createOfferMutation.isPending ? 'Creating offer…' : 'Make Offer'}
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    {createThreadMutation.isPending ? 'Opening chat…' : 'Make Offer'}
                   </Button>
                   <Button
                     variant="outline"
@@ -320,7 +324,6 @@ export default function ListingDetailPage() {
                     onClick={handleMessageSeller}
                     disabled={createThreadMutation.isPending}
                   >
-                    <MessageSquare className="h-4 w-4 mr-2" />
                     {createThreadMutation.isPending ? 'Opening…' : 'Message Seller'}
                   </Button>
                 </>
