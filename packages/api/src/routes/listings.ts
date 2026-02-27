@@ -84,6 +84,11 @@ export default async function listingRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { id: string } }>('/listings/:id', async (request, reply) => {
     const { id } = request.params;
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(id)) {
+      return reply.status(400).send({ error: 'Invalid listing id' });
+    }
+
     const result = await fastify.pg.query(
       `SELECT l.*, u.nickname as seller_nickname,
               c.name as category_name, c.slug as category_slug,

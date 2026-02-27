@@ -210,6 +210,16 @@ describe('Listing routes', () => {
 
       expect(res.statusCode).toBe(404);
     });
+
+    it('returns 400 for invalid UUID', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/listings/not-a-valid-uuid',
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('Invalid listing id');
+    });
   });
 
   describe('GET /listings', () => {
