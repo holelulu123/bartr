@@ -34,7 +34,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Maximum 5 payment methods' });
       }
 
-      const validMethods = ['btc', 'xmr', 'eth', 'cash', 'bank_transfer'];
+      const validMethods = ['btc', 'eth', 'usdt', 'usdc', 'cash', 'bank_transfer'];
       for (const method of payment_methods) {
         if (!validMethods.includes(method)) {
           return reply.status(400).send({ error: `Invalid payment method: ${method}` });
@@ -284,7 +284,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         if (body.payment_methods.length > 5) {
           return reply.status(400).send({ error: 'Maximum 5 payment methods' });
         }
-        const validMethods = ['btc', 'xmr', 'eth', 'cash', 'bank_transfer'];
+        const validMethods = ['btc', 'eth', 'usdt', 'usdc', 'cash', 'bank_transfer'];
         for (const method of body.payment_methods) {
           if (!validMethods.includes(method)) {
             return reply.status(400).send({ error: `Invalid payment method: ${method}` });

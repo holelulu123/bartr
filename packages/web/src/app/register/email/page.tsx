@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Check, Copy, KeyRound, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
 import { auth } from '@/lib/api';
@@ -33,9 +33,6 @@ export default function EmailRegisterPage() {
   const { isAuthenticated, isLoading, setTokens, refreshUser } = useAuth();
   const { register: cryptoRegister } = useCrypto();
 
-  const [step, setStep] = useState<'form' | 'recovery'>('form');
-  const [recoveryKey, setRecoveryKey] = useState('');
-  const [copied, setCopied] = useState(false);
   const [serverError, setServerError] = useState('');
 
   const {
@@ -53,7 +50,7 @@ export default function EmailRegisterPage() {
   async function onSubmit(data: FormData) {
     setServerError('');
     try {
-      const { publicKeyBase64, privateKeyBlob, recoveryKeyHex, recoveryKeyBlob } =
+      const { publicKeyBase64, privateKeyBlob, recoveryKeyBlob } =
         await cryptoRegister(data.password);
 
       const tokens = await auth.registerEmail({
@@ -66,9 +63,7 @@ export default function EmailRegisterPage() {
 
       setTokens(tokens.access_token, tokens.refresh_token);
       await refreshUser();
-
-      setRecoveryKey(recoveryKeyHex);
-      setStep('recovery');
+      router.replace('/listings');
     } catch (e: unknown) {
       if (e instanceof Error && e.message.includes('409')) {
         setServerError('Email already registered.');
@@ -76,57 +71,6 @@ export default function EmailRegisterPage() {
         setServerError('Registration failed. Please try again.');
       }
     }
-  }
-
-  async function copyRecoveryKey() {
-    await navigator.clipboard.writeText(recoveryKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  // ── Recovery key screen ───────────────────────────────────────────────────
-
-  if (step === 'recovery') {
-    return (
-      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <KeyRound className="h-6 w-6 text-primary" />
-            </div>
-            <CardTitle>Save your recovery key</CardTitle>
-            <CardDescription>
-              If you forget your password, this is the only way to recover your encrypted messages.
-              Store it somewhere safe — it will never be shown again.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="relative rounded-md bg-muted p-4 font-mono text-sm break-all select-all">
-              {recoveryKey}
-              <Button
-                size="sm"
-                variant="ghost"
-                className="absolute right-2 top-2 h-7 w-7 p-0"
-                onClick={copyRecoveryKey}
-                aria-label="Copy recovery key"
-              >
-                {copied ? (
-                  <Check className="h-3.5 w-3.5 text-green-500" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground text-center">
-              Write it down or store it in a password manager.
-            </p>
-            <Button className="w-full" onClick={() => router.replace('/listings')}>
-              I have saved my recovery key
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
   }
 
   // ── Registration form ─────────────────────────────────────────────────────

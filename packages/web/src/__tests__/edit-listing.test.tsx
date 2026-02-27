@@ -150,7 +150,9 @@ describe('EditListingPage — pre-fill', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'BTC' })).toHaveAttribute('aria-pressed', 'true');
       expect(screen.getByRole('button', { name: 'Cash' })).toHaveAttribute('aria-pressed', 'true');
-      expect(screen.getByRole('button', { name: 'XMR' })).toHaveAttribute('aria-pressed', 'false');
+      // XMR removed; USDT/USDC are available but not pre-selected
+      expect(screen.queryByRole('button', { name: 'XMR' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'USDT' })).toHaveAttribute('aria-pressed', 'false');
     });
   });
 

@@ -118,22 +118,22 @@ describe('LoginPage — email tab (default)', () => {
   });
 });
 
-describe('LoginPage — Google tab', () => {
-  it('shows Google tab', () => {
+describe('LoginPage — email-only mode', () => {
+  it('shows email and password fields (no Google tab)', () => {
     render(<LoginPage />);
-    expect(screen.getByRole('tab', { name: /google/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /google/i })).not.toBeInTheDocument();
   });
 
-  it('switches to Google tab on click', async () => {
+  it('shows sign in button', () => {
     render(<LoginPage />);
-    await userEvent.click(screen.getByRole('tab', { name: /google/i }));
-    expect(screen.getByRole('button', { name: /continue with google/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 
-  it('email form is hidden when Google tab active', async () => {
+  it('shows create account link', () => {
     render(<LoginPage />);
-    await userEvent.click(screen.getByRole('tab', { name: /google/i }));
-    expect(screen.queryByLabelText(/^email$/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /create one/i })).toBeInTheDocument();
   });
 });
 
@@ -208,7 +208,7 @@ describe('EmailRegisterPage — successful registration', () => {
     mockRefreshUser.mockResolvedValue(undefined);
   });
 
-  it('shows recovery key screen after registration', async () => {
+  it('redirects to listings after registration (no recovery key screen)', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
@@ -218,8 +218,8 @@ describe('EmailRegisterPage — successful registration', () => {
       await userEvent.click(screen.getByRole('button', { name: /create account/i }));
     });
 
-    await waitFor(() => expect(screen.getByText(/save your recovery key/i)).toBeInTheDocument());
-    expect(screen.getByText('aabbccdd1122')).toBeInTheDocument();
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
+    expect(screen.queryByText(/save your recovery key/i)).not.toBeInTheDocument();
   });
 
   it('calls registerEmail with email (no nickname in payload)', async () => {
@@ -243,7 +243,7 @@ describe('EmailRegisterPage — successful registration', () => {
     );
   });
 
-  it('redirects to /listings after saving recovery key', async () => {
+  it('sets tokens and refreshes user on successful registration', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
@@ -253,9 +253,8 @@ describe('EmailRegisterPage — successful registration', () => {
       await userEvent.click(screen.getByRole('button', { name: /create account/i }));
     });
 
-    await waitFor(() => screen.getByText(/save your recovery key/i));
-    await userEvent.click(screen.getByRole('button', { name: /i have saved/i }));
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
+    await waitFor(() => expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt'));
+    expect(mockRefreshUser).toHaveBeenCalled();
   });
 });
 

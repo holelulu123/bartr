@@ -26,10 +26,11 @@ import type { PaymentMethod } from '@bartr/shared';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'btc', label: 'BTC' },
-  { value: 'xmr', label: 'XMR' },
   { value: 'eth', label: 'ETH' },
+  { value: 'usdt', label: 'USDT' },
+  { value: 'usdc', label: 'USDC' },
   { value: 'cash', label: 'Cash' },
-  { value: 'bank', label: 'Bank' },
+  { value: 'bank_transfer', label: 'Bank transfer' },
 ];
 
 const MAX_IMAGES = 5;

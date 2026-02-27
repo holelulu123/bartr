@@ -131,10 +131,12 @@ describe('CreateListingPage — form rendering', () => {
   it('renders all payment method toggle buttons', () => {
     render(<CreateListingPage />);
     expect(screen.getByRole('button', { name: 'BTC' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'XMR' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'ETH' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'USDT' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'USDC' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cash' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Bank' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bank transfer' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'XMR' })).not.toBeInTheDocument();
   });
 
   it('renders image upload zone', () => {
@@ -305,7 +307,7 @@ describe('CreateListingPage — successful submit', () => {
       screen.getByLabelText(/^description$/i),
       'This is a valid description with enough content.',
     );
-    await userEvent.click(screen.getByRole('button', { name: 'XMR' }));
+    await userEvent.click(screen.getByRole('button', { name: 'BTC' }));
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));

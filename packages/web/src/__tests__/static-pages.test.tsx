@@ -122,14 +122,14 @@ describe('Home / Landing page', () => {
     const { default: HomePage } = await import('@/app/page');
     render(<HomePage />);
     expect(screen.getByRole('link', { name: /browse listings/i })).toHaveAttribute('href', '/listings');
-    expect(screen.getByRole('link', { name: /post a listing/i })).toHaveAttribute('href', '/listings/create');
+    expect(screen.getByRole('link', { name: /post a listing/i })).toHaveAttribute('href', '/listings/new');
   });
 
-  it('renders loading skeletons when listings are loading', async () => {
+  it('renders create account and sell links', async () => {
     const { default: HomePage } = await import('@/app/page');
     render(<HomePage />);
-    const skeletons = screen.getAllByTestId('listing-skeleton');
-    expect(skeletons.length).toBeGreaterThan(0);
+    // Recent listings removed; CTA links should be present
+    expect(screen.getByRole('link', { name: /create account/i })).toBeInTheDocument();
   });
 });
 
@@ -142,20 +142,20 @@ describe('Donate page', () => {
     expect(screen.getByRole('heading', { name: /support bartr/i })).toBeInTheDocument();
   });
 
-  it('shows BTC, Lightning and XMR addresses', async () => {
+  it('shows BTC and Lightning addresses (no XMR)', async () => {
     const { default: DonatePage } = await import('@/app/donate/page');
     render(<DonatePage />);
     expect(screen.getByText(/bitcoin \(btc\)/i)).toBeInTheDocument();
     expect(screen.getByText(/lightning network/i)).toBeInTheDocument();
-    expect(screen.getByText(/monero \(xmr\)/i)).toBeInTheDocument();
+    expect(screen.queryByText(/monero \(xmr\)/i)).not.toBeInTheDocument();
   });
 
   it('shows copy address buttons instead of external images', async () => {
     const { default: DonatePage } = await import('@/app/donate/page');
     render(<DonatePage />);
     const copyButtons = screen.getAllByRole('button', { name: /copy address/i });
-    expect(copyButtons).toHaveLength(3);
-    // No external QR service images
+    expect(copyButtons).toHaveLength(2);
+    // No external QR service images (SVG QR placeholders have no role="img" since aria-label is on the svg, not role)
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 

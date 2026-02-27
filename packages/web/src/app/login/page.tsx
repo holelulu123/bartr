@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Chrome, Loader2, Mail } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
 import { auth } from '@/lib/api';
@@ -15,7 +15,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -24,13 +23,17 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-type Tab = 'google' | 'email';
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 60_000; // 1 minute
 
 export default function LoginPage() {
   const { isAuthenticated, isLoading, setTokens, refreshUser } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('email');
   const [serverError, setServerError] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [lockCountdown, setLockCountdown] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -40,9 +43,29 @@ export default function LoginPage() {
     if (!isLoading && isAuthenticated) router.replace('/listings');
   }, [isAuthenticated, isLoading, router]);
 
+  // Countdown timer when locked out
+  useEffect(() => {
+    if (lockedUntil === null) return;
+    timerRef.current = setInterval(() => {
+      const remaining = Math.ceil((lockedUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockedUntil(null);
+        setAttempts(0);
+        setLockCountdown(0);
+        if (timerRef.current) clearInterval(timerRef.current);
+      } else {
+        setLockCountdown(remaining);
+      }
+    }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [lockedUntil]);
+
   if (isLoading) return null;
 
+  const isLocked = lockedUntil !== null && Date.now() < lockedUntil;
+
   async function onSubmit(data: FormData) {
+    if (isLocked) return;
     setServerError('');
     try {
       const tokens = await auth.loginEmail(data.email, data.password);
@@ -50,7 +73,14 @@ export default function LoginPage() {
       await refreshUser();
       router.replace('/listings');
     } catch {
-      setServerError('Invalid email or password.');
+      const next = attempts + 1;
+      setAttempts(next);
+      if (next >= MAX_ATTEMPTS) {
+        setLockedUntil(Date.now() + LOCKOUT_MS);
+        setServerError('Too many failed attempts. Please wait 1 minute.');
+      } else {
+        setServerError(`Invalid email or password. ${MAX_ATTEMPTS - next} attempt${MAX_ATTEMPTS - next === 1 ? '' : 's'} remaining.`);
+      }
     }
   }
 
@@ -62,96 +92,55 @@ export default function LoginPage() {
           <CardDescription>Sign in to buy, sell, and trade</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-
-          {/* Tabs */}
-          <div className="flex rounded-lg border border-border p-0.5">
-            <button
-              onClick={() => setTab('email')}
-              className={cn(
-                'flex-1 rounded-md py-1.5 text-sm font-medium transition-colors',
-                tab === 'email' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}
-              aria-selected={tab === 'email'}
-              role="tab"
-            >
-              Email
-            </button>
-            <button
-              onClick={() => setTab('google')}
-              className={cn(
-                'flex-1 rounded-md py-1.5 text-sm font-medium transition-colors',
-                tab === 'google' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}
-              aria-selected={tab === 'google'}
-              role="tab"
-            >
-              Google
-            </button>
-          </div>
-
-          {/* Email/password form */}
-          {tab === 'email' && (
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  {...register('email')}
-                />
-                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  {...register('password')}
-                />
-                {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-              </div>
-
-              {serverError && (
-                <p className="text-sm text-destructive" role="alert">{serverError}</p>
-              )}
-
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
-              </Button>
-
-              <Separator />
-
-              <p className="text-center text-sm text-muted-foreground">
-                No account?{' '}
-                <Link href="/register/email" className="text-primary hover:underline">
-                  Create one
-                </Link>
-              </p>
-            </form>
-          )}
-
-          {/* Google OAuth */}
-          {tab === 'google' && (
-            <div className="space-y-3">
-              <Button
-                className="w-full gap-2"
-                onClick={() => { window.location.href = auth.getGoogleAuthUrl(); }}
-              >
-                <Chrome className="h-4 w-4" />
-                Continue with Google
-              </Button>
-              <p className="text-center text-sm text-muted-foreground">
-                No account?{' '}
-                <span className="text-muted-foreground">
-                  Sign in with Google to create one automatically.
-                </span>
-              </p>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                autoComplete="email"
+                disabled={isLocked}
+                {...register('email')}
+              />
+              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
-          )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                disabled={isLocked}
+                {...register('password')}
+              />
+              {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+            </div>
+
+            {serverError && (
+              <p className="text-sm text-destructive" role="alert">{serverError}</p>
+            )}
+
+            {isLocked && (
+              <p className="text-sm text-muted-foreground text-center" role="status">
+                Try again in {lockCountdown}s
+              </p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isSubmitting || isLocked}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
+            </Button>
+
+            <Separator />
+
+            <p className="text-center text-sm text-muted-foreground">
+              No account?{' '}
+              <Link href="/register/email" className="text-primary hover:underline">
+                Create one
+              </Link>
+            </p>
+          </form>
 
           <p className="text-center text-xs text-muted-foreground">
             No KYC. No trackers. Just trade.

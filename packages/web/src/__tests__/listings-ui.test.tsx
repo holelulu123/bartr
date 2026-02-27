@@ -123,15 +123,15 @@ describe('ListingCard', () => {
   });
 
   it('renders payment method badges', () => {
-    render(<ListingCard listing={makeListing({ payment_methods: ['btc', 'xmr'] })} />);
+    render(<ListingCard listing={makeListing({ payment_methods: ['btc', 'usdt'] })} />);
     expect(screen.getByText('BTC')).toBeInTheDocument();
-    expect(screen.getByText('XMR')).toBeInTheDocument();
+    expect(screen.getByText('USDT')).toBeInTheDocument();
   });
 
   it('caps payment badges at 3 and shows overflow count', () => {
     render(
       <ListingCard
-        listing={makeListing({ payment_methods: ['btc', 'xmr', 'eth', 'cash', 'bank'] })}
+        listing={makeListing({ payment_methods: ['btc', 'eth', 'usdt', 'cash', 'bank_transfer'] })}
       />,
     );
     expect(screen.getByText('BTC')).toBeInTheDocument();

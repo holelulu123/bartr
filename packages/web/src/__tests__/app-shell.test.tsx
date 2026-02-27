@@ -99,9 +99,11 @@ describe('Navbar — authenticated', () => {
     expect(sellLink).toBeDefined();
   });
 
-  it('shows avatar with nickname initials', () => {
+  it('shows identicon avatar for authenticated user', () => {
     render(<Navbar />);
-    expect(screen.getByText('AL')).toBeInTheDocument();
+    // NavIdenticon renders an SVG (aria-hidden), dropdown trigger has aria-label = nickname
+    const trigger = screen.getByRole('button', { hidden: true, name: /alice/i });
+    expect(trigger).toBeInTheDocument();
   });
 
   it('does not show Sign in button', () => {
@@ -117,10 +119,15 @@ describe('Navbar — authenticated', () => {
     expect(dropdownTrigger).toBeDefined();
   });
 
-  it('shows avatar initials', () => {
+  it('shows identicon SVG in dropdown trigger', () => {
     render(<Navbar />);
-    // AvatarFallback shows first 2 chars of nickname uppercased
-    expect(screen.getByText('AL')).toBeInTheDocument();
+    // Identicon SVG is aria-hidden; the trigger button has aria-label=nickname
+    const buttons = screen.getAllByRole('button', { hidden: true });
+    const trigger = buttons.find(b => b.getAttribute('aria-haspopup') === 'menu');
+    expect(trigger).toBeDefined();
+    // SVG should be inside the trigger
+    const svg = trigger?.querySelector('svg');
+    expect(svg).not.toBeNull();
   });
 });
 

@@ -198,8 +198,54 @@ They need to enter their password to unwrap it before they can read/send message
 ### 13.3 — Production secrets audit
 - [ ] JWT_SECRET: real random 256-bit secret
 - [ ] ENCRYPTION_KEY: real 32-byte hex key
-- [ ] Google OAuth credentials: production app
 - [ ] DB/Redis/MinIO: strong passwords, not dev defaults
+
+### 13.4 — HTTPS / TLS
+- [ ] Point domain to Hetzner VPS
+- [ ] Install Nginx as reverse proxy
+- [ ] Let's Encrypt certificate via Certbot (free, auto-renewing)
+- [ ] Redirect all HTTP → HTTPS
+- [ ] Update `GOOGLE_REDIRECT_URI`, `CLIENT_URL` env vars to https://
+
+---
+
+## Phase 13.5 — Remove Google OAuth
+
+Google OAuth contradicts the privacy-first ethos and requires a third-party dependency.
+The email/password auth system is already fully built in the API (`/auth/register/email`, `/auth/login/email`).
+
+- [ ] Remove `GET /auth/google` and `GET /auth/google/callback` routes from the API
+- [ ] Remove `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` from env config
+- [ ] Remove Google OAuth button from `/login` page
+- [ ] Update `/register` page to use email/password flow only
+- [ ] Remove `google_id` references from frontend
+- [ ] Update `13.3` secrets audit — remove Google OAuth credentials item
+
+---
+
+## Phase 13.6 — Email Verification + Self-Hosted Mail
+
+Self-hosted email via **Mailcow** or **Postal** on the same Hetzner VPS.
+Emails may land in spam on new IPs — add a visible notice to users on registration.
+
+### Backend
+- [ ] Add `email_verified boolean DEFAULT false` column to `users` table
+- [ ] Add `email_verification_tokens` table: `(id, user_id, code, expires_at, used)`
+- [ ] On `POST /auth/register/email`: generate 6-digit code, store it, send verification email
+- [ ] Add `POST /auth/verify-email` endpoint: validate code, set `email_verified = true`
+- [ ] Add `POST /auth/resend-verification` endpoint (rate-limited)
+- [ ] Gate posting listings + sending messages behind `email_verified = true`
+
+### Email service
+- [ ] Deploy Mailcow (or Postal) on VPS via Docker Compose
+- [ ] Configure DNS: SPF, DKIM, DMARC, PTR/rDNS records
+- [ ] Add `nodemailer` (or Mailcow API) to API for sending transactional email
+- [ ] Verification email template: subject, 6-digit code, expiry notice
+- [ ] Add "email may go to spam" notice on the registration page
+
+### Frontend
+- [ ] `/auth/verify-email` page: code input, submit, resend link
+- [ ] Redirect unverified users to `/auth/verify-email` when they try to post or message
 
 ---
 
@@ -255,5 +301,7 @@ Phase 8 (Profiles) ──→ Phase 9 (Trades) ──────────┤
 | 8 — User Profiles | 🟠 high | ~10 tasks |
 | 9 — Trade Flow | 🟠 high | ~12 tasks |
 | 12 — Static pages | 🟡 medium | ~8 tasks |
-| 13 — Security gaps | 🟡 medium | ~8 tasks |
+| 13 — Security gaps | 🟡 medium | ~10 tasks |
+| 13.5 — Remove Google OAuth | 🟠 high | ~6 tasks |
+| 13.6 — Email verification + self-hosted mail | 🟠 high | ~15 tasks |
 | 14 — Launch checklist | 🟡 medium | ~15 tasks |

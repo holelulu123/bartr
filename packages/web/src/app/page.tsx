@@ -4,14 +4,12 @@ import Link from 'next/link';
 import { Shield, Zap, Lock, ArrowRight, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useListings } from '@/hooks/use-listings';
-import { ListingCard, ListingCardSkeleton } from '@/components/listing-card';
 
 const FEATURES = [
   {
     icon: Shield,
     title: 'No KYC, no surveillance',
-    description: 'Sign up with Google. No government ID, no address, no phone number required.',
+    description: 'No government ID, no address, no phone number required.',
   },
   {
     icon: Lock,
@@ -21,7 +19,7 @@ const FEATURES = [
   {
     icon: Zap,
     title: 'Crypto-native payments',
-    description: 'Accept BTC, XMR, ETH, cash, or bank transfer — you choose, you negotiate.',
+    description: 'Accept BTC, ETH, USDT, cash, or bank transfer — you choose, you negotiate.',
   },
   {
     icon: Globe,
@@ -31,36 +29,11 @@ const FEATURES = [
 ];
 
 const HOW_IT_WORKS = [
-  { step: '01', title: 'Create an account', body: 'Sign in with Google and choose a password to protect your encrypted keys.' },
+  { step: '01', title: 'Create an account', body: 'Sign up with your email and choose a password to protect your encrypted keys.' },
   { step: '02', title: 'Post a listing', body: 'Describe what you\'re selling or trading. Set your price and accepted payment methods.' },
   { step: '03', title: 'Connect with buyers', body: 'Encrypted messages keep your conversation private from day one.' },
   { step: '04', title: 'Close the deal', body: 'Agree on terms, exchange payment, and leave a rating for the community.' },
 ];
-
-function RecentListings() {
-  const { data, isLoading } = useListings({ limit: 6 });
-
-  if (isLoading) {
-    return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <ListingCardSkeleton key={i} />
-        ))}
-      </div>
-    );
-  }
-
-  const listings = data?.listings ?? [];
-  if (listings.length === 0) return null;
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {listings.map((listing) => (
-        <ListingCard key={listing.id} listing={listing} />
-      ))}
-    </div>
-  );
-}
 
 export default function HomePage() {
   return (
@@ -69,22 +42,22 @@ export default function HomePage() {
       <section className="relative px-4 py-24 sm:py-32 text-center">
         <div className="mx-auto max-w-3xl">
           <Badge variant="outline" className="mb-6 text-orange-400 border-orange-400/40">
-            Free &middot; Open source &middot; Privacy-first
+            Free &middot; Community-run &middot; Privacy-first
           </Badge>
           <h1 className="text-4xl sm:text-6xl font-bold tracking-tight mb-6">
             Trade anything,{' '}
             <span className="text-orange-400">privately</span>
           </h1>
           <p className="text-lg sm:text-xl text-neutral-400 max-w-2xl mx-auto mb-10">
-            Bartr is a peer-to-peer marketplace for crypto, goods, and skills.
-            No fees, no KYC, no surveillance — just people trading with people.
+            Bartr is a volunteer-run, peer-to-peer marketplace for crypto, goods, and skills.
+            No fees, no KYC, no surveillance — built by the community, for the community.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild size="lg" className="bg-orange-500 hover:bg-orange-600 text-white">
               <Link href="/listings">Browse listings <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link href="/listings/create">Post a listing</Link>
+              <Link href="/listings/new">Post a listing</Link>
             </Button>
           </div>
         </div>
@@ -134,19 +107,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Recent listings */}
-      <section className="px-4 py-16 border-t border-neutral-800">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold">Recent listings</h2>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/listings">View all <ArrowRight className="ml-1 h-4 w-4" /></Link>
-            </Button>
-          </div>
-          <RecentListings />
-        </div>
-      </section>
-
       {/* CTA */}
       <section className="px-4 py-16 border-t border-neutral-800 text-center">
         <div className="mx-auto max-w-2xl">
@@ -156,7 +116,7 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild size="lg" className="bg-orange-500 hover:bg-orange-600 text-white">
-              <Link href="/register">Create account</Link>
+              <Link href="/register/email">Create account</Link>
             </Button>
             <Button asChild size="lg" variant="ghost">
               <Link href="/about">Learn more</Link>

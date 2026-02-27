@@ -7,8 +7,8 @@ import { useUser, useUserRatings } from '@/hooks/use-users';
 import { useListings } from '@/hooks/use-listings';
 import { useAuth } from '@/contexts/auth-context';
 import { ReputationBadge } from '@/components/reputation-badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+// Clock is used inside ActiveStatus component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -27,12 +27,91 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(months / 12)}y ago`;
 }
 
+// Coloured identicon — deterministic geometric pattern from nickname string.
+// Pure SVG, no external dependencies, no network requests.
+function Identicon({ seed, size = 80 }: { seed: string; size?: number }) {
+  const cells = 5;
+  const cellSize = size / cells;
+
+  // Generate a numeric hash from the seed string
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = Math.imul(31, hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const h = ((hash >>> 0) * 2654435761) >>> 0;
+
+  // Pick two colours from the hash
+  const hue1 = (h % 360);
+  const hue2 = (hue1 + 150) % 360;
+  const fg = `hsl(${hue1},65%,55%)`;
+  const bg = `hsl(${hue2},30%,18%)`;
+
+  // Build symmetric 5×5 grid — only left half + centre is random, right mirrors left
+  const grid: boolean[][] = Array.from({ length: cells }, (_, r) =>
+    Array.from({ length: cells }, (_, c) => {
+      const col = c < Math.ceil(cells / 2) ? c : cells - 1 - c;
+      const bit = (h >>> (r * Math.ceil(cells / 2) + col)) & 1;
+      return bit === 1;
+    }),
+  );
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      style={{ borderRadius: '50%' }}
+    >
+      <rect width={size} height={size} fill={bg} />
+      {grid.map((row, r) =>
+        row.map((on, c) =>
+          on ? (
+            <rect
+              key={`${r}-${c}`}
+              x={c * cellSize}
+              y={r * cellSize}
+              width={cellSize}
+              height={cellSize}
+              fill={fg}
+            />
+          ) : null,
+        ),
+      )}
+    </svg>
+  );
+}
+
+// Active status — green dot if active within 5 minutes, else "X ago"
+function ActiveStatus({ lastActive }: { lastActive: string }) {
+  const diffMs = Date.now() - new Date(lastActive).getTime();
+  const isOnline = diffMs < 5 * 60_000;
+
+  if (isOnline) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-green-500">
+        <span className="h-2 w-2 rounded-full bg-green-500 inline-block" aria-hidden="true" />
+        Active now
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+      <Clock className="h-3 w-3" />
+      Active {timeAgo(lastActive)}
+    </span>
+  );
+}
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
-  btc: 'BTC', xmr: 'XMR', eth: 'ETH', cash: 'Cash', bank: 'Bank',
+  btc: 'BTC', eth: 'ETH', usdt: 'USDT', usdc: 'USDC', cash: 'Cash', bank_transfer: 'Bank',
 };
 
 export default function UserProfilePage() {
@@ -75,13 +154,7 @@ export default function UserProfilePage() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start">
-            <Avatar className="h-20 w-20 text-xl">
-              <AvatarImage
-                src={profile.avatar_url ?? undefined}
-                alt={profile.nickname}
-              />
-              <AvatarFallback>{profile.nickname[0].toUpperCase()}</AvatarFallback>
-            </Avatar>
+            <Identicon seed={profile.nickname} size={80} />
 
             <div className="flex-1 text-center sm:text-left space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -111,10 +184,7 @@ export default function UserProfilePage() {
                   <Calendar className="h-3 w-3" />
                   Joined {formatDate(profile.created_at)}
                 </span>
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Active {timeAgo(profile.last_active)}
-                </span>
+                <ActiveStatus lastActive={profile.last_active} />
               </div>
             </div>
 

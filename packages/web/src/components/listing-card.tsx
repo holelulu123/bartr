@@ -8,10 +8,11 @@ import type { ListingSummary } from '@/lib/api';
 
 const PAYMENT_LABELS: Record<string, string> = {
   btc: 'BTC',
-  xmr: 'XMR',
   eth: 'ETH',
+  usdt: 'USDT',
+  usdc: 'USDC',
   cash: 'Cash',
-  bank: 'Bank',
+  bank_transfer: 'Bank',
 };
 
 function timeAgo(dateStr: string): string {

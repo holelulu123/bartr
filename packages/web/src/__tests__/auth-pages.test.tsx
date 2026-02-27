@@ -114,7 +114,7 @@ describe('/register page', () => {
     await waitFor(() => expect(screen.getByText(/do not match/i)).toBeInTheDocument());
   });
 
-  it('generates keys, registers, and shows recovery key on success', async () => {
+  it('generates keys, registers, and redirects to listings on success', async () => {
     mockCryptoRegister.mockResolvedValue({
       publicKeyBase64: 'pub-key',
       privateKeyBlob: 'priv-blob',
@@ -135,11 +135,7 @@ describe('/register page', () => {
       await userEvent.click(screen.getByRole('button', { name: /create account/i }));
     });
 
-    await waitFor(() =>
-      expect(screen.getByText(/save your recovery key/i)).toBeInTheDocument()
-    );
-
-    expect(screen.getByText('deadbeef'.repeat(8))).toBeInTheDocument();
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
     expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt');
     expect(apiModule.auth.register).toHaveBeenCalledWith(
       expect.objectContaining({

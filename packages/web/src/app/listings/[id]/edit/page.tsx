@@ -27,10 +27,11 @@ import type { ListingImage } from '@/lib/api';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'btc', label: 'BTC' },
-  { value: 'xmr', label: 'XMR' },
   { value: 'eth', label: 'ETH' },
+  { value: 'usdt', label: 'USDT' },
+  { value: 'usdc', label: 'USDC' },
   { value: 'cash', label: 'Cash' },
-  { value: 'bank', label: 'Bank' },
+  { value: 'bank_transfer', label: 'Bank transfer' },
 ];
 
 const STATUS_OPTIONS: { value: ListingStatus; label: string }[] = [

@@ -1,20 +1,19 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Camera, Loader2, Save } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
-import { useUser, useUpdateProfile, useUploadAvatar } from '@/hooks/use-users';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useUser, useUpdateProfile } from '@/hooks/use-users';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const schema = z.object({
@@ -33,12 +32,9 @@ export default function EditProfilePage() {
   const { user: me, isAuthenticated, isLoading: authLoading } = useAuth();
   const { data: profile, isLoading: profileLoading } = useUser(me?.nickname ?? '');
   const { mutateAsync: updateProfile } = useUpdateProfile();
-  const { mutateAsync: uploadAvatar, isPending: uploadingAvatar } = useUploadAvatar();
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   const {
     register,
@@ -72,21 +68,6 @@ export default function EditProfilePage() {
         <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
-  }
-
-  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    // Show preview
-    const reader = new FileReader();
-    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-    // Upload immediately
-    try {
-      await uploadAvatar(file);
-    } catch {
-      // Upload failure is non-critical; preview already set
-    }
   }
 
   async function onSubmit(data: FormData) {
@@ -124,44 +105,6 @@ export default function EditProfilePage() {
           <Link href={`/user/${me?.nickname}`}>View profile</Link>
         </Button>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Avatar</CardTitle>
-          <CardDescription>JPEG, PNG or WebP · max 5 MB</CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center gap-4">
-          <div className="relative">
-            <Avatar className="h-20 w-20 text-xl">
-              <AvatarImage src={avatarPreview ?? profile?.avatar_url ?? undefined} alt={me?.nickname} />
-              <AvatarFallback>{me?.nickname?.[0]?.toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingAvatar}
-              className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow hover:bg-primary/90 transition-colors disabled:opacity-50"
-              aria-label="Change avatar"
-            >
-              {uploadingAvatar ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Camera className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={handleAvatarChange}
-            data-testid="avatar-input"
-          />
-          <p className="text-sm text-muted-foreground">
-            Click the camera icon to upload a new photo.
-          </p>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
