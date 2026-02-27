@@ -224,7 +224,7 @@ describe('/auth/callback page', () => {
     );
   });
 
-  it('stores tokens and redirects to home for new user (no key blobs)', async () => {
+  it('stores tokens and redirects to listings for new user (no key blobs)', async () => {
     mockSearchParams = new URLSearchParams('access_token=at&refresh_token=rt');
     vi.mocked(apiModule.auth.getKeyBlobs).mockResolvedValue({
       public_key: null,
@@ -236,7 +236,7 @@ describe('/auth/callback page', () => {
     render(<AuthCallbackPage />);
 
     await waitFor(() => expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt'));
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
   });
 
   it('redirects to /auth/unlock for existing user with key blobs', async () => {
