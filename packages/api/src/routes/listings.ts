@@ -30,11 +30,25 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       if (!payment_methods || !Array.isArray(payment_methods) || payment_methods.length === 0) {
         return reply.status(400).send({ error: 'At least one payment method is required' });
       }
+      if (payment_methods.length > 5) {
+        return reply.status(400).send({ error: 'Maximum 5 payment methods' });
+      }
 
       const validMethods = ['btc', 'xmr', 'eth', 'cash', 'bank_transfer'];
       for (const method of payment_methods) {
         if (!validMethods.includes(method)) {
           return reply.status(400).send({ error: `Invalid payment method: ${method}` });
+        }
+      }
+
+      if (price_indication !== undefined && price_indication !== null) {
+        if (typeof price_indication !== 'string' || price_indication.length > 100) {
+          return reply.status(400).send({ error: 'price_indication must be 100 characters or less' });
+        }
+      }
+      if (currency !== undefined && currency !== null) {
+        if (typeof currency !== 'string' || currency.length > 10) {
+          return reply.status(400).send({ error: 'currency must be 10 characters or less' });
         }
       }
 
@@ -259,6 +273,12 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       }
 
       if (body.payment_methods !== undefined) {
+        if (!Array.isArray(body.payment_methods) || body.payment_methods.length === 0) {
+          return reply.status(400).send({ error: 'At least one payment method is required' });
+        }
+        if (body.payment_methods.length > 5) {
+          return reply.status(400).send({ error: 'Maximum 5 payment methods' });
+        }
         const validMethods = ['btc', 'xmr', 'eth', 'cash', 'bank_transfer'];
         for (const method of body.payment_methods) {
           if (!validMethods.includes(method)) {
@@ -270,11 +290,17 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       }
 
       if (body.price_indication !== undefined) {
+        if (body.price_indication !== null && body.price_indication.length > 100) {
+          return reply.status(400).send({ error: 'price_indication must be 100 characters or less' });
+        }
         updates.push(`price_indication = $${paramIdx++}`);
         values.push(body.price_indication);
       }
 
       if (body.currency !== undefined) {
+        if (body.currency !== null && body.currency.length > 10) {
+          return reply.status(400).send({ error: 'currency must be 10 characters or less' });
+        }
         updates.push(`currency = $${paramIdx++}`);
         values.push(body.currency);
       }

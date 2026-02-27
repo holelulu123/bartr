@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'node:crypto';
+import { processImage } from '../lib/image.js';
 
 export default async function userRoutes(fastify: FastifyInstance) {
   // Get public profile by nickname
@@ -124,7 +125,18 @@ export default async function userRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Only JPEG, PNG, and WebP images are allowed' });
       }
 
-      const ext = data.mimetype.split('/')[1] === 'jpeg' ? 'jpg' : data.mimetype.split('/')[1];
+      // Read full buffer for magic-byte validation + EXIF stripping
+      const rawBuffer = await data.toBuffer();
+
+      let processed: { buffer: Buffer; mime: string };
+      try {
+        processed = await processImage(rawBuffer, data.mimetype);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Invalid image';
+        return reply.status(400).send({ error: msg });
+      }
+
+      const ext = processed.mime.split('/')[1] === 'jpeg' ? 'jpg' : processed.mime.split('/')[1];
       const key = `avatars/${userId}-${crypto.randomUUID()}.${ext}`;
 
       // Delete old avatar if exists
@@ -139,9 +151,9 @@ export default async function userRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Upload to MinIO
-      await fastify.minio.putObject(fastify.minioBucket, key, data.file, {
-        'Content-Type': data.mimetype,
+      // Upload processed (EXIF-stripped) buffer to MinIO
+      await fastify.minio.putObject(fastify.minioBucket, key, processed.buffer, {
+        'Content-Type': processed.mime,
       });
 
       // Update user record

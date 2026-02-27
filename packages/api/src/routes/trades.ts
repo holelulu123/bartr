@@ -297,48 +297,74 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: `Cannot complete a trade with status: ${t.status}` });
       }
 
-      // Check if this user already confirmed
-      const alreadyConfirmed = await fastify.pg.query(
-        "SELECT id FROM trade_events WHERE trade_id = $1 AND event_type = 'complete_confirmed' AND created_by = $2",
-        [id, userId],
-      );
-      if (alreadyConfirmed.rows.length > 0) {
-        return reply.status(409).send({ error: 'You already confirmed completion' });
-      }
+      // Use a transaction with row-level locking to prevent race conditions
+      // when both parties confirm simultaneously
+      const client = await fastify.pg.connect();
+      try {
+        await client.query('BEGIN');
 
-      // Record confirmation
-      await fastify.pg.query(
-        `INSERT INTO trade_events (trade_id, event_type, created_by) VALUES ($1, 'complete_confirmed', $2)`,
-        [id, userId],
-      );
-
-      // Check if both parties have confirmed
-      const confirmations = await fastify.pg.query(
-        "SELECT DISTINCT created_by FROM trade_events WHERE trade_id = $1 AND event_type = 'complete_confirmed'",
-        [id],
-      );
-
-      if (confirmations.rows.length >= 2) {
-        // Both confirmed — mark trade as completed
-        const result = await fastify.pg.query(
-          `UPDATE trades SET status = 'completed', updated_at = now()
-           WHERE id = $1 RETURNING id, listing_id, buyer_id, seller_id, status, created_at, updated_at`,
+        // Lock the trade row for the duration of this transaction
+        const lockedTrade = await client.query(
+          "SELECT id, status FROM trades WHERE id = $1 FOR UPDATE",
           [id],
         );
+        if (lockedTrade.rows[0].status !== 'accepted') {
+          await client.query('ROLLBACK');
+          return reply.status(400).send({ error: `Cannot complete a trade with status: ${lockedTrade.rows[0].status}` });
+        }
 
-        await fastify.pg.query(
-          `INSERT INTO trade_events (trade_id, event_type, created_by) VALUES ($1, 'completed', $2)`,
+        // Check if this user already confirmed
+        const alreadyConfirmed = await client.query(
+          "SELECT id FROM trade_events WHERE trade_id = $1 AND event_type = 'complete_confirmed' AND created_by = $2",
+          [id, userId],
+        );
+        if (alreadyConfirmed.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return reply.status(409).send({ error: 'You already confirmed completion' });
+        }
+
+        // Record confirmation
+        await client.query(
+          `INSERT INTO trade_events (trade_id, event_type, created_by) VALUES ($1, 'complete_confirmed', $2)`,
           [id, userId],
         );
 
-        return reply.send({ ...result.rows[0], message: 'Trade completed! Both parties confirmed.' });
-      }
+        // Count distinct confirmers (including the one just inserted)
+        const confirmations = await client.query(
+          "SELECT COUNT(DISTINCT created_by) as cnt FROM trade_events WHERE trade_id = $1 AND event_type = 'complete_confirmed'",
+          [id],
+        );
 
-      return reply.send({
-        id: t.id,
-        status: 'accepted',
-        message: 'Completion confirmed. Waiting for the other party to confirm.',
-      });
+        if (parseInt(confirmations.rows[0].cnt, 10) >= 2) {
+          // Both confirmed — mark trade as completed atomically
+          const result = await client.query(
+            `UPDATE trades SET status = 'completed', updated_at = now()
+             WHERE id = $1 AND status = 'accepted'
+             RETURNING id, listing_id, buyer_id, seller_id, status, created_at, updated_at`,
+            [id],
+          );
+
+          await client.query(
+            `INSERT INTO trade_events (trade_id, event_type, created_by) VALUES ($1, 'completed', $2)`,
+            [id, userId],
+          );
+
+          await client.query('COMMIT');
+          return reply.send({ ...result.rows[0], message: 'Trade completed! Both parties confirmed.' });
+        }
+
+        await client.query('COMMIT');
+        return reply.send({
+          id: t.id,
+          status: 'accepted',
+          message: 'Completion confirmed. Waiting for the other party to confirm.',
+        });
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
     },
   );
 }

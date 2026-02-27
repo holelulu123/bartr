@@ -7,13 +7,23 @@ import { env } from '../config/env.js';
 import { generateUniqueNickname } from '../lib/nickname.js';
 
 function emailHmac(email: string): string {
-  const key = process.env.ENCRYPTION_KEY ?? 'bartr-dev-encryption-key-32bytes!'.padEnd(32).slice(0, 32);
+  const raw = process.env.ENCRYPTION_KEY;
+  if (!raw && process.env.NODE_ENV === 'production') {
+    throw new Error('ENCRYPTION_KEY is required in production');
+  }
+  const key = raw
+    ? Buffer.from(raw, 'hex')
+    : Buffer.from('bartr-dev-encryption-key-32bytes!'.padEnd(32).slice(0, 32));
   return crypto.createHmac('sha256', key).update(email.toLowerCase().trim()).digest('hex');
 }
 
+// Tight rate limit config for sensitive auth endpoints (applied per-route below)
+const AUTH_RATE_LIMIT = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+const LOGIN_RATE_LIMIT = { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } };
+
 export default async function authRoutes(fastify: FastifyInstance) {
   // Google OAuth: redirect to Google
-  fastify.get('/auth/google', async (_request, reply) => {
+  fastify.get('/auth/google', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (_request, reply) => {
     const params = new URLSearchParams({
       client_id: env.googleClientId,
       redirect_uri: env.googleRedirectUri,
@@ -116,7 +126,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       private_key_blob: string;   // base64
       recovery_key_blob: string;  // base64
     };
-  }>('/auth/register', async (request, reply) => {
+  }>('/auth/register', AUTH_RATE_LIMIT, async (request, reply) => {
     const { google_id, password, public_key, private_key_blob, recovery_key_blob } = request.body;
 
     if (!google_id || !password) {
@@ -159,7 +169,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   });
 
   // Refresh access token
-  fastify.post<{ Body: { refresh_token: string } }>('/auth/refresh', async (request, reply) => {
+  fastify.post<{ Body: { refresh_token: string } }>('/auth/refresh', AUTH_RATE_LIMIT, async (request, reply) => {
     const { refresh_token } = request.body;
     if (!refresh_token) {
       return reply.status(400).send({ error: 'refresh_token is required' });
@@ -232,7 +242,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       private_key_blob: string;
       recovery_key_blob: string;
     };
-  }>('/auth/register/email', async (request, reply) => {
+  }>('/auth/register/email', AUTH_RATE_LIMIT, async (request, reply) => {
     const { email, password, public_key, private_key_blob, recovery_key_blob } = request.body;
 
     if (!email || !password) {
@@ -281,7 +291,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   // Email/password login
   fastify.post<{
     Body: { email: string; password: string };
-  }>('/auth/login/email', async (request, reply) => {
+  }>('/auth/login/email', LOGIN_RATE_LIMIT, async (request, reply) => {
     const { email, password } = request.body;
 
     if (!email || !password) {

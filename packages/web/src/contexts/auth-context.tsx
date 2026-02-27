@@ -31,7 +31,8 @@ function getRefreshTokenFromCookie(): string | null {
 function setRefreshTokenCookie(token: string) {
   if (typeof document === 'undefined') return;
   const maxAge = 60 * 60 * 24 * 30; // 30 days
-  document.cookie = `${REFRESH_TOKEN_KEY}=${encodeURIComponent(token)}; max-age=${maxAge}; path=/; SameSite=Strict`;
+  const secure = location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${REFRESH_TOKEN_KEY}=${encodeURIComponent(token)}; max-age=${maxAge}; path=/; SameSite=Strict${secure}`;
 }
 
 function clearRefreshTokenCookie() {

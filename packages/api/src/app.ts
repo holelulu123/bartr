@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
+import { env } from './config/env.js';
 import dbPlugin from './plugins/db.js';
 import redisPlugin from './plugins/redis.js';
 import minioPlugin from './plugins/minio.js';
@@ -24,15 +25,38 @@ export interface BuildAppOptions {
 export async function buildApp(opts: BuildAppOptions = {}) {
   const app = Fastify({ logger: false });
 
-  await app.register(cors, { origin: true, credentials: true });
+  // CORS: allow only the configured client origin (not a wildcard)
+  await app.register(cors, {
+    origin: env.clientUrl,
+    credentials: true,
+  });
+
+  // Security headers on every response
+  app.addHook('onSend', async (_request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('X-Permitted-Cross-Domain-Policies', 'none');
+  });
+
   await app.register(cookie);
-  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB
+  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } }); // 5 MB
+
   if (!opts.skipRateLimit) {
+    // Global default: 100 req/min
     await app.register(rateLimit, {
+      global: true,
       max: 100,
       timeWindow: '1 minute',
+      keyGenerator: (request) => request.ip,
+      errorResponseBuilder: (_req, ctx) => ({
+        statusCode: 429,
+        error: 'Too many requests — please slow down',
+        expiresIn: ctx.ttl,
+      }),
     });
   }
+
   await app.register(dbPlugin);
   await app.register(redisPlugin);
   if (!opts.skipMinio) {
@@ -40,7 +64,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   }
   await app.register(authPlugin);
   await app.register(healthRoutes);
-  await app.register(authRoutes);
+  await app.register(authRoutes, { prefix: '/' });
   if (!opts.skipMinio) {
     await app.register(userRoutes);
     await app.register(listingRoutes);
