@@ -212,6 +212,7 @@ They need to enter their password to unwrap it before they can read/send message
 - [ ] Accessibility: semantic HTML, ARIA labels, keyboard navigation, WCAG AA contrast
 - [ ] SEO: dynamic page titles, OG tags, sitemap.xml
 - [ ] Performance: Next.js `<Image>`, lazy loading, bundle analysis
+- [ ] **Captcha on registration** — hCaptcha (privacy-friendly, no Google) on `/register/email` and `/register` to prevent bot account creation. Backend validates the captcha token before creating the account.
 - [ ] DB backup strategy configured
 - [ ] Uptime monitoring configured
 - [ ] Manual smoke test: register → browse → list → message → trade → rate
