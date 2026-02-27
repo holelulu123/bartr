@@ -6,6 +6,7 @@ import { CryptoProvider } from '@/contexts/crypto-context';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { GlobalAuthGuard } from '@/components/global-auth-guard';
+import { Toaster } from '@/components/toaster';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   {children}
                 </main>
                 <Footer />
+                <Toaster />
               </GlobalAuthGuard>
               </CryptoProvider>
             </AuthProvider>
