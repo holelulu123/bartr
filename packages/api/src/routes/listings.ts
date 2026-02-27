@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { processImage } from '../lib/image.js';
 import crypto from 'node:crypto';
 
 export default async function listingRoutes(fastify: FastifyInstance) {
@@ -381,11 +382,22 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Only JPEG, PNG, and WebP images are allowed' });
       }
 
-      const ext = data.mimetype.split('/')[1] === 'jpeg' ? 'jpg' : data.mimetype.split('/')[1];
+      // Read full file into buffer for magic-byte validation + EXIF stripping
+      const rawBuffer = await data.toBuffer();
+
+      let processed: { buffer: Buffer; mime: string };
+      try {
+        processed = await processImage(rawBuffer, data.mimetype);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Invalid image';
+        return reply.status(400).send({ error: msg });
+      }
+
+      const ext = processed.mime.split('/')[1] === 'jpeg' ? 'jpg' : processed.mime.split('/')[1];
       const key = `listings/${id}/${crypto.randomUUID()}.${ext}`;
 
-      await fastify.minio.putObject(fastify.minioBucket, key, data.file, {
-        'Content-Type': data.mimetype,
+      await fastify.minio.putObject(fastify.minioBucket, key, processed.buffer, {
+        'Content-Type': processed.mime,
       });
 
       const imgResult = await fastify.pg.query(
