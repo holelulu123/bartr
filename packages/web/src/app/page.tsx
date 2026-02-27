@@ -50,7 +50,7 @@ function RecentListings() {
     );
   }
 
-  const listings = data?.pages[0]?.listings ?? [];
+  const listings = data?.listings ?? [];
   if (listings.length === 0) return null;
 
   return (
