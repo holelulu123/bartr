@@ -49,7 +49,7 @@ export default function HomePage() {
             <span className="text-orange-400">privately</span>
           </h1>
           <p className="text-lg sm:text-xl text-neutral-400 max-w-2xl mx-auto mb-10">
-            A free, community-run marketplace for crypto, cash, and goods.
+            A free marketplace for crypto, cash, and goods.
             No fees, no KYC, no surveillance.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
