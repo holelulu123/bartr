@@ -2,14 +2,29 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { buildApp } from '../app.js';
 import type { FastifyInstance } from 'fastify';
 import { signAccessToken, signRefreshToken, verifyToken } from '../lib/jwt.js';
-import crypto from 'node:crypto';
 
-// Every register call must include key blobs — no legacy path exists
+// Every register call must include key blobs
 const TEST_KEYS = {
   public_key: 'MCowBQYDK2VuAyEAtest_public_key_base64',
   private_key_blob: Buffer.from('encrypted_private_key').toString('base64'),
   recovery_key_blob: Buffer.from('recovery_wrapped_key').toString('base64'),
 };
+
+// Helper: insert a user row directly as if OAuth callback had run
+async function createOAuthUser(
+  app: FastifyInstance,
+  googleId: string,
+  nickname: string,
+): Promise<string> {
+  const result = await app.pg.query(
+    `INSERT INTO users (google_id, nickname, auth_provider)
+     VALUES ($1, $2, 'google')
+     RETURNING id`,
+    [googleId, nickname],
+  );
+  await app.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [result.rows[0].id]);
+  return result.rows[0].id;
+}
 
 describe('Auth routes', () => {
   let app: FastifyInstance;
@@ -19,25 +34,37 @@ describe('Auth routes', () => {
     await app.ready();
   });
 
+  // Email addresses used in tests — clean all of them between runs
+  const TEST_EMAILS_HMAC = [
+    'newuser@example.com', 'short@example.com', 'dupe@example.com',
+    'nokeys@example.com', 'logintest@example.com',
+  ];
+
   afterAll(async () => {
     await app.pg.query("DELETE FROM users WHERE nickname LIKE 'testuser_%'");
+    await app.pg.query('DELETE FROM refresh_tokens WHERE user_id NOT IN (SELECT id FROM users)');
     await app.close();
   });
 
   beforeEach(async () => {
     await app.pg.query("DELETE FROM users WHERE nickname LIKE 'testuser_%'");
+    // Clean email-registered test users by deleting via email_encrypted pattern or by known email hashes
+    // Easiest: delete any user with no google_id (email auth test users)
+    await app.pg.query("DELETE FROM users WHERE auth_provider = 'email' AND email_encrypted IS NOT NULL");
     await app.pg.query('DELETE FROM refresh_tokens WHERE user_id NOT IN (SELECT id FROM users)');
   });
 
+  // ── POST /auth/register (Google — set password + keys after OAuth) ──────────
+
   describe('POST /auth/register', () => {
-    it('creates a new user with valid data', async () => {
+    it('sets password + key blobs for a Google user created by OAuth callback', async () => {
+      await createOAuthUser(app, 'google_test_123', 'testuser_one');
+
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register',
         payload: {
           google_id: 'google_test_123',
-          email: 'test@example.com',
-          nickname: 'testuser_one',
           password: 'securepassword123',
           ...TEST_KEYS,
         },
@@ -52,31 +79,14 @@ describe('Auth routes', () => {
       expect(payload.nickname).toBe('testuser_one');
     });
 
-    it('rejects short nickname', async () => {
+    it('rejects short password', async () => {
+      await createOAuthUser(app, 'google_test_456', 'testuser_two');
+
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register',
         payload: {
           google_id: 'google_test_456',
-          email: 'test2@example.com',
-          nickname: 'ab',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
-      });
-
-      expect(res.statusCode).toBe(400);
-      expect(res.json().error).toContain('3-30');
-    });
-
-    it('rejects short password', async () => {
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_test_789',
-          email: 'test3@example.com',
-          nickname: 'testuser_three',
           password: 'short',
           ...TEST_KEYS,
         },
@@ -87,13 +97,13 @@ describe('Auth routes', () => {
     });
 
     it('rejects registration without key blobs', async () => {
+      await createOAuthUser(app, 'google_nokeys_test', 'testuser_nokeys');
+
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register',
         payload: {
           google_id: 'google_nokeys_test',
-          email: 'nokeys@example.com',
-          nickname: 'testuser_nokeys',
           password: 'securepassword123',
         },
       });
@@ -102,74 +112,41 @@ describe('Auth routes', () => {
       expect(res.json().error).toContain('required');
     });
 
-    it('rejects duplicate nickname', async () => {
-      await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_dup_1',
-          email: 'dup1@example.com',
-          nickname: 'testuser_dup',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
-      });
-
+    it('returns 404 for unknown google_id', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register',
         payload: {
-          google_id: 'google_dup_2',
-          email: 'dup2@example.com',
-          nickname: 'testuser_dup',
+          google_id: 'nonexistent_google_id',
           password: 'securepassword123',
           ...TEST_KEYS,
         },
       });
 
-      expect(res.statusCode).toBe(409);
-      expect(res.json().error).toContain('Nickname');
+      expect(res.statusCode).toBe(404);
     });
 
-    it('rejects duplicate google_id', async () => {
-      await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_same_id',
-          email: 'first@example.com',
-          nickname: 'testuser_first',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
-      });
-
+    it('rejects missing google_id', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register',
-        payload: {
-          google_id: 'google_same_id',
-          email: 'second@example.com',
-          nickname: 'testuser_second',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
+        payload: { password: 'securepassword123', ...TEST_KEYS },
       });
-
-      expect(res.statusCode).toBe(409);
-      expect(res.json().error).toContain('Google');
+      expect(res.statusCode).toBe(400);
     });
   });
 
+  // ── POST /auth/register — E2E key blobs ────────────────────────────────────
+
   describe('POST /auth/register — E2E key blobs', () => {
     it('stores key blobs and returns them via GET /auth/key-blobs', async () => {
+      await createOAuthUser(app, 'google_e2e_test', 'testuser_e2e');
+
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register',
         payload: {
           google_id: 'google_e2e_test',
-          email: 'e2e@example.com',
-          nickname: 'testuser_e2e',
           password: 'securepassword123',
           ...TEST_KEYS,
         },
@@ -192,6 +169,8 @@ describe('Auth routes', () => {
     });
   });
 
+  // ── GET /auth/key-blobs ────────────────────────────────────────────────────
+
   describe('GET /auth/key-blobs', () => {
     it('requires authentication', async () => {
       const res = await app.inject({
@@ -203,15 +182,17 @@ describe('Auth routes', () => {
     });
   });
 
+  // ── POST /auth/refresh ─────────────────────────────────────────────────────
+
   describe('POST /auth/refresh', () => {
     it('rotates refresh token and returns new tokens', async () => {
+      await createOAuthUser(app, 'google_refresh_test', 'testuser_refresh');
+
       const regRes = await app.inject({
         method: 'POST',
         url: '/auth/register',
         payload: {
           google_id: 'google_refresh_test',
-          email: 'refresh@example.com',
-          nickname: 'testuser_refresh',
           password: 'securepassword123',
           ...TEST_KEYS,
         },
@@ -250,15 +231,17 @@ describe('Auth routes', () => {
     });
   });
 
+  // ── POST /auth/logout ──────────────────────────────────────────────────────
+
   describe('POST /auth/logout', () => {
     it('revokes refresh token', async () => {
+      await createOAuthUser(app, 'google_logout_test', 'testuser_logout');
+
       const regRes = await app.inject({
         method: 'POST',
         url: '/auth/register',
         payload: {
           google_id: 'google_logout_test',
-          email: 'logout@example.com',
-          nickname: 'testuser_logout',
           password: 'securepassword123',
           ...TEST_KEYS,
         },
@@ -284,15 +267,17 @@ describe('Auth routes', () => {
     });
   });
 
+  // ── GET /auth/me ───────────────────────────────────────────────────────────
+
   describe('GET /auth/me', () => {
     it('returns user info with valid token', async () => {
+      await createOAuthUser(app, 'google_me_test', 'testuser_me');
+
       const regRes = await app.inject({
         method: 'POST',
         url: '/auth/register',
         payload: {
           google_id: 'google_me_test',
-          email: 'me@example.com',
-          nickname: 'testuser_me',
           password: 'securepassword123',
           ...TEST_KEYS,
         },
@@ -332,16 +317,15 @@ describe('Auth routes', () => {
     });
   });
 
-  // ── Email/password registration ────────────────────────────────────────────
+  // ── POST /auth/register/email ──────────────────────────────────────────────
 
   describe('POST /auth/register/email', () => {
-    it('creates a new user with valid email and password', async () => {
+    it('creates a new user and auto-assigns a nickname', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register/email',
         payload: {
           email: 'newuser@example.com',
-          nickname: 'testuser_email1',
           password: 'securepassword123',
           ...TEST_KEYS,
         },
@@ -351,13 +335,18 @@ describe('Auth routes', () => {
       const body = res.json();
       expect(body.access_token).toBeDefined();
       expect(body.refresh_token).toBeDefined();
+
+      // Nickname is auto-generated — verify it exists in the token
+      const payload = await verifyToken(body.access_token);
+      expect(payload.nickname).toBeTruthy();
+      expect(typeof payload.nickname).toBe('string');
     });
 
     it('rejects missing email', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register/email',
-        payload: { nickname: 'testuser_email2', password: 'securepassword123', ...TEST_KEYS },
+        payload: { password: 'securepassword123', ...TEST_KEYS },
       });
       expect(res.statusCode).toBe(400);
     });
@@ -368,7 +357,6 @@ describe('Auth routes', () => {
         url: '/auth/register/email',
         payload: {
           email: 'short@example.com',
-          nickname: 'testuser_email3',
           password: 'short',
           ...TEST_KEYS,
         },
@@ -379,56 +367,34 @@ describe('Auth routes', () => {
     it('rejects duplicate email', async () => {
       const payload = {
         email: 'dupe@example.com',
-        nickname: 'testuser_email4',
         password: 'securepassword123',
         ...TEST_KEYS,
       };
       await app.inject({ method: 'POST', url: '/auth/register/email', payload });
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register/email',
-        payload: { ...payload, nickname: 'testuser_email5' },
-      });
+      const res = await app.inject({ method: 'POST', url: '/auth/register/email', payload });
       expect(res.statusCode).toBe(409);
       expect(res.json().error).toMatch(/email already registered/i);
-    });
-
-    it('rejects duplicate nickname', async () => {
-      await app.inject({
-        method: 'POST',
-        url: '/auth/register/email',
-        payload: { email: 'first@example.com', nickname: 'testuser_email6', password: 'securepassword123', ...TEST_KEYS },
-      });
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register/email',
-        payload: { email: 'second@example.com', nickname: 'testuser_email6', password: 'securepassword123', ...TEST_KEYS },
-      });
-      expect(res.statusCode).toBe(409);
-      expect(res.json().error).toMatch(/nickname already taken/i);
     });
 
     it('rejects missing key blobs', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register/email',
-        payload: { email: 'nokeys@example.com', nickname: 'testuser_email7', password: 'securepassword123' },
+        payload: { email: 'nokeys@example.com', password: 'securepassword123' },
       });
       expect(res.statusCode).toBe(400);
     });
   });
 
-  // ── Email/password login ───────────────────────────────────────────────────
+  // ── POST /auth/login/email ─────────────────────────────────────────────────
 
   describe('POST /auth/login/email', () => {
     beforeEach(async () => {
-      // Create a test user to log in with
       await app.inject({
         method: 'POST',
         url: '/auth/register/email',
         payload: {
           email: 'logintest@example.com',
-          nickname: 'testuser_login1',
           password: 'correctpassword123',
           ...TEST_KEYS,
         },

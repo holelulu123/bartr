@@ -7,7 +7,6 @@ export function register(payload: RegisterPayload): Promise<TokenPair> {
 
 export interface EmailRegisterPayload {
   email: string;
-  nickname: string;
   password: string;
   public_key: string;
   private_key_blob: string;

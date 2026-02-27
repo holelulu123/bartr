@@ -96,26 +96,18 @@ describe('/login page', () => {
 
 describe('/register page', () => {
   beforeEach(() => {
-    mockSearchParams = new URLSearchParams('google_id=gid123&email=test@example.com');
+    mockSearchParams = new URLSearchParams('google_id=gid123');
   });
 
-  it('renders nickname and password fields', () => {
+  it('renders password fields (no nickname field)', () => {
     render(<RegisterPage />);
-    expect(screen.getByLabelText(/nickname/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/nickname/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
   });
 
-  it('shows validation error for short nickname', async () => {
-    render(<RegisterPage />);
-    await userEvent.type(screen.getByLabelText(/nickname/i), 'ab');
-    await userEvent.click(screen.getByRole('button', { name: /create account/i }));
-    await waitFor(() => expect(screen.getByText(/3.30 characters/i)).toBeInTheDocument());
-  });
-
   it('shows error when passwords do not match', async () => {
     render(<RegisterPage />);
-    await userEvent.type(screen.getByLabelText(/nickname/i), 'satoshi');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'different123');
     await userEvent.click(screen.getByRole('button', { name: /create account/i }));
@@ -136,7 +128,6 @@ describe('/register page', () => {
     mockRefreshUser.mockResolvedValue(undefined);
 
     render(<RegisterPage />);
-    await userEvent.type(screen.getByLabelText(/nickname/i), 'satoshi');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
 
@@ -148,42 +139,16 @@ describe('/register page', () => {
       expect(screen.getByText(/save your recovery key/i)).toBeInTheDocument()
     );
 
-    // Recovery key is displayed
     expect(screen.getByText('deadbeef'.repeat(8))).toBeInTheDocument();
-
-    // Tokens were stored
     expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt');
-
-    // Register was called with key blobs
     expect(apiModule.auth.register).toHaveBeenCalledWith(
       expect.objectContaining({
-        nickname: 'satoshi',
+        google_id: 'gid123',
         public_key: 'pub-key',
         private_key_blob: 'priv-blob',
         recovery_key_blob: 'rec-blob',
       })
     );
-  });
-
-  it('shows server error on 409 nickname conflict', async () => {
-    mockCryptoRegister.mockResolvedValue({
-      publicKeyBase64: 'pub',
-      privateKeyBlob: 'priv',
-      recoveryKeyHex: 'aa'.repeat(32),
-      recoveryKeyBlob: 'rec',
-    });
-    vi.mocked(apiModule.auth.register).mockRejectedValue(new Error('409'));
-
-    render(<RegisterPage />);
-    await userEvent.type(screen.getByLabelText(/nickname/i), 'taken');
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
-
-    await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: /create account/i }));
-    });
-
-    await waitFor(() => expect(screen.getByText(/nickname already taken/i)).toBeInTheDocument());
   });
 
   it('redirects to /login if no google_id in query', async () => {

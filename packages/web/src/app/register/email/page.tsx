@@ -18,11 +18,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 const schema = z
   .object({
     email: z.string().email('Enter a valid email'),
-    nickname: z
-      .string()
-      .min(3, 'Must be 3–30 characters')
-      .max(30, 'Must be 3–30 characters')
-      .regex(/^[a-zA-Z0-9_-]+$/, 'Only letters, numbers, _ and - allowed'),
     password: z.string().min(8, 'At least 8 characters'),
     confirmPassword: z.string(),
   })
@@ -63,7 +58,6 @@ export default function EmailRegisterPage() {
 
       const tokens = await auth.registerEmail({
         email: data.email,
-        nickname: data.nickname,
         password: data.password,
         public_key: publicKeyBase64,
         private_key_blob: privateKeyBlob,
@@ -77,11 +71,7 @@ export default function EmailRegisterPage() {
       setStep('recovery');
     } catch (e: unknown) {
       if (e instanceof Error && e.message.includes('409')) {
-        setServerError(
-          e.message.toLowerCase().includes('email')
-            ? 'Email already registered.'
-            : 'Nickname already taken.',
-        );
+        setServerError('Email already registered.');
       } else {
         setServerError('Registration failed. Please try again.');
       }
@@ -146,7 +136,7 @@ export default function EmailRegisterPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>Create your account</CardTitle>
-          <CardDescription>Sign up with your email and a strong password</CardDescription>
+          <CardDescription>Sign up with your email and a strong password. A nickname will be assigned automatically.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
@@ -161,19 +151,6 @@ export default function EmailRegisterPage() {
               />
               {errors.email && (
                 <p className="text-xs text-destructive">{errors.email.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="nickname">Nickname</Label>
-              <Input
-                id="nickname"
-                placeholder="satoshi"
-                autoComplete="username"
-                {...register('nickname')}
-              />
-              {errors.nickname && (
-                <p className="text-xs text-destructive">{errors.nickname.message}</p>
               )}
             </div>
 

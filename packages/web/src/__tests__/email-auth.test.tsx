@@ -150,10 +150,10 @@ describe('LoginPage — auth redirect', () => {
 import EmailRegisterPage from '@/app/register/email/page';
 
 describe('EmailRegisterPage — form rendering', () => {
-  it('renders all form fields', () => {
+  it('renders email and password fields (no nickname field)', () => {
     render(<EmailRegisterPage />);
     expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^nickname$/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^nickname$/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
   });
@@ -180,7 +180,6 @@ describe('EmailRegisterPage — validation', () => {
   it('shows error for short password', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'a@b.com');
-    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'validnick');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'short');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'short');
     await userEvent.click(screen.getByRole('button', { name: /create account/i }));
@@ -190,7 +189,6 @@ describe('EmailRegisterPage — validation', () => {
   it('shows error when passwords do not match', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'a@b.com');
-    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'validnick');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'different123');
     await userEvent.click(screen.getByRole('button', { name: /create account/i }));
@@ -213,7 +211,6 @@ describe('EmailRegisterPage — successful registration', () => {
   it('shows recovery key screen after registration', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
-    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'newnick');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
 
@@ -225,10 +222,9 @@ describe('EmailRegisterPage — successful registration', () => {
     expect(screen.getByText('aabbccdd1122')).toBeInTheDocument();
   });
 
-  it('calls registerEmail with correct payload', async () => {
+  it('calls registerEmail with email (no nickname in payload)', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
-    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'newnick');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
 
@@ -238,15 +234,18 @@ describe('EmailRegisterPage — successful registration', () => {
 
     await waitFor(() =>
       expect(mockRegisterEmail).toHaveBeenCalledWith(
-        expect.objectContaining({ email: 'new@example.com', nickname: 'newnick' }),
+        expect.objectContaining({ email: 'new@example.com' }),
       ),
+    );
+    // Nickname must NOT be in the payload
+    expect(mockRegisterEmail).toHaveBeenCalledWith(
+      expect.not.objectContaining({ nickname: expect.anything() }),
     );
   });
 
   it('redirects to /listings after saving recovery key', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
-    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'newnick');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
 
@@ -267,7 +266,6 @@ describe('EmailRegisterPage — server errors', () => {
 
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'dupe@example.com');
-    await userEvent.type(screen.getByLabelText(/^nickname$/i), 'validnick');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
 

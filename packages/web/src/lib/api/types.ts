@@ -28,8 +28,6 @@ export interface CurrentUser {
 
 export interface RegisterPayload {
   google_id: string;
-  email: string;
-  nickname: string;
   password: string;
   public_key: string;
   private_key_blob: string;

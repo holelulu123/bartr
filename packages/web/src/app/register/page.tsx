@@ -15,11 +15,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const schema = z.object({
-  nickname: z
-    .string()
-    .min(3, 'Must be 3–30 characters')
-    .max(30, 'Must be 3–30 characters')
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Only letters, numbers, _ and - allowed'),
   password: z.string().min(8, 'At least 8 characters'),
   confirmPassword: z.string(),
 }).refine((d) => d.password === d.confirmPassword, {
@@ -29,7 +24,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-type Step = 'form' | 'recovery' | 'done';
+type Step = 'form' | 'recovery';
 
 export default function RegisterPage() {
   const searchParams = useSearchParams();
@@ -38,7 +33,6 @@ export default function RegisterPage() {
   const { register: cryptoRegister } = useCrypto();
 
   const googleId = searchParams.get('google_id') ?? '';
-  const email = searchParams.get('email') ?? '';
 
   const [step, setStep] = useState<Step>('form');
   const [recoveryKey, setRecoveryKey] = useState('');
@@ -51,12 +45,10 @@ export default function RegisterPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
-  // Redirect if already logged in
   useEffect(() => {
-    if (!isLoading && isAuthenticated) router.replace('/');
+    if (!isLoading && isAuthenticated) router.replace('/listings');
   }, [isAuthenticated, isLoading, router]);
 
-  // Redirect if no google_id in query (shouldn't land here directly)
   useEffect(() => {
     if (!googleId) router.replace('/login');
   }, [googleId, router]);
@@ -64,32 +56,24 @@ export default function RegisterPage() {
   async function onSubmit(data: FormData) {
     setServerError('');
     try {
-      // 1. Generate keypair + wrap blobs in browser
       const { publicKeyBase64, privateKeyBlob, recoveryKeyHex, recoveryKeyBlob } =
         await cryptoRegister(data.password);
 
-      // 2. Register with backend
       const tokens = await auth.register({
         google_id: googleId,
-        email,
-        nickname: data.nickname,
         password: data.password,
         public_key: publicKeyBase64,
         private_key_blob: privateKeyBlob,
         recovery_key_blob: recoveryKeyBlob,
       });
 
-      // 3. Store tokens + load user
       setTokens(tokens.access_token, tokens.refresh_token);
       await refreshUser();
 
-      // 4. Show recovery key to user before proceeding
       setRecoveryKey(recoveryKeyHex);
       setStep('recovery');
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('409')) {
-        setServerError('Nickname already taken.');
-      } else if (e instanceof Error) {
+      if (e instanceof Error) {
         setServerError(e.message || 'Registration failed. Please try again.');
       } else {
         setServerError('Registration failed. Please try again.');
@@ -101,10 +85,6 @@ export default function RegisterPage() {
     await navigator.clipboard.writeText(recoveryKey);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }
-
-  function finishRecovery() {
-    router.replace('/');
   }
 
   if (isLoading) return null;
@@ -140,7 +120,7 @@ export default function RegisterPage() {
             <p className="text-xs text-muted-foreground text-center">
               Write it down or store it in a password manager.
             </p>
-            <Button className="w-full" onClick={finishRecovery}>
+            <Button className="w-full" onClick={() => router.replace('/listings')}>
               I have saved my recovery key
             </Button>
           </CardContent>
@@ -149,31 +129,19 @@ export default function RegisterPage() {
     );
   }
 
-  // ── Step: registration form ───────────────────────────────────────────────
+  // ── Step: set password ────────────────────────────────────────────────────
   return (
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle>Create your account</CardTitle>
+          <CardTitle>Set your password</CardTitle>
           <CardDescription>
-            Choose a nickname and password for your Bartr account
+            Choose a strong password — it encrypts your private key and secures your account.
+            A nickname will be assigned automatically.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="nickname">Nickname</Label>
-              <Input
-                id="nickname"
-                placeholder="satoshi"
-                autoComplete="username"
-                {...register('nickname')}
-              />
-              {errors.nickname && (
-                <p className="text-xs text-destructive">{errors.nickname.message}</p>
-              )}
-            </div>
-
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -204,14 +172,14 @@ export default function RegisterPage() {
             </div>
 
             {serverError && (
-              <p className="text-sm text-destructive">{serverError}</p>
+              <p className="text-sm text-destructive" role="alert">{serverError}</p>
             )}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating keys...
+                  Generating keys…
                 </>
               ) : (
                 'Create account'

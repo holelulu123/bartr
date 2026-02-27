@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { signAccessToken, signRefreshToken, verifyToken } from '../lib/jwt.js';
 import { encrypt } from '../lib/crypto.js';
 import { env } from '../config/env.js';
+import { generateUniqueNickname } from '../lib/nickname.js';
 
 function emailHmac(email: string): string {
   const key = process.env.ENCRYPTION_KEY ?? 'bartr-dev-encryption-key-32bytes!'.padEnd(32).slice(0, 32);
@@ -82,80 +83,77 @@ export default async function authRoutes(fastify: FastifyInstance) {
         );
       }
 
-      // New user — redirect to registration page with Google data
+      // New user — auto-register with a generated nickname
+      const nickname = await generateUniqueNickname(fastify.pg);
+      const emailEncrypted = email ? encrypt(email) : null;
+
+      const newUser = await fastify.pg.query(
+        `INSERT INTO users (google_id, nickname, email_encrypted, auth_provider)
+         VALUES ($1, $2, $3, 'google')
+         RETURNING id, nickname`,
+        [googleId, nickname, emailEncrypted],
+      );
+
+      const createdUser = newUser.rows[0];
+      await fastify.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [createdUser.id]);
+
+      const newAccessToken = await signAccessToken({ sub: createdUser.id, nickname: createdUser.nickname });
+      const newRefreshToken = await signRefreshToken({ sub: createdUser.id, nickname: createdUser.nickname });
+      await storeRefreshToken(fastify, createdUser.id, newRefreshToken);
+
       return reply.redirect(
-        `${env.clientUrl}/auth/register?google_id=${googleId}&email=${encodeURIComponent(email)}`,
+        `${env.clientUrl}/auth/callback?access_token=${newAccessToken}&refresh_token=${newRefreshToken}`,
       );
     },
   );
 
-  // Complete registration (new user sets nickname + password)
+  // Complete Google registration — set password + E2E keys (nickname already assigned)
   fastify.post<{
     Body: {
       google_id: string;
-      email: string;
-      nickname: string;
       password: string;
       public_key: string;
       private_key_blob: string;   // base64
       recovery_key_blob: string;  // base64
     };
   }>('/auth/register', async (request, reply) => {
-    const { google_id, email, nickname, password, public_key, private_key_blob, recovery_key_blob } = request.body;
+    const { google_id, password, public_key, private_key_blob, recovery_key_blob } = request.body;
 
-    if (!google_id || !nickname || !password) {
-      return reply.status(400).send({ error: 'google_id, nickname, and password are required' });
+    if (!google_id || !password) {
+      return reply.status(400).send({ error: 'google_id and password are required' });
     }
 
     if (!public_key || !private_key_blob || !recovery_key_blob) {
       return reply.status(400).send({ error: 'public_key, private_key_blob, and recovery_key_blob are required' });
     }
 
-    if (nickname.length < 3 || nickname.length > 30) {
-      return reply.status(400).send({ error: 'Nickname must be 3-30 characters' });
-    }
-
     if (password.length < 8) {
       return reply.status(400).send({ error: 'Password must be at least 8 characters' });
     }
 
-    // Check nickname uniqueness
-    const nicknameCheck = await fastify.pg.query('SELECT id FROM users WHERE nickname = $1', [
-      nickname,
-    ]);
-    if (nicknameCheck.rows.length > 0) {
-      return reply.status(409).send({ error: 'Nickname already taken' });
+    // Find existing user created during OAuth callback
+    const existing = await fastify.pg.query(
+      'SELECT id, nickname FROM users WHERE google_id = $1',
+      [google_id],
+    );
+    if (existing.rows.length === 0) {
+      return reply.status(404).send({ error: 'Google account not found — complete OAuth first' });
     }
 
-    // Check google_id uniqueness
-    const googleCheck = await fastify.pg.query('SELECT id FROM users WHERE google_id = $1', [
-      google_id,
-    ]);
-    if (googleCheck.rows.length > 0) {
-      return reply.status(409).send({ error: 'Google account already registered' });
-    }
-
+    const user = existing.rows[0];
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-    const emailEncrypted = email ? encrypt(email) : null;
-
     const privateKeyBlobBuf = Buffer.from(private_key_blob, 'base64');
     const recoveryKeyBlobBuf = Buffer.from(recovery_key_blob, 'base64');
 
-    const result = await fastify.pg.query(
-      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, public_key, private_key_blob, recovery_key_blob)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, nickname`,
-      [google_id, nickname, emailEncrypted, passwordHash, public_key, privateKeyBlobBuf, recoveryKeyBlobBuf],
+    await fastify.pg.query(
+      `UPDATE users SET password_hash = $1, public_key = $2, private_key_blob = $3, recovery_key_blob = $4
+       WHERE id = $5`,
+      [passwordHash, public_key, privateKeyBlobBuf, recoveryKeyBlobBuf, user.id],
     );
 
-    const user = result.rows[0];
     const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname });
     const refreshToken = await signRefreshToken({ sub: user.id, nickname: user.nickname });
-
     await storeRefreshToken(fastify, user.id, refreshToken);
-
-    // Initialize reputation score
-    await fastify.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [user.id]);
 
     return reply.status(201).send({ access_token: accessToken, refresh_token: refreshToken });
   });
@@ -221,29 +219,24 @@ export default async function authRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // Email/password registration (no Google account needed)
+  // Email/password registration — nickname is auto-generated
   fastify.post<{
     Body: {
       email: string;
-      nickname: string;
       password: string;
       public_key: string;
       private_key_blob: string;
       recovery_key_blob: string;
     };
   }>('/auth/register/email', async (request, reply) => {
-    const { email, nickname, password, public_key, private_key_blob, recovery_key_blob } = request.body;
+    const { email, password, public_key, private_key_blob, recovery_key_blob } = request.body;
 
-    if (!email || !nickname || !password) {
-      return reply.status(400).send({ error: 'email, nickname, and password are required' });
+    if (!email || !password) {
+      return reply.status(400).send({ error: 'email and password are required' });
     }
 
     if (!public_key || !private_key_blob || !recovery_key_blob) {
       return reply.status(400).send({ error: 'public_key, private_key_blob, and recovery_key_blob are required' });
-    }
-
-    if (nickname.length < 3 || nickname.length > 30) {
-      return reply.status(400).send({ error: 'Nickname must be 3-30 characters' });
     }
 
     if (password.length < 8) {
@@ -258,12 +251,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.status(409).send({ error: 'Email already registered' });
     }
 
-    // Check nickname uniqueness
-    const nicknameCheck = await fastify.pg.query('SELECT id FROM users WHERE nickname = $1', [nickname]);
-    if (nicknameCheck.rows.length > 0) {
-      return reply.status(409).send({ error: 'Nickname already taken' });
-    }
-
+    const nickname = await generateUniqueNickname(fastify.pg);
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const emailEncrypted = encrypt(email);
     const privateKeyBlobBuf = Buffer.from(private_key_blob, 'base64');
