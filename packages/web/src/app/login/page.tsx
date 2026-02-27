@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
+import { useCrypto } from '@/contexts/crypto-context';
 import { auth } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,7 @@ const LOCKOUT_MS = 60_000; // 1 minute
 
 export default function LoginPage() {
   const { isAuthenticated, isLoading, setTokens, refreshUser } = useAuth();
+  const { unlock } = useCrypto();
   const router = useRouter();
   const [serverError, setServerError] = useState('');
   const [attempts, setAttempts] = useState(0);
@@ -71,6 +73,15 @@ export default function LoginPage() {
       const tokens = await auth.loginEmail(data.email, data.password);
       setTokens(tokens.access_token, tokens.refresh_token);
       await refreshUser();
+      // Unlock E2E keys immediately using the password already in hand
+      try {
+        const blobs = await auth.getKeyBlobs();
+        if (blobs.private_key_blob) {
+          await unlock(blobs.private_key_blob, data.password);
+        }
+      } catch {
+        // Non-fatal — user can still browse, messaging just won't decrypt
+      }
       router.replace('/listings');
     } catch {
       const next = attempts + 1;
