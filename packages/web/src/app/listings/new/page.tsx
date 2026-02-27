@@ -17,7 +17,9 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -62,9 +64,16 @@ function CreateListingForm() {
   const { data: categoriesData } = useCategories();
 
   const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [images, setImages] = useState<ImagePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // When selling cash, the buyer can't pay with cash
+  const isCashListing = selectedCategorySlug === 'cash-currency';
+  const availablePayments = PAYMENT_OPTIONS.filter(
+    (opt) => !(isCashListing && opt.value === 'cash'),
+  );
 
   const createListing = useCreateListing();
 
@@ -83,6 +92,17 @@ function CreateListingForm() {
     setSelectedPayments((prev) =>
       prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method],
     );
+  }
+
+  function handleCategoryChange(val: string) {
+    const cat = categoriesData?.categories.find((c) => String(c.id) === val);
+    const slug = cat?.slug ?? null;
+    setSelectedCategorySlug(slug);
+    setValue('category_id', val === 'none' ? undefined : val);
+    // Auto-remove cash from payment methods if switching to a cash listing
+    if (slug === 'cash-currency') {
+      setSelectedPayments((prev) => prev.filter((m) => m !== 'cash'));
+    }
   }
 
   // ── Image handling ─────────────────────────────────────────────────────
@@ -230,20 +250,46 @@ function CreateListingForm() {
         {/* Category */}
         <div className="space-y-1.5">
           <Label htmlFor="category">Category</Label>
-          <Select
-            onValueChange={(val) => setValue('category_id', val === 'none' ? undefined : val)}
-            defaultValue="none"
-          >
+          <Select onValueChange={handleCategoryChange} defaultValue="none">
             <SelectTrigger id="category" aria-label="Category">
               <SelectValue placeholder="Select a category" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">No category</SelectItem>
-              {categoriesData?.categories.map((cat) => (
-                <SelectItem key={cat.id} value={String(cat.id)}>
-                  {cat.name}
-                </SelectItem>
-              ))}
+              {/* Cash & Crypto first */}
+              {(() => {
+                const priority = categoriesData?.categories.filter((c) =>
+                  ['cash-currency', 'crypto'].includes(c.slug),
+                ) ?? [];
+                const rest = categoriesData?.categories.filter((c) =>
+                  !['cash-currency', 'crypto'].includes(c.slug),
+                ) ?? [];
+                return (
+                  <>
+                    {priority.length > 0 && (
+                      <SelectGroup>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Finance</div>
+                        {priority.map((cat) => (
+                          <SelectItem key={cat.id} value={String(cat.id)}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {priority.length > 0 && rest.length > 0 && <SelectSeparator />}
+                    {rest.length > 0 && (
+                      <SelectGroup>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Goods & Services</div>
+                        {rest.map((cat) => (
+                          <SelectItem key={cat.id} value={String(cat.id)}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                  </>
+                );
+              })()}
             </SelectContent>
           </Select>
         </div>
@@ -284,7 +330,7 @@ function CreateListingForm() {
         <div className="space-y-2">
           <Label>Accepted payment methods</Label>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Payment methods">
-            {PAYMENT_OPTIONS.map((opt) => (
+            {availablePayments.map((opt) => (
               <button
                 key={opt.value}
                 type="button"

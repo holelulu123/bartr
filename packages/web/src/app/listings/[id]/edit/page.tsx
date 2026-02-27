@@ -17,7 +17,9 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -93,6 +95,7 @@ export default function EditListingPage() {
   const deleteImage = useDeleteListingImage(id);
 
   const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [existingImages, setExistingImages] = useState<ListingImage[]>([]);
   const [newImages, setNewImages] = useState<NewImagePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -122,9 +125,14 @@ export default function EditListingPage() {
       });
       setSelectedPayments(listing.payment_methods);
       setExistingImages(listing.images ?? []);
+      // Initialise category slug for payment method filtering
+      if (listing.category_id && categoriesData) {
+        const cat = categoriesData.categories.find((c) => c.id === listing.category_id);
+        setSelectedCategorySlug(cat?.slug ?? null);
+      }
       setInitialised(true);
     }
-  }, [listing, initialised, reset]);
+  }, [listing, initialised, reset, categoriesData]);
 
   // Owner guard — redirect non-owners
   useEffect(() => {
@@ -135,10 +143,25 @@ export default function EditListingPage() {
 
   // ── Payment toggles ────────────────────────────────────────────────────
 
+  const isCashListing = selectedCategorySlug === 'cash-currency';
+  const availablePayments = PAYMENT_OPTIONS.filter(
+    (opt) => !(isCashListing && opt.value === 'cash'),
+  );
+
   function togglePayment(method: PaymentMethod) {
     setSelectedPayments((prev) =>
       prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method],
     );
+  }
+
+  function handleCategoryChange(val: string) {
+    const cat = categoriesData?.categories.find((c) => String(c.id) === val);
+    const slug = cat?.slug ?? null;
+    setSelectedCategorySlug(slug);
+    setValue('category_id', val === 'none' ? undefined : val);
+    if (slug === 'cash-currency') {
+      setSelectedPayments((prev) => prev.filter((m) => m !== 'cash'));
+    }
   }
 
   // ── Existing image removal ─────────────────────────────────────────────
@@ -295,18 +318,46 @@ export default function EditListingPage() {
           <Label htmlFor="category">Category</Label>
           <Select
             value={listing.category_id ? String(listing.category_id) : 'none'}
-            onValueChange={(val) => setValue('category_id', val === 'none' ? undefined : val)}
+            onValueChange={handleCategoryChange}
           >
             <SelectTrigger id="category" aria-label="Category">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">No category</SelectItem>
-              {categoriesData?.categories.map((cat) => (
-                <SelectItem key={cat.id} value={String(cat.id)}>
-                  {cat.name}
-                </SelectItem>
-              ))}
+              {(() => {
+                const priority = categoriesData?.categories.filter((c) =>
+                  ['cash-currency', 'crypto'].includes(c.slug),
+                ) ?? [];
+                const rest = categoriesData?.categories.filter((c) =>
+                  !['cash-currency', 'crypto'].includes(c.slug),
+                ) ?? [];
+                return (
+                  <>
+                    {priority.length > 0 && (
+                      <SelectGroup>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Finance</div>
+                        {priority.map((cat) => (
+                          <SelectItem key={cat.id} value={String(cat.id)}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {priority.length > 0 && rest.length > 0 && <SelectSeparator />}
+                    {rest.length > 0 && (
+                      <SelectGroup>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Goods & Services</div>
+                        {rest.map((cat) => (
+                          <SelectItem key={cat.id} value={String(cat.id)}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                  </>
+                );
+              })()}
             </SelectContent>
           </Select>
         </div>
@@ -355,7 +406,7 @@ export default function EditListingPage() {
         <div className="space-y-2">
           <Label>Accepted payment methods</Label>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Payment methods">
-            {PAYMENT_OPTIONS.map((opt) => (
+            {availablePayments.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
