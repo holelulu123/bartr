@@ -1,79 +1,110 @@
-import type { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Donate — Bartr',
-  description: 'Support Bartr with BTC, XMR, or Lightning',
-};
+import { useState } from 'react';
+import Link from 'next/link';
+import { Copy, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-const DONATION_ADDRESSES = {
-  btc: {
+const DONATION_ADDRESSES = [
+  {
+    key: 'btc',
     label: 'Bitcoin (BTC)',
     address: 'bc1qexampleaddresshere',
     icon: '₿',
-    color: 'text-orange-400',
-    bgColor: 'bg-orange-400/10',
-    borderColor: 'border-orange-400/30',
+    colorClass: 'text-orange-400',
+    borderClass: 'border-orange-400/30',
+    bgClass: 'bg-orange-400/5',
   },
-  lightning: {
+  {
+    key: 'lightning',
     label: 'Lightning Network',
     address: 'lnbc1examplelightninginvoice',
     icon: '⚡',
-    color: 'text-yellow-400',
-    bgColor: 'bg-yellow-400/10',
-    borderColor: 'border-yellow-400/30',
+    colorClass: 'text-yellow-400',
+    borderClass: 'border-yellow-400/30',
+    bgClass: 'bg-yellow-400/5',
   },
-  xmr: {
+  {
+    key: 'xmr',
     label: 'Monero (XMR)',
     address: '4ExampleMoneroAddressHere',
     icon: 'ɱ',
-    color: 'text-orange-300',
-    bgColor: 'bg-orange-300/10',
-    borderColor: 'border-orange-300/30',
+    colorClass: 'text-orange-300',
+    borderClass: 'border-orange-300/30',
+    bgClass: 'bg-orange-300/5',
   },
-};
+];
 
 function DonationCard({
   label,
   address,
   icon,
-  color,
-  bgColor,
-  borderColor,
+  colorClass,
+  borderClass,
+  bgClass,
 }: {
   label: string;
   address: string;
   icon: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
+  colorClass: string;
+  borderClass: string;
+  bgClass: string;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable (e.g. non-HTTPS) — silently ignore
+    }
+  };
+
   return (
-    <div className={`rounded-xl border ${borderColor} ${bgColor} p-6`}>
+    <div className={`rounded-xl border ${borderClass} ${bgClass} p-6`}>
       <div className="flex items-center gap-3 mb-4">
-        <span className={`text-3xl ${color}`}>{icon}</span>
-        <h2 className={`text-xl font-semibold ${color}`}>{label}</h2>
+        <span className={`text-3xl ${colorClass}`}>{icon}</span>
+        <h2 className={`text-xl font-semibold ${colorClass}`}>{label}</h2>
       </div>
 
-      {/* QR Code */}
-      <div className="flex justify-center mb-4">
-        <div className="bg-white p-3 rounded-lg">
-          {/* Using a simple SVG placeholder for QR — replace with real QR generation in production */}
-          <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(address)}`}
-            alt={`${label} QR code`}
-            width={180}
-            height={180}
-            className="block"
-          />
-        </div>
-      </div>
+      <p className="text-xs text-neutral-500 mb-2">Address</p>
+      <code className="block text-sm text-neutral-300 bg-neutral-800/60 rounded-lg px-3 py-2 break-all select-all leading-relaxed">
+        {address}
+      </code>
 
-      {/* Address */}
-      <div className="mt-3">
-        <p className="text-xs text-neutral-500 mb-1">Address</p>
-        <code className="block text-sm text-neutral-300 bg-neutral-800/50 rounded-lg px-3 py-2 break-all select-all">
-          {address}
-        </code>
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-4 w-full gap-2"
+        onClick={handleCopy}
+      >
+        {copied ? (
+          <>
+            <Check className="h-4 w-4 text-green-400" />
+            Copied!
+          </>
+        ) : (
+          <>
+            <Copy className="h-4 w-4" />
+            Copy address
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
+function ExpenseRow({ label, amount, percent }: { label: string; amount: string; percent: number }) {
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1">
+        <span className="text-neutral-300">{label}</span>
+        <span className="text-neutral-500">{amount}</span>
+      </div>
+      <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
+        <div className="h-full bg-orange-400/60 rounded-full" style={{ width: `${percent}%` }} />
       </div>
     </div>
   );
@@ -94,8 +125,8 @@ export default function DonatePage() {
 
         {/* Donation cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {Object.values(DONATION_ADDRESSES).map((addr) => (
-            <DonationCard key={addr.label} {...addr} />
+          {DONATION_ADDRESSES.map((addr) => (
+            <DonationCard key={addr.key} {...addr} />
           ))}
         </div>
 
@@ -115,36 +146,11 @@ export default function DonatePage() {
 
         {/* Back link */}
         <div className="text-center mt-12">
-          <a href="/" className="text-neutral-500 hover:text-neutral-300 transition">
+          <Link href="/" className="text-neutral-500 hover:text-neutral-300 transition text-sm">
             &larr; Back to Bartr
-          </a>
+          </Link>
         </div>
       </div>
     </main>
-  );
-}
-
-function ExpenseRow({
-  label,
-  amount,
-  percent,
-}: {
-  label: string;
-  amount: string;
-  percent: number;
-}) {
-  return (
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="text-neutral-300">{label}</span>
-        <span className="text-neutral-500">{amount}</span>
-      </div>
-      <div className="h-2 bg-neutral-800 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-orange-400/60 rounded-full"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-    </div>
   );
 }

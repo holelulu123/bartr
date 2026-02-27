@@ -47,7 +47,7 @@ function renderGuard(path: string) {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('GlobalAuthGuard — public routes (unauthenticated)', () => {
-  const publicPaths = ['/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover'];
+  const publicPaths = ['/', '/login', '/register', '/donate', '/about', '/privacy', '/auth/callback', '/auth/unlock', '/auth/recover'];
 
   publicPaths.forEach((path) => {
     it(`renders children on public path: ${path}`, () => {
