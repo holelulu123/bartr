@@ -182,19 +182,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ error: 'Invalid or expired refresh token' });
     }
 
-    // Check token exists in DB
+    // Atomically consume the token — DELETE ... RETURNING ensures only one
+    // concurrent request can succeed even if two arrive with the same token.
     const tokenHash = crypto.createHash('sha256').update(refresh_token).digest('hex');
-    const stored = await fastify.pg.query(
-      'SELECT id FROM refresh_tokens WHERE token_hash = $1 AND user_id = $2 AND expires_at > now()',
+    const deleted = await fastify.pg.query(
+      'DELETE FROM refresh_tokens WHERE token_hash = $1 AND user_id = $2 AND expires_at > now() RETURNING id',
       [tokenHash, payload.sub],
     );
 
-    if (stored.rows.length === 0) {
+    if (deleted.rows.length === 0) {
       return reply.status(401).send({ error: 'Refresh token not found or expired' });
     }
-
-    // Rotate: delete old, issue new
-    await fastify.pg.query('DELETE FROM refresh_tokens WHERE token_hash = $1', [tokenHash]);
 
     // Fetch fresh role from DB (role may have changed since token was issued)
     const userRow = await fastify.pg.query('SELECT role FROM users WHERE id = $1', [payload.sub]);

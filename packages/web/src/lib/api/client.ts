@@ -29,6 +29,20 @@ export function setOnUnauthenticated(cb: () => void) {
   onUnauthenticated = cb;
 }
 
+/**
+ * Called by AuthProvider.init() so that any API requests fired during
+ * app boot reuse the same in-flight refresh instead of racing with it.
+ */
+export function setInitRefreshPromise(p: Promise<boolean>) {
+  if (!isRefreshing) {
+    isRefreshing = true;
+    refreshPromise = p.finally(() => {
+      isRefreshing = false;
+      refreshPromise = null;
+    });
+  }
+}
+
 export function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
     return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';

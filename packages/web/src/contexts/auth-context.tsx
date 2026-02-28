@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { auth, setTokenStore, setOnUnauthenticated, ApiError } from '@/lib/api';
+import { auth, setTokenStore, setOnUnauthenticated, setInitRefreshPromise, ApiError } from '@/lib/api';
 import type { CurrentUser } from '@/lib/api';
 
 interface AuthState {
@@ -85,7 +85,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // On mount: if there's a refresh cookie, try to get a fresh access token
+  // On mount: if there's a refresh cookie, try to get a fresh access token.
+  // Register the refresh promise with the API client so any requests that fire
+  // simultaneously during boot reuse it instead of racing with a second refresh.
   useEffect(() => {
     async function init() {
       const refreshToken = getRefreshTokenFromCookie();
@@ -94,15 +96,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const refreshP: Promise<boolean> = auth.refreshTokens(refreshToken).then(
+        (tokens) => {
+          accessTokenRef.current = tokens.access_token;
+          setRefreshTokenCookie(tokens.refresh_token);
+          return true;
+        },
+        () => {
+          accessTokenRef.current = null;
+          clearRefreshTokenCookie();
+          return false;
+        },
+      );
+
+      // Let the API client reuse this promise for concurrent 401 retries
+      setInitRefreshPromise(refreshP);
+
       try {
-        const tokens = await auth.refreshTokens(refreshToken);
-        accessTokenRef.current = tokens.access_token;
-        setRefreshTokenCookie(tokens.refresh_token);
-        const me = await auth.getMe();
-        setUser(me);
-      } catch {
-        accessTokenRef.current = null;
-        clearRefreshTokenCookie();
+        const refreshed = await refreshP;
+        if (refreshed) {
+          const me = await auth.getMe();
+          setUser(me);
+        }
       } finally {
         setIsLoading(false);
       }
