@@ -89,9 +89,11 @@ describe('processImage', () => {
     expect(detectImageMime(buffer)).toBe('image/webp');
   });
 
-  it('throws when declared MIME does not match file bytes', async () => {
+  it('accepts a JPEG even when declared MIME differs (trusts magic bytes)', async () => {
     const jpeg = await makeJpeg();
-    await expect(processImage(jpeg, 'image/png')).rejects.toThrow(/mismatch/i);
+    // Browser may send wrong declared mime — we trust magic bytes, not the header
+    const { mime } = await processImage(jpeg, 'image/png');
+    expect(mime).toBe('image/jpeg');
   });
 
   it('throws for non-image buffer', async () => {

@@ -40,17 +40,13 @@ export function detectImageMime(buffer: Buffer): string | null {
  */
 export async function processImage(
   inputBuffer: Buffer,
-  declaredMime: string,
+  _declaredMime?: string,
 ): Promise<{ buffer: Buffer; mime: string }> {
-  // Validate magic bytes against declared MIME
+  // Detect actual image type from magic bytes — ignore declared MIME since browsers
+  // are inconsistent (e.g. image/jpg vs image/jpeg, or octet-stream for valid images).
   const detectedMime = detectImageMime(inputBuffer);
   if (!detectedMime || !ALLOWED_MIMES.has(detectedMime)) {
     throw new Error('Invalid image format: file bytes do not match a supported image type');
-  }
-  if (detectedMime !== declaredMime) {
-    throw new Error(
-      `Image type mismatch: declared ${declaredMime} but file is ${detectedMime}`,
-    );
   }
 
   const image = sharp(inputBuffer, { failOn: 'error' });

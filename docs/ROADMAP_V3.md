@@ -256,6 +256,20 @@ Emails may land in spam on new IPs — add a visible notice to users on registra
 
 ---
 
+## Phase 13.8 — MinIO Integration Tests
+
+Image upload/delete flows were never covered by automated tests because MinIO requires a running container. Add proper integration tests using a MinIO test instance (spin up via Docker Compose test profile or `minio/minio` in CI).
+
+- [ ] Test `POST /listings/:id/images` — upload JPEG, PNG, WebP successfully
+- [ ] Test upload rejects non-image files (garbage bytes)
+- [ ] Test upload rejects oversized files (>5 MB)
+- [ ] Test `DELETE /listings/:id/images/:imageId` — removes from MinIO and DB
+- [ ] Test that replacing an image (delete + upload) works end-to-end
+- [ ] Test that listing detail returns correct `storage_key` after upload
+- [ ] Add MinIO service to `docker-compose.test.yml` so CI can run these tests
+
+---
+
 ## Phase 14 — Launch Checklist
 
 - [ ] Responsive design pass (mobile / tablet / desktop)

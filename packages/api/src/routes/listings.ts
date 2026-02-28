@@ -408,12 +408,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'No file uploaded' });
       }
 
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!allowedTypes.includes(data.mimetype)) {
-        return reply.status(400).send({ error: 'Only JPEG, PNG, and WebP images are allowed' });
-      }
-
-      // Read full file into buffer for magic-byte validation + EXIF stripping
+      // Read full file into buffer — magic-byte validation happens inside processImage
       const rawBuffer = await data.toBuffer();
 
       let processed: { buffer: Buffer; mime: string };
