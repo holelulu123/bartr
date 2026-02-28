@@ -9,6 +9,11 @@ describe('Trade routes', () => {
   beforeAll(async () => {
     app = await buildApp({ skipRateLimit: true });
     await app.ready();
+
+    // Ensure country_code column exists
+    await app.pg.query(`
+      ALTER TABLE listings ADD COLUMN IF NOT EXISTS country_code TEXT
+    `);
   });
 
   afterAll(async () => {

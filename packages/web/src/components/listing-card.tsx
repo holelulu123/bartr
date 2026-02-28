@@ -3,17 +3,11 @@ import Image from 'next/image';
 import { Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ReputationBadge } from '@/components/reputation-badge';
+import { PaymentIcon } from '@/components/payment-icon';
+import { getCountryFlag } from '@/lib/countries';
 import { cn } from '@/lib/utils';
 import type { ListingSummary } from '@/lib/api';
-
-const PAYMENT_LABELS: Record<string, string> = {
-  btc: 'BTC',
-  eth: 'ETH',
-  usdt: 'USDT',
-  usdc: 'USDC',
-  cash: 'Cash',
-  bank_transfer: 'Bank',
-};
+import type { PaymentMethod } from '@bartr/shared';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -87,7 +81,7 @@ export function ListingCard({ listing, className }: ListingCardProps) {
         <div className="flex flex-wrap gap-1">
           {listing.payment_methods.slice(0, 3).map((method) => (
             <Badge key={method} variant="outline" className="text-xs px-1.5 py-0">
-              {PAYMENT_LABELS[method] ?? method}
+              <PaymentIcon method={method as PaymentMethod} iconClassName="h-3 w-3" />
             </Badge>
           ))}
           {listing.payment_methods.length > 3 && (
@@ -100,6 +94,11 @@ export function ListingCard({ listing, className }: ListingCardProps) {
         {/* Footer: seller + time */}
         <div className="flex items-center justify-between mt-auto pt-1">
           <div className="flex items-center gap-1.5 min-w-0">
+            {listing.country_code && (
+              <span className="text-xs shrink-0" title={listing.country_code}>
+                {getCountryFlag(listing.country_code)}
+              </span>
+            )}
             <span className="text-xs text-muted-foreground truncate">
               {listing.seller_nickname}
             </span>

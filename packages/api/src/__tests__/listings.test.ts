@@ -36,6 +36,12 @@ describe('Listing routes', () => {
         FOR EACH ROW EXECUTE FUNCTION listings_search_trigger()
     `);
     await app.pg.query(`
+      ALTER TABLE listings ADD COLUMN IF NOT EXISTS country_code TEXT
+    `);
+    await app.pg.query(`
+      CREATE INDEX IF NOT EXISTS idx_listings_country ON listings (country_code)
+    `);
+    await app.pg.query(`
       INSERT INTO categories (name, slug, parent_id) VALUES
         ('Electronics', 'electronics', NULL),
         ('Computers', 'computers', NULL),
@@ -78,7 +84,7 @@ describe('Listing routes', () => {
   const validListing = {
     title: 'Selling a GPU',
     description: 'NVIDIA RTX 4090, barely used, great condition for mining or gaming',
-    payment_methods: ['btc', 'xmr'],
+    payment_methods: ['btc', 'eth'],
     price_indication: '0.5 BTC',
     currency: 'BTC',
   };

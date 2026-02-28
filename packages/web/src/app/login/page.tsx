@@ -27,19 +27,51 @@ type FormData = z.infer<typeof schema>;
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 60_000; // 1 minute
 
+function loadLockState(): { attempts: number; lockedUntil: number | null } {
+  if (typeof window === 'undefined') return { attempts: 0, lockedUntil: null };
+  try {
+    const raw = sessionStorage.getItem('login_lock');
+    if (!raw) return { attempts: 0, lockedUntil: null };
+    const parsed = JSON.parse(raw);
+    // Clear expired lockout
+    if (parsed.lockedUntil && Date.now() >= parsed.lockedUntil) {
+      sessionStorage.removeItem('login_lock');
+      return { attempts: 0, lockedUntil: null };
+    }
+    return { attempts: parsed.attempts ?? 0, lockedUntil: parsed.lockedUntil ?? null };
+  } catch {
+    return { attempts: 0, lockedUntil: null };
+  }
+}
+
+function saveLockState(attempts: number, lockedUntil: number | null) {
+  try {
+    sessionStorage.setItem('login_lock', JSON.stringify({ attempts, lockedUntil }));
+  } catch { /* noop */ }
+}
+
 export default function LoginPage() {
   const { isAuthenticated, isLoading, setTokens, refreshUser } = useAuth();
   const { unlock } = useCrypto();
   const router = useRouter();
   const [serverError, setServerError] = useState('');
-  const [attempts, setAttempts] = useState(0);
-  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const initState = loadLockState();
+  const [attempts, setAttempts] = useState(initState.attempts);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(initState.lockedUntil);
   const [lockCountdown, setLockCountdown] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+
+  // Show initial error if returning with lockout active
+  useEffect(() => {
+    if (initState.lockedUntil && Date.now() < initState.lockedUntil) {
+      setServerError('Too many failed attempts. Please wait 1 minute.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) router.replace('/listings');
@@ -54,6 +86,7 @@ export default function LoginPage() {
         setLockedUntil(null);
         setAttempts(0);
         setLockCountdown(0);
+        saveLockState(0, null);
         if (timerRef.current) clearInterval(timerRef.current);
       } else {
         setLockCountdown(remaining);
@@ -87,9 +120,12 @@ export default function LoginPage() {
       const next = attempts + 1;
       setAttempts(next);
       if (next >= MAX_ATTEMPTS) {
-        setLockedUntil(Date.now() + LOCKOUT_MS);
+        const until = Date.now() + LOCKOUT_MS;
+        setLockedUntil(until);
+        saveLockState(next, until);
         setServerError('Too many failed attempts. Please wait 1 minute.');
       } else {
+        saveLockState(next, null);
         setServerError(`Invalid email or password. ${MAX_ATTEMPTS - next} attempt${MAX_ATTEMPTS - next === 1 ? '' : 's'} remaining.`);
       }
     }

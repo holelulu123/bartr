@@ -130,13 +130,12 @@ describe('CreateListingPage — form rendering', () => {
 
   it('renders all payment method toggle buttons', () => {
     render(<CreateListingPage />);
-    expect(screen.getByRole('button', { name: 'BTC' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'ETH' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'USDT' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'USDC' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cash' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Bank transfer' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'XMR' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Bitcoin/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ethereum/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /USDT/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /USDC/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cash/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Bank transfer/i })).toBeInTheDocument();
   });
 
   it('renders image upload zone', () => {
@@ -210,7 +209,7 @@ describe('CreateListingPage — payment method toggles', () => {
 
   it('toggles payment method on click', async () => {
     render(<CreateListingPage />);
-    const btcBtn = screen.getByRole('button', { name: 'BTC' });
+    const btcBtn = screen.getByRole('button', { name: /Bitcoin/i });
     expect(btcBtn).toHaveAttribute('aria-pressed', 'false');
     await userEvent.click(btcBtn);
     expect(btcBtn).toHaveAttribute('aria-pressed', 'true');
@@ -218,7 +217,7 @@ describe('CreateListingPage — payment method toggles', () => {
 
   it('untoggle payment method on second click', async () => {
     render(<CreateListingPage />);
-    const btcBtn = screen.getByRole('button', { name: 'BTC' });
+    const btcBtn = screen.getByRole('button', { name: /Bitcoin/i });
     await userEvent.click(btcBtn);
     await userEvent.click(btcBtn);
     expect(btcBtn).toHaveAttribute('aria-pressed', 'false');
@@ -239,7 +238,7 @@ describe('CreateListingPage — moderation', () => {
       screen.getByLabelText(/^description$/i),
       'This is a valid description that contains enough text.',
     );
-    await userEvent.click(screen.getByRole('button', { name: 'BTC' }));
+    await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
@@ -265,6 +264,7 @@ describe('CreateListingPage — successful submit', () => {
       payment_methods: ['btc'],
       price_indication: null,
       currency: null,
+      country_code: null,
       status: 'active',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -282,8 +282,8 @@ describe('CreateListingPage — successful submit', () => {
       screen.getByLabelText(/^description$/i),
       'This is a valid description with enough content.',
     );
-    await userEvent.click(screen.getByRole('button', { name: 'BTC' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Cash' }));
+    await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Cash/i }));
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
@@ -307,7 +307,7 @@ describe('CreateListingPage — successful submit', () => {
       screen.getByLabelText(/^description$/i),
       'This is a valid description with enough content.',
     );
-    await userEvent.click(screen.getByRole('button', { name: 'BTC' }));
+    await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
@@ -325,7 +325,7 @@ describe('CreateListingPage — successful submit', () => {
     );
     await userEvent.type(screen.getByLabelText(/price/i), '0.005');
     await userEvent.type(screen.getByLabelText(/currency/i), 'BTC');
-    await userEvent.click(screen.getByRole('button', { name: 'BTC' }));
+    await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));

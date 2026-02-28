@@ -1,54 +1,98 @@
 import type { FastifyInstance } from 'fastify';
 
 export default async function tradeRoutes(fastify: FastifyInstance) {
-  // Create a trade offer (buyer initiates on a listing)
+  // Create a trade offer (buyer initiates on a listing or exchange offer)
   fastify.post<{
-    Body: { listing_id: string };
+    Body: { listing_id?: string; offer_id?: string };
   }>(
     '/trades',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const buyerId = request.user!.sub;
-      const { listing_id } = request.body;
+      const { listing_id, offer_id } = request.body;
 
-      if (!listing_id) {
-        return reply.status(400).send({ error: 'listing_id is required' });
+      if (!listing_id && !offer_id) {
+        return reply.status(400).send({ error: 'listing_id or offer_id is required' });
       }
 
-      // Verify listing exists and is active
-      const listing = await fastify.pg.query(
-        'SELECT id, user_id, status FROM listings WHERE id = $1',
-        [listing_id],
+      let sellerId: string;
+
+      if (listing_id) {
+        // Verify listing exists and is active
+        const listing = await fastify.pg.query(
+          'SELECT id, user_id, status FROM listings WHERE id = $1',
+          [listing_id],
+        );
+        if (listing.rows.length === 0) {
+          return reply.status(404).send({ error: 'Listing not found' });
+        }
+        if (listing.rows[0].status !== 'active') {
+          return reply.status(400).send({ error: 'Listing is not active' });
+        }
+
+        sellerId = listing.rows[0].user_id;
+        if (sellerId === buyerId) {
+          return reply.status(400).send({ error: 'Cannot trade on your own listing' });
+        }
+
+        // Check for existing active trade by this buyer on this listing
+        const existingTrade = await fastify.pg.query(
+          "SELECT id FROM trades WHERE listing_id = $1 AND buyer_id = $2 AND status IN ('offered', 'accepted')",
+          [listing_id, buyerId],
+        );
+        if (existingTrade.rows.length > 0) {
+          return reply.status(409).send({ error: 'You already have an active trade on this listing' });
+        }
+
+        const result = await fastify.pg.query(
+          `INSERT INTO trades (listing_id, buyer_id, seller_id, status)
+           VALUES ($1, $2, $3, 'offered')
+           RETURNING id, listing_id, offer_id, buyer_id, seller_id, status, created_at, updated_at`,
+          [listing_id, buyerId, sellerId],
+        );
+
+        await fastify.pg.query(
+          `INSERT INTO trade_events (trade_id, event_type, created_by)
+           VALUES ($1, 'offered', $2)`,
+          [result.rows[0].id, buyerId],
+        );
+
+        return reply.status(201).send(result.rows[0]);
+      }
+
+      // Exchange offer trade
+      const offer = await fastify.pg.query(
+        'SELECT id, user_id, status FROM exchange_offers WHERE id = $1',
+        [offer_id],
       );
-      if (listing.rows.length === 0) {
-        return reply.status(404).send({ error: 'Listing not found' });
+      if (offer.rows.length === 0) {
+        return reply.status(404).send({ error: 'Exchange offer not found' });
       }
-      if (listing.rows[0].status !== 'active') {
-        return reply.status(400).send({ error: 'Listing is not active' });
+      if (offer.rows[0].status !== 'active') {
+        return reply.status(400).send({ error: 'Exchange offer is not active' });
       }
 
-      const sellerId = listing.rows[0].user_id;
+      sellerId = offer.rows[0].user_id;
       if (sellerId === buyerId) {
-        return reply.status(400).send({ error: 'Cannot trade on your own listing' });
+        return reply.status(400).send({ error: 'Cannot trade on your own offer' });
       }
 
-      // Check for existing active trade by this buyer on this listing
+      // Check for existing active trade
       const existingTrade = await fastify.pg.query(
-        "SELECT id FROM trades WHERE listing_id = $1 AND buyer_id = $2 AND status IN ('offered', 'accepted')",
-        [listing_id, buyerId],
+        "SELECT id FROM trades WHERE offer_id = $1 AND buyer_id = $2 AND status IN ('offered', 'accepted')",
+        [offer_id, buyerId],
       );
       if (existingTrade.rows.length > 0) {
-        return reply.status(409).send({ error: 'You already have an active trade on this listing' });
+        return reply.status(409).send({ error: 'You already have an active trade on this offer' });
       }
 
       const result = await fastify.pg.query(
-        `INSERT INTO trades (listing_id, buyer_id, seller_id, status)
+        `INSERT INTO trades (offer_id, buyer_id, seller_id, status)
          VALUES ($1, $2, $3, 'offered')
-         RETURNING id, listing_id, buyer_id, seller_id, status, created_at, updated_at`,
-        [listing_id, buyerId, sellerId],
+         RETURNING id, listing_id, offer_id, buyer_id, seller_id, status, created_at, updated_at`,
+        [offer_id, buyerId, sellerId],
       );
 
-      // Log the event
       await fastify.pg.query(
         `INSERT INTO trade_events (trade_id, event_type, created_by)
          VALUES ($1, 'offered', $2)`,
@@ -70,6 +114,7 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
       const result = await fastify.pg.query(
         `SELECT t.*,
                 l.title as listing_title,
+                CASE WHEN eo.id IS NOT NULL THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
                 bu.nickname as buyer_nickname,
                 su.nickname as seller_nickname,
                 COALESCE(
@@ -77,7 +122,8 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
                    FROM trade_events te WHERE te.trade_id = t.id), '[]'
                 ) as events
          FROM trades t
-         JOIN listings l ON l.id = t.listing_id
+         LEFT JOIN listings l ON l.id = t.listing_id
+         LEFT JOIN exchange_offers eo ON eo.id = t.offer_id
          JOIN users bu ON bu.id = t.buyer_id
          JOIN users su ON su.id = t.seller_id
          WHERE t.id = $1`,
@@ -143,12 +189,14 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
 
       const listValues = [...values, limitNum, offset];
       const listResult = await fastify.pg.query(
-        `SELECT t.id, t.listing_id, t.buyer_id, t.seller_id, t.status, t.created_at, t.updated_at,
+        `SELECT t.id, t.listing_id, t.offer_id, t.buyer_id, t.seller_id, t.status, t.created_at, t.updated_at,
                 l.title as listing_title,
+                CASE WHEN eo.id IS NOT NULL THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
                 bu.nickname as buyer_nickname,
                 su.nickname as seller_nickname
          FROM trades t
-         JOIN listings l ON l.id = t.listing_id
+         LEFT JOIN listings l ON l.id = t.listing_id
+         LEFT JOIN exchange_offers eo ON eo.id = t.offer_id
          JOIN users bu ON bu.id = t.buyer_id
          JOIN users su ON su.id = t.seller_id
          ${where}

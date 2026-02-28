@@ -59,6 +59,7 @@ function makeListing(overrides: Partial<ListingDetail> = {}): ListingDetail {
     payment_methods: ['btc', 'cash'],
     price_indication: '50',
     currency: 'USD',
+    country_code: null,
     status: 'active',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -148,11 +149,9 @@ describe('EditListingPage — pre-fill', () => {
   it('pre-selects payment methods', async () => {
     render(<EditListingPage />);
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'BTC' })).toHaveAttribute('aria-pressed', 'true');
-      expect(screen.getByRole('button', { name: 'Cash' })).toHaveAttribute('aria-pressed', 'true');
-      // XMR removed; USDT/USDC are available but not pre-selected
-      expect(screen.queryByRole('button', { name: 'XMR' })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'USDT' })).toHaveAttribute('aria-pressed', 'false');
+      expect(screen.getByRole('button', { name: /Bitcoin/i })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByRole('button', { name: /Cash/i })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByRole('button', { name: /USDT/i })).toHaveAttribute('aria-pressed', 'false');
     });
   });
 
@@ -277,9 +276,9 @@ describe('EditListingPage — validation', () => {
   it('shows error when no payment method selected', async () => {
     render(<EditListingPage />);
     // Deselect all pre-selected methods
-    await waitFor(() => screen.getByRole('button', { name: 'BTC' }));
-    await userEvent.click(screen.getByRole('button', { name: 'BTC' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Cash' }));
+    await waitFor(() => screen.getByRole('button', { name: /Bitcoin/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Cash/i }));
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
     });

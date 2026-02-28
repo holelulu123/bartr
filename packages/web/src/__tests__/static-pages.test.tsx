@@ -142,21 +142,18 @@ describe('Donate page', () => {
     expect(screen.getByRole('heading', { name: /support bartr/i })).toBeInTheDocument();
   });
 
-  it('shows BTC and Lightning addresses (no XMR)', async () => {
+  it('shows BTC address only', async () => {
     const { default: DonatePage } = await import('@/app/donate/page');
     render(<DonatePage />);
     expect(screen.getByText(/bitcoin \(btc\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/lightning network/i)).toBeInTheDocument();
+    expect(screen.queryByText(/lightning network/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/monero \(xmr\)/i)).not.toBeInTheDocument();
   });
 
-  it('shows copy address buttons instead of external images', async () => {
+  it('shows copy address button', async () => {
     const { default: DonatePage } = await import('@/app/donate/page');
     render(<DonatePage />);
-    const copyButtons = screen.getAllByRole('button', { name: /copy address/i });
-    expect(copyButtons).toHaveLength(2);
-    // No external QR service images (SVG QR placeholders have no role="img" since aria-label is on the svg, not role)
-    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /copy address/i })).toBeInTheDocument();
   });
 
   it('shows expense breakdown', async () => {

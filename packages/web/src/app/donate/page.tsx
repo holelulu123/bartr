@@ -2,162 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import QRCode from 'react-qr-code';
 import { Copy, Check } from 'lucide-react';
+import { BtcIcon } from '@/components/crypto-icons';
 import { Button } from '@/components/ui/button';
 
-const DONATION_ADDRESSES = [
-  {
-    key: 'btc',
-    label: 'Bitcoin (BTC)',
-    address: 'bc1qexampleaddresshere',
-    icon: '₿',
-    colorClass: 'text-orange-400',
-    borderClass: 'border-orange-400/30',
-    bgClass: 'bg-orange-400/5',
-    qrScheme: 'bitcoin',
-  },
-  {
-    key: 'lightning',
-    label: 'Lightning Network',
-    address: 'lnbc1examplelightninginvoice',
-    icon: '⚡',
-    colorClass: 'text-yellow-400',
-    borderClass: 'border-yellow-400/30',
-    bgClass: 'bg-yellow-400/5',
-    qrScheme: 'lightning',
-  },
-];
-
-// Minimal deterministic QR-like placeholder rendered as SVG.
-// Replace with a real QR library (e.g. `qrcode`) when real addresses are set.
-function QrPlaceholder({ value, size = 120 }: { value: string; size?: number }) {
-  // Generate a simple seeded grid pattern from the string so each address looks different.
-  const cells = 11;
-  const cellSize = size / cells;
-  const bits: boolean[] = [];
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
-  }
-  for (let i = 0; i < cells * cells; i++) {
-    const h = ((hash * (i + 1) * 2654435761) | 0) >>> 0;
-    bits.push((h >>> (i % 32)) % 2 === 0);
-  }
-  // Mirror left half to right for QR-like symmetry
-  const grid: boolean[][] = Array.from({ length: cells }, (_, r) =>
-    Array.from({ length: cells }, (_, c) => {
-      const mirrored = c > cells / 2 ? bits[r * cells + (cells - 1 - c)] : bits[r * cells + c];
-      return mirrored;
-    }),
-  );
-
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label={`QR code for ${value}`}
-      className="rounded"
-    >
-      <rect width={size} height={size} fill="white" />
-      {grid.map((row, r) =>
-        row.map((on, c) =>
-          on ? (
-            <rect
-              key={`${r}-${c}`}
-              x={c * cellSize}
-              y={r * cellSize}
-              width={cellSize}
-              height={cellSize}
-              fill="black"
-            />
-          ) : null,
-        ),
-      )}
-      {/* Finder patterns (corners) */}
-      {[
-        [0, 0], [0, cells - 7], [cells - 7, 0],
-      ].map(([tr, tc]) => (
-        <g key={`fp-${tr}-${tc}`}>
-          <rect x={tc * cellSize} y={tr * cellSize} width={7 * cellSize} height={7 * cellSize} fill="black" />
-          <rect x={(tc + 1) * cellSize} y={(tr + 1) * cellSize} width={5 * cellSize} height={5 * cellSize} fill="white" />
-          <rect x={(tc + 2) * cellSize} y={(tr + 2) * cellSize} width={3 * cellSize} height={3 * cellSize} fill="black" />
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-function DonationCard({
-  label,
-  address,
-  icon,
-  colorClass,
-  borderClass,
-  bgClass,
-  qrScheme,
-}: {
-  label: string;
-  address: string;
-  icon: string;
-  colorClass: string;
-  borderClass: string;
-  bgClass: string;
-  qrScheme: string;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API unavailable (non-HTTPS) — silently ignore
-    }
-  };
-
-  const qrValue = qrScheme === 'lightning' ? address : `${qrScheme}:${address}`;
-
-  return (
-    <div className={`rounded-xl border ${borderClass} ${bgClass} p-6`}>
-      <div className="flex items-center gap-3 mb-4">
-        <span className={`text-3xl ${colorClass}`}>{icon}</span>
-        <h2 className={`text-xl font-semibold ${colorClass}`}>{label}</h2>
-      </div>
-
-      {/* QR code */}
-      <div className="flex justify-center mb-4">
-        <QrPlaceholder value={qrValue} size={120} />
-      </div>
-
-      <p className="text-xs text-neutral-500 mb-2">Address</p>
-      <code className="block text-sm text-neutral-300 bg-neutral-800/60 rounded-lg px-3 py-2 break-all select-all leading-relaxed">
-        {address}
-      </code>
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-4 w-full gap-2"
-        onClick={handleCopy}
-      >
-        {copied ? (
-          <>
-            <Check className="h-4 w-4 text-green-400" />
-            Copied!
-          </>
-        ) : (
-          <>
-            <Copy className="h-4 w-4" />
-            Copy address
-          </>
-        )}
-      </Button>
-    </div>
-  );
-}
+const BTC_ADDRESS = 'bc1qexampleaddresshere';
 
 function ExpenseRow({ label, amount, percent }: { label: string; amount: string; percent: number }) {
   return (
@@ -174,6 +24,18 @@ function ExpenseRow({ label, amount, percent }: { label: string; amount: string;
 }
 
 export default function DonatePage() {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(BTC_ADDRESS);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable (non-HTTPS) — silently ignore
+    }
+  };
+
   return (
     <main className="min-h-screen px-4 py-16">
       <div className="max-w-3xl mx-auto">
@@ -186,11 +48,47 @@ export default function DonatePage() {
           </p>
         </div>
 
-        {/* Donation cards */}
-        <div className="grid gap-6 md:grid-cols-2">
-          {DONATION_ADDRESSES.map((addr) => (
-            <DonationCard key={addr.key} {...addr} />
-          ))}
+        {/* Bitcoin donation card */}
+        <div className="max-w-md mx-auto rounded-xl border border-orange-400/30 bg-orange-400/5 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <BtcIcon className="h-8 w-8" />
+            <h2 className="text-xl font-semibold text-orange-400">Bitcoin (BTC)</h2>
+          </div>
+
+          {/* QR code */}
+          <div className="flex justify-center mb-4">
+            <div className="bg-white p-3 rounded-lg">
+              <QRCode
+                value={`bitcoin:${BTC_ADDRESS}`}
+                size={160}
+                level="M"
+              />
+            </div>
+          </div>
+
+          <p className="text-xs text-neutral-500 mb-2">Address</p>
+          <code className="block text-sm text-neutral-300 bg-neutral-800/60 rounded-lg px-3 py-2 break-all select-all leading-relaxed">
+            {BTC_ADDRESS}
+          </code>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4 w-full gap-2"
+            onClick={handleCopy}
+          >
+            {copied ? (
+              <>
+                <Check className="h-4 w-4 text-green-400" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4" />
+                Copy address
+              </>
+            )}
+          </Button>
         </div>
 
         {/* Expense breakdown */}

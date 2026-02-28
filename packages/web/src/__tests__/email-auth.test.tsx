@@ -92,13 +92,13 @@ describe('LoginPage — email tab (default)', () => {
 
     render(<LoginPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'alice@example.com');
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'Pass123!x');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
     });
 
-    await waitFor(() => expect(mockLoginEmail).toHaveBeenCalledWith('alice@example.com', 'password123'));
+    await waitFor(() => expect(mockLoginEmail).toHaveBeenCalledWith('alice@example.com', 'Pass123!x'));
     await waitFor(() => expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt'));
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
   });
@@ -189,10 +189,10 @@ describe('EmailRegisterPage — validation', () => {
   it('shows error when passwords do not match', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'a@b.com');
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'different123');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'Pass123!x');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'Diff123!x');
     await userEvent.click(screen.getByRole('button', { name: /create account/i }));
-    await waitFor(() => expect(screen.getByText(/do not match/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText(/do not match/i).length).toBeGreaterThan(0));
   });
 });
 
@@ -211,8 +211,8 @@ describe('EmailRegisterPage — successful registration', () => {
   it('redirects to listings after registration (no recovery key screen)', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'Pass123!x');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'Pass123!x');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /create account/i }));
@@ -225,8 +225,8 @@ describe('EmailRegisterPage — successful registration', () => {
   it('calls registerEmail with email (no nickname in payload)', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'Pass123!x');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'Pass123!x');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /create account/i }));
@@ -246,8 +246,8 @@ describe('EmailRegisterPage — successful registration', () => {
   it('sets tokens and refreshes user on successful registration', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'Pass123!x');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'Pass123!x');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /create account/i }));
@@ -265,8 +265,8 @@ describe('EmailRegisterPage — server errors', () => {
 
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'dupe@example.com');
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'Pass123!x');
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'Pass123!x');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /create account/i }));

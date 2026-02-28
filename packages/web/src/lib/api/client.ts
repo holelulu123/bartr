@@ -93,8 +93,8 @@ export async function apiRequest<T>(
 
   let res = await fetch(url, { ...options, headers });
 
-  // On 401, try refreshing the token once
-  if (res.status === 401 && tokenStore) {
+  // On 401, try refreshing the token once (skip if no token was sent — e.g. login attempt)
+  if (res.status === 401 && tokenStore && accessToken) {
     if (!isRefreshing) {
       isRefreshing = true;
       refreshPromise = refreshAccessToken();

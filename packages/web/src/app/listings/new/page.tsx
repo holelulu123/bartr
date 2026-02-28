@@ -1,15 +1,17 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Image as ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, X, Monitor, Laptop, Shirt, Home, Wrench, Package } from 'lucide-react';
 import { ProtectedRoute } from '@/components/protected-route';
 import { useCreateListing, useCategories } from '@/hooks/use-listings';
 import { moderation as moderationApi, listings as listingsApi } from '@/lib/api';
+import { PaymentIcon } from '@/components/payment-icon';
+import { COUNTRIES } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,14 +19,13 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { PaymentMethod } from '@bartr/shared';
+import type { ElementType } from 'react';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'btc', label: 'BTC' },
@@ -34,6 +35,15 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
   { value: 'bank_transfer', label: 'Bank transfer' },
 ];
+
+const CATEGORY_ICONS: Record<string, ElementType> = {
+  electronics: Monitor,
+  computers: Laptop,
+  clothing: Shirt,
+  'home-garden': Home,
+  services: Wrench,
+  other: Package,
+};
 
 const MAX_IMAGES = 5;
 
@@ -64,16 +74,19 @@ function CreateListingForm() {
   const { data: categoriesData } = useCategories();
 
   const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
-  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<string>('');
+  const [countrySearch, setCountrySearch] = useState('');
   const [images, setImages] = useState<ImagePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  // When selling cash, the buyer can't pay with cash
-  const isCashListing = selectedCategorySlug === 'cash-currency';
-  const availablePayments = PAYMENT_OPTIONS.filter(
-    (opt) => !(isCashListing && opt.value === 'cash'),
-  );
+  const filteredCountries = useMemo(() => {
+    if (!countrySearch) return COUNTRIES;
+    const lower = countrySearch.toLowerCase();
+    return COUNTRIES.filter(
+      (c) => c.name.toLowerCase().includes(lower) || c.code.toLowerCase().includes(lower),
+    );
+  }, [countrySearch]);
 
   const createListing = useCreateListing();
 
@@ -95,14 +108,7 @@ function CreateListingForm() {
   }
 
   function handleCategoryChange(val: string) {
-    const cat = categoriesData?.categories.find((c) => String(c.id) === val);
-    const slug = cat?.slug ?? null;
-    setSelectedCategorySlug(slug);
     setValue('category_id', val === 'none' ? undefined : val);
-    // Auto-remove cash from payment methods if switching to a cash listing
-    if (slug === 'cash-currency') {
-      setSelectedPayments((prev) => prev.filter((m) => m !== 'cash'));
-    }
   }
 
   // ── Image handling ─────────────────────────────────────────────────────
@@ -176,6 +182,7 @@ function CreateListingForm() {
         ...(values.category_id && { category_id: Number(values.category_id) }),
         ...(values.price_indication && { price_indication: values.price_indication }),
         ...(values.currency && { currency: values.currency }),
+        ...(selectedCountry && { country_code: selectedCountry }),
       });
 
       // Upload images sequentially
@@ -256,40 +263,17 @@ function CreateListingForm() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">No category</SelectItem>
-              {/* Cash & Crypto first */}
-              {(() => {
-                const priority = categoriesData?.categories.filter((c) =>
-                  ['cash-currency', 'crypto'].includes(c.slug),
-                ) ?? [];
-                const rest = categoriesData?.categories.filter((c) =>
-                  !['cash-currency', 'crypto'].includes(c.slug),
-                ) ?? [];
+              {categoriesData?.categories.map((cat) => {
+                const CatIcon = CATEGORY_ICONS[cat.slug];
                 return (
-                  <>
-                    {priority.length > 0 && (
-                      <SelectGroup>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Finance</div>
-                        {priority.map((cat) => (
-                          <SelectItem key={cat.id} value={String(cat.id)}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {priority.length > 0 && rest.length > 0 && <SelectSeparator />}
-                    {rest.length > 0 && (
-                      <SelectGroup>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Goods & Services</div>
-                        {rest.map((cat) => (
-                          <SelectItem key={cat.id} value={String(cat.id)}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                  </>
+                  <SelectItem key={cat.id} value={String(cat.id)}>
+                    <span className="inline-flex items-center gap-1.5">
+                      {CatIcon && <CatIcon className="h-3.5 w-3.5" />}
+                      {cat.name}
+                    </span>
+                  </SelectItem>
                 );
-              })()}
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -326,11 +310,44 @@ function CreateListingForm() {
           </div>
         </div>
 
+        {/* Country */}
+        <div className="space-y-1.5">
+          <Label htmlFor="country">Country (optional)</Label>
+          <Select
+            value={selectedCountry || 'none'}
+            onValueChange={(val) => {
+              setCountrySearch('');
+              setSelectedCountry(val === 'none' ? '' : val);
+            }}
+          >
+            <SelectTrigger id="country" aria-label="Country">
+              <SelectValue placeholder="Select a country" />
+            </SelectTrigger>
+            <SelectContent>
+              <div className="px-2 py-1.5">
+                <Input
+                  placeholder="Search countries…"
+                  value={countrySearch}
+                  onChange={(e) => setCountrySearch(e.target.value)}
+                  className="h-8"
+                  aria-label="Search countries"
+                />
+              </div>
+              <SelectItem value="none">No country</SelectItem>
+              {filteredCountries.map((c) => (
+                <SelectItem key={c.code} value={c.code}>
+                  {c.flag} {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Payment methods */}
         <div className="space-y-2">
           <Label>Accepted payment methods</Label>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Payment methods">
-            {availablePayments.map((opt) => (
+            {PAYMENT_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
@@ -343,7 +360,7 @@ function CreateListingForm() {
                     : 'bg-transparent border-border text-foreground hover:border-primary/50',
                 )}
               >
-                {opt.label}
+                <PaymentIcon method={opt.value} longLabel />
               </button>
             ))}
           </div>

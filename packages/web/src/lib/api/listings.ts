@@ -13,6 +13,7 @@ export function getListings(filters: ListingsFilter = {}): Promise<ListingsRespo
   if (filters.q) params.set('q', filters.q);
   if (filters.category) params.set('category', filters.category);
   if (filters.payment_method) params.set('payment_method', filters.payment_method);
+  if (filters.country_code) params.set('country_code', filters.country_code);
   if (filters.status) params.set('status', filters.status);
   if (filters.user_id) params.set('user_id', filters.user_id);
   if (filters.page) params.set('page', String(filters.page));

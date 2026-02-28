@@ -10,6 +10,10 @@ describe('Moderation routes', () => {
   beforeAll(async () => {
     app = await buildApp({ skipRateLimit: true });
     await app.ready();
+
+    await app.pg.query(`
+      ALTER TABLE listings ADD COLUMN IF NOT EXISTS country_code TEXT
+    `);
   });
 
   afterAll(async () => {

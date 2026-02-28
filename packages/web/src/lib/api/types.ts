@@ -1,4 +1,4 @@
-import type { ListingStatus, TradeStatus, PaymentMethod, ReputationTier, ModerationStatus } from '@bartr/shared';
+import type { ListingStatus, TradeStatus, PaymentMethod, ReputationTier, ModerationStatus, OfferType, RateType, OfferStatus, CoinType } from '@bartr/shared';
 
 // Common
 export interface Pagination {
@@ -68,6 +68,7 @@ export interface ListingSummary {
   price_indication: string | null;
   currency: string | null;
   payment_methods: PaymentMethod[];
+  country_code: string | null;
   status: ListingStatus;
   created_at: string;
   seller_nickname: string;
@@ -85,6 +86,7 @@ export interface ListingDetail {
   payment_methods: PaymentMethod[];
   price_indication: string | null;
   currency: string | null;
+  country_code: string | null;
   status: ListingStatus;
   created_at: string;
   updated_at: string;
@@ -107,6 +109,7 @@ export interface CreateListingPayload {
   payment_methods: PaymentMethod[];
   price_indication?: string;
   currency?: string;
+  country_code?: string;
 }
 
 export interface UpdateListingPayload {
@@ -116,6 +119,7 @@ export interface UpdateListingPayload {
   payment_methods?: PaymentMethod[];
   price_indication?: string;
   currency?: string;
+  country_code?: string | null;
   status?: ListingStatus;
 }
 
@@ -128,6 +132,7 @@ export interface ListingsFilter {
   q?: string;
   category?: string;
   payment_method?: PaymentMethod;
+  country_code?: string;
   status?: ListingStatus;
   user_id?: string;
   page?: number;
@@ -272,4 +277,88 @@ export interface AdminFlagsResponse {
 export interface ModerationCheckResponse {
   allowed: boolean;
   blocked_keyword: string | null;
+}
+
+// Exchange
+export interface SupportedCoin {
+  symbol: string;
+  name: string;
+  coin_type: CoinType;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface ExchangeOffer {
+  id: string;
+  user_id: string;
+  offer_type: OfferType;
+  crypto_currency: string;
+  fiat_currency: string;
+  amount: number | null;
+  min_amount: number | null;
+  max_amount: number | null;
+  rate_type: RateType;
+  margin_percent: number;
+  fixed_price: number | null;
+  payment_methods: PaymentMethod[];
+  country_code: string | null;
+  terms: string | null;
+  status: OfferStatus;
+  created_at: string;
+  updated_at: string;
+  seller_nickname: string;
+}
+
+export interface CreateOfferPayload {
+  offer_type: OfferType;
+  crypto_currency: string;
+  fiat_currency: string;
+  amount?: number;
+  min_amount?: number;
+  max_amount?: number;
+  rate_type: RateType;
+  margin_percent?: number;
+  fixed_price?: number;
+  payment_methods: PaymentMethod[];
+  country_code?: string;
+  terms?: string;
+}
+
+export interface UpdateOfferPayload {
+  amount?: number | null;
+  min_amount?: number | null;
+  max_amount?: number | null;
+  rate_type?: RateType;
+  margin_percent?: number;
+  fixed_price?: number | null;
+  payment_methods?: PaymentMethod[];
+  country_code?: string | null;
+  terms?: string | null;
+  status?: OfferStatus;
+}
+
+export interface OffersFilter {
+  offer_type?: OfferType;
+  crypto_currency?: string;
+  fiat_currency?: string;
+  payment_method?: PaymentMethod;
+  country_code?: string;
+  user_id?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface OffersResponse {
+  offers: ExchangeOffer[];
+  pagination: Pagination;
+}
+
+export interface PriceData {
+  [crypto: string]: {
+    [fiat: string]: number;
+  } | string; // updated_at is a string
+}
+
+export interface SupportedCoinsResponse {
+  coins: SupportedCoin[];
 }

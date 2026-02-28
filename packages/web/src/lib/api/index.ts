@@ -6,3 +6,5 @@ export * as trades from './trades';
 export * as users from './users';
 export * as messages from './messages';
 export * as moderation from './moderation';
+export * as exchange from './exchange';
+export * as prices from './prices';

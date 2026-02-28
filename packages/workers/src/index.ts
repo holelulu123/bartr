@@ -1,6 +1,8 @@
 import { APP_NAME } from '@bartr/shared';
+import { startPriceFeed } from './jobs/price-feed.js';
 
-console.log(`[${APP_NAME}] Workers ready — waiting for jobs`);
+console.log(`[${APP_NAME}] Workers starting...`);
 
-// Keep the process alive
-setInterval(() => {}, 60_000);
+startPriceFeed();
+
+console.log(`[${APP_NAME}] Workers ready — all jobs running`);

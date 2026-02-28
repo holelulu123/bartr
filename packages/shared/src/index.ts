@@ -10,6 +10,11 @@ export type ReputationTier = 'new' | 'verified' | 'trusted' | 'elite';
 
 export type ModerationStatus = 'pending' | 'reviewed' | 'resolved' | 'dismissed';
 
+export type OfferType = 'buy' | 'sell';
+export type RateType = 'market' | 'fixed';
+export type OfferStatus = 'active' | 'paused' | 'removed';
+export type CoinType = 'crypto' | 'fiat';
+
 export interface HealthResponse {
   status: 'ok' | 'error';
   db: boolean;

@@ -12,13 +12,14 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       payment_methods: string[];
       price_indication?: string;
       currency?: string;
+      country_code?: string;
     };
   }>(
     '/listings',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const userId = request.user!.sub;
-      const { title, description, category_id, payment_methods, price_indication, currency } =
+      const { title, description, category_id, payment_methods, price_indication, currency, country_code } =
         request.body;
 
       if (!title || title.length < 3 || title.length > 200) {
@@ -52,6 +53,12 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         }
       }
 
+      if (country_code !== undefined && country_code !== null) {
+        if (typeof country_code !== 'string' || !/^[A-Z]{2}$/.test(country_code)) {
+          return reply.status(400).send({ error: 'country_code must be a 2-letter ISO code' });
+        }
+      }
+
       if (category_id) {
         const cat = await fastify.pg.query('SELECT id FROM categories WHERE id = $1', [
           category_id,
@@ -62,9 +69,9 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       }
 
       const result = await fastify.pg.query(
-        `INSERT INTO listings (user_id, title, description, category_id, payment_methods, price_indication, currency)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, user_id, title, description, category_id, payment_methods, price_indication, currency, status, created_at, updated_at`,
+        `INSERT INTO listings (user_id, title, description, category_id, payment_methods, price_indication, currency, country_code)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id, user_id, title, description, category_id, payment_methods, price_indication, currency, country_code, status, created_at, updated_at`,
         [
           userId,
           title,
@@ -73,6 +80,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
           JSON.stringify(payment_methods),
           price_indication || null,
           currency || null,
+          country_code || null,
         ],
       );
 
@@ -116,6 +124,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       q?: string;
       category?: string;
       payment_method?: string;
+      country_code?: string;
       status?: string;
       user_id?: string;
       page?: string;
@@ -126,6 +135,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       q,
       category,
       payment_method,
+      country_code,
       status = 'active',
       user_id,
       page = '1',
@@ -161,6 +171,11 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       filterValues.push(JSON.stringify([payment_method]));
     }
 
+    if (country_code) {
+      conditions.push(`l.country_code = $${paramIdx++}`);
+      filterValues.push(country_code);
+    }
+
     // Store the param index for q so we can reference it in ORDER BY too
     let qParamIdx: number | null = null;
     if (q) {
@@ -189,7 +204,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
     const listValues = [...filterValues, limitNum, offset];
     const listResult = await fastify.pg.query(
       `SELECT l.id, l.title, l.price_indication, l.currency, l.payment_methods,
-              l.status, l.created_at, u.nickname as seller_nickname,
+              l.country_code, l.status, l.created_at, u.nickname as seller_nickname,
               c.name as category_name, c.slug as category_slug,
               (SELECT li.storage_key FROM listing_images li WHERE li.listing_id = l.id ORDER BY li.order_index LIMIT 1) as thumbnail
        FROM listings l
@@ -222,6 +237,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       payment_methods?: string[];
       price_indication?: string;
       currency?: string;
+      country_code?: string | null;
       status?: string;
     };
   }>(
@@ -310,6 +326,14 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         values.push(body.currency);
       }
 
+      if (body.country_code !== undefined) {
+        if (body.country_code !== null && !/^[A-Z]{2}$/.test(body.country_code)) {
+          return reply.status(400).send({ error: 'country_code must be a 2-letter ISO code' });
+        }
+        updates.push(`country_code = $${paramIdx++}`);
+        values.push(body.country_code);
+      }
+
       if (body.status !== undefined) {
         const validStatuses = ['active', 'paused', 'sold', 'removed'];
         if (!validStatuses.includes(body.status)) {
@@ -328,7 +352,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
 
       const result = await fastify.pg.query(
         `UPDATE listings SET ${updates.join(', ')} WHERE id = $${paramIdx}
-         RETURNING id, user_id, title, description, category_id, payment_methods, price_indication, currency, status, created_at, updated_at`,
+         RETURNING id, user_id, title, description, category_id, payment_methods, price_indication, currency, country_code, status, created_at, updated_at`,
         values,
       );
 

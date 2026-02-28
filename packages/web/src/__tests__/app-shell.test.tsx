@@ -76,7 +76,8 @@ describe('Navbar — unauthenticated', () => {
 
   it('renders nav links', () => {
     render(<Navbar />);
-    expect(screen.getByRole('link', { name: 'Browse' })).toHaveAttribute('href', '/listings');
+    expect(screen.getByRole('link', { name: 'P2P Exchange' })).toHaveAttribute('href', '/exchange');
+    expect(screen.getByRole('link', { name: 'Marketplace' })).toHaveAttribute('href', '/market');
     expect(screen.getByRole('link', { name: 'Messages' })).toHaveAttribute('href', '/messages');
     expect(screen.getByRole('link', { name: 'Donate' })).toHaveAttribute('href', '/donate');
   });
@@ -84,13 +85,6 @@ describe('Navbar — unauthenticated', () => {
   it('shows Sign in button', () => {
     render(<Navbar />);
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
-  });
-
-  it('does not show Sell button when logged out', () => {
-    render(<Navbar />);
-    const sellLinks = screen.queryAllByRole('link', { name: /sell/i });
-    // On desktop, no sell button shown when unauthenticated
-    expect(sellLinks.filter(l => l.getAttribute('href') === '/listings/new')).toHaveLength(0);
   });
 });
 
@@ -105,10 +99,10 @@ describe('Navbar — authenticated', () => {
     });
   });
 
-  it('shows the Sell button', () => {
+  it('shows P2P Exchange and Marketplace links', () => {
     render(<Navbar />);
-    const sellLink = screen.getAllByRole('link', { name: /sell/i }).find(l => l.getAttribute('href') === '/listings/new');
-    expect(sellLink).toBeDefined();
+    expect(screen.getByRole('link', { name: 'P2P Exchange' })).toHaveAttribute('href', '/exchange');
+    expect(screen.getByRole('link', { name: 'Marketplace' })).toHaveAttribute('href', '/market');
   });
 
   it('shows avatar for authenticated user', () => {
@@ -155,7 +149,7 @@ describe('Navbar — mobile menu', () => {
 
     // Open
     fireEvent.click(menuBtn);
-    const mobileLinks = screen.getAllByRole('link', { name: 'Browse' });
+    const mobileLinks = screen.getAllByRole('link', { name: 'P2P Exchange' });
     expect(mobileLinks.length).toBeGreaterThan(0);
 
     // Close

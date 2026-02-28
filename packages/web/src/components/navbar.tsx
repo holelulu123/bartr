@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Menu, X, MessageSquare, Package, Plus, Heart, Moon, Sun, User, BarChart2, Settings, LogOut } from 'lucide-react';
+import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Moon, Sun, User, Package, BarChart2, Settings, LogOut } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
@@ -23,7 +23,8 @@ import { cn } from '@/lib/utils';
 
 
 const navLinks = [
-  { href: '/listings', label: 'Browse', icon: Package },
+  { href: '/exchange', label: 'P2P Exchange', icon: ArrowLeftRight },
+  { href: '/market', label: 'Marketplace', icon: Store },
   { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/donate', label: 'Donate', icon: Heart },
 ];
@@ -57,7 +58,7 @@ export function Navbar() {
               href={href}
               className={cn(
                 'relative px-3 py-1.5 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
-                pathname === href ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
+                pathname?.startsWith(href) ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
               )}
             >
               {label}
@@ -72,14 +73,6 @@ export function Navbar() {
         <div className="ml-auto flex items-center gap-2">
           {isAuthenticated ? (
             <>
-              {/* Create listing button */}
-              <Button asChild size="sm" className="hidden md:flex gap-1.5">
-                <Link href="/listings/new">
-                  <Plus className="h-4 w-4" />
-                  Sell
-                </Link>
-              </Button>
-
               {/* User dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -105,6 +98,12 @@ export function Navbar() {
                     <Link href="/dashboard/listings" className="flex items-center gap-2">
                       <Package className="h-4 w-4" />
                       My Listings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard/offers" className="flex items-center gap-2">
+                      <ArrowLeftRight className="h-4 w-4" />
+                      My Offers
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -169,7 +168,7 @@ export function Navbar() {
               onClick={() => setMobileOpen(false)}
               className={cn(
                 'relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent',
-                pathname === href ? 'bg-accent' : 'text-muted-foreground'
+                pathname?.startsWith(href) ? 'bg-accent' : 'text-muted-foreground'
               )}
             >
               <Icon className="h-4 w-4" />
@@ -179,16 +178,6 @@ export function Navbar() {
               )}
             </Link>
           ))}
-          {isAuthenticated && (
-            <Link
-              href="/listings/new"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-primary hover:bg-accent"
-            >
-              <Plus className="h-4 w-4" />
-              Sell
-            </Link>
-          )}
         </div>
       )}
     </header>

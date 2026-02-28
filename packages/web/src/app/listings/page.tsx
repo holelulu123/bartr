@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useRef, useState, useTransition } from 'react';
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal, Monitor, Laptop, Shirt, Home, Wrench, Package } from 'lucide-react';
 import { useInfiniteListings, useCategories } from '@/hooks/use-listings';
 import { ListingCard, ListingCardSkeleton } from '@/components/listing-card';
+import { PaymentIcon, getPaymentLabel } from '@/components/payment-icon';
+import { COUNTRIES, getCountryFlag, getCountryName } from '@/lib/countries';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,14 +18,25 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import type { PaymentMethod } from '@bartr/shared';
+import type { ElementType } from 'react';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'btc', label: 'BTC' },
-  { value: 'xmr', label: 'XMR' },
   { value: 'eth', label: 'ETH' },
+  { value: 'usdt', label: 'USDT' },
+  { value: 'usdc', label: 'USDC' },
   { value: 'cash', label: 'Cash' },
-  { value: 'bank', label: 'Bank' },
+  { value: 'bank_transfer', label: 'Bank transfer' },
 ];
+
+const CATEGORY_ICONS: Record<string, ElementType> = {
+  electronics: Monitor,
+  computers: Laptop,
+  clothing: Shirt,
+  'home-garden': Home,
+  services: Wrench,
+  other: Package,
+};
 
 export default function ListingsPage() {
   const router = useRouter();
@@ -32,18 +45,29 @@ export default function ListingsPage() {
   const q = searchParams.get('q') ?? '';
   const category = searchParams.get('category') ?? '';
   const paymentMethod = (searchParams.get('payment') ?? '') as PaymentMethod | '';
+  const country = searchParams.get('country') ?? '';
 
   // Local state for the controlled search input (debounced on change)
   const [searchInput, setSearchInput] = useState(q);
+  const [countrySearch, setCountrySearch] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [, startTransition] = useTransition();
 
   const { data: categoriesData } = useCategories();
 
+  const filteredCountries = useMemo(() => {
+    if (!countrySearch) return COUNTRIES;
+    const lower = countrySearch.toLowerCase();
+    return COUNTRIES.filter(
+      (c) => c.name.toLowerCase().includes(lower) || c.code.toLowerCase().includes(lower),
+    );
+  }, [countrySearch]);
+
   const filters = {
     ...(q && { q }),
     ...(category && { category }),
     ...(paymentMethod && { payment_method: paymentMethod }),
+    ...(country && { country_code: country }),
   };
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } =
@@ -89,12 +113,18 @@ export default function ListingsPage() {
     pushFilter({ payment: val === 'all' ? '' : val });
   }
 
+  function handleCountryChange(val: string) {
+    setCountrySearch('');
+    pushFilter({ country: val === 'all' ? '' : val });
+  }
+
   function clearFilters() {
     setSearchInput('');
+    setCountrySearch('');
     startTransition(() => router.push('/listings'));
   }
 
-  const hasFilters = !!(q || category || paymentMethod);
+  const hasFilters = !!(q || category || paymentMethod || country);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -131,17 +161,23 @@ export default function ListingsPage() {
           value={category || 'all'}
           onValueChange={handleCategoryChange}
         >
-          <SelectTrigger className="w-full sm:w-44" aria-label="Category">
+          <SelectTrigger className="w-full sm:w-48" aria-label="Category">
             <SlidersHorizontal className="h-4 w-4 mr-2 text-muted-foreground" />
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {categoriesData?.categories.map((cat) => (
-              <SelectItem key={cat.slug} value={cat.slug}>
-                {cat.name}
-              </SelectItem>
-            ))}
+            {categoriesData?.categories.map((cat) => {
+              const CatIcon = CATEGORY_ICONS[cat.slug];
+              return (
+                <SelectItem key={cat.slug} value={cat.slug}>
+                  <span className="inline-flex items-center gap-1.5">
+                    {CatIcon && <CatIcon className="h-3.5 w-3.5" />}
+                    {cat.name}
+                  </span>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
 
@@ -149,14 +185,40 @@ export default function ListingsPage() {
           value={paymentMethod || 'all'}
           onValueChange={handlePaymentChange}
         >
-          <SelectTrigger className="w-full sm:w-40" aria-label="Payment method">
+          <SelectTrigger className="w-full sm:w-44" aria-label="Payment method">
             <SelectValue placeholder="Payment" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Any payment</SelectItem>
             {PAYMENT_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
+                <PaymentIcon method={opt.value} longLabel />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={country || 'all'}
+          onValueChange={handleCountryChange}
+        >
+          <SelectTrigger className="w-full sm:w-48" aria-label="Country">
+            <SelectValue placeholder="Country" />
+          </SelectTrigger>
+          <SelectContent>
+            <div className="px-2 py-1.5">
+              <Input
+                placeholder="Search countries…"
+                value={countrySearch}
+                onChange={(e) => setCountrySearch(e.target.value)}
+                className="h-8"
+                aria-label="Search countries"
+              />
+            </div>
+            <SelectItem value="all">All countries</SelectItem>
+            {filteredCountries.map((c) => (
+              <SelectItem key={c.code} value={c.code}>
+                {c.flag} {c.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -184,7 +246,12 @@ export default function ListingsPage() {
           )}
           {paymentMethod && (
             <Badge variant="secondary">
-              Payment: {PAYMENT_OPTIONS.find((p) => p.value === paymentMethod)?.label ?? paymentMethod}
+              Payment: {getPaymentLabel(paymentMethod as PaymentMethod, true)}
+            </Badge>
+          )}
+          {country && (
+            <Badge variant="secondary">
+              Country: {getCountryFlag(country)} {getCountryName(country) || country}
             </Badge>
           )}
         </div>

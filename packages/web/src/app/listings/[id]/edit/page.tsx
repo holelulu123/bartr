@@ -1,15 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Image as ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, X, Monitor, Laptop, Shirt, Home, Wrench, Package } from 'lucide-react';
 import { useListing, useUpdateListing, useDeleteListingImage, useCategories } from '@/hooks/use-listings';
 import { useAuth } from '@/contexts/auth-context';
 import { listings as listingsApi } from '@/lib/api';
+import { PaymentIcon } from '@/components/payment-icon';
+import { COUNTRIES } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,15 +19,14 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { PaymentMethod, ListingStatus } from '@bartr/shared';
 import type { ListingImage } from '@/lib/api';
+import type { ElementType } from 'react';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'btc', label: 'BTC' },
@@ -35,6 +36,15 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
   { value: 'bank_transfer', label: 'Bank transfer' },
 ];
+
+const CATEGORY_ICONS: Record<string, ElementType> = {
+  electronics: Monitor,
+  computers: Laptop,
+  clothing: Shirt,
+  'home-garden': Home,
+  services: Wrench,
+  other: Package,
+};
 
 const STATUS_OPTIONS: { value: ListingStatus; label: string }[] = [
   { value: 'active', label: 'Active' },
@@ -95,12 +105,21 @@ export default function EditListingPage() {
   const deleteImage = useDeleteListingImage(id);
 
   const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
-  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<string>('');
+  const [countrySearch, setCountrySearch] = useState('');
   const [existingImages, setExistingImages] = useState<ListingImage[]>([]);
   const [newImages, setNewImages] = useState<NewImagePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [initialised, setInitialised] = useState(false);
+
+  const filteredCountries = useMemo(() => {
+    if (!countrySearch) return COUNTRIES;
+    const lower = countrySearch.toLowerCase();
+    return COUNTRIES.filter(
+      (c) => c.name.toLowerCase().includes(lower) || c.code.toLowerCase().includes(lower),
+    );
+  }, [countrySearch]);
 
   const {
     register,
@@ -124,12 +143,8 @@ export default function EditListingPage() {
         status: listing.status,
       });
       setSelectedPayments(listing.payment_methods);
+      setSelectedCountry(listing.country_code ?? '');
       setExistingImages(listing.images ?? []);
-      // Initialise category slug for payment method filtering
-      if (listing.category_id && categoriesData) {
-        const cat = categoriesData.categories.find((c) => c.id === listing.category_id);
-        setSelectedCategorySlug(cat?.slug ?? null);
-      }
       setInitialised(true);
     }
   }, [listing, initialised, reset, categoriesData]);
@@ -145,11 +160,6 @@ export default function EditListingPage() {
 
   // ── Payment toggles ────────────────────────────────────────────────────
 
-  const isCashListing = selectedCategorySlug === 'cash-currency';
-  const availablePayments = PAYMENT_OPTIONS.filter(
-    (opt) => !(isCashListing && opt.value === 'cash'),
-  );
-
   function togglePayment(method: PaymentMethod) {
     setSelectedPayments((prev) =>
       prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method],
@@ -157,13 +167,7 @@ export default function EditListingPage() {
   }
 
   function handleCategoryChange(val: string) {
-    const cat = categoriesData?.categories.find((c) => String(c.id) === val);
-    const slug = cat?.slug ?? null;
-    setSelectedCategorySlug(slug);
     setValue('category_id', val === 'none' ? undefined : val);
-    if (slug === 'cash-currency') {
-      setSelectedPayments((prev) => prev.filter((m) => m !== 'cash'));
-    }
   }
 
   // ── Existing image removal ─────────────────────────────────────────────
@@ -233,6 +237,7 @@ export default function EditListingPage() {
         description: values.description,
         payment_methods: selectedPayments,
         status: values.status as ListingStatus,
+        country_code: selectedCountry || null,
         ...(values.category_id ? { category_id: Number(values.category_id) } : {}),
         ...(values.price_indication ? { price_indication: values.price_indication } : {}),
         ...(values.currency ? { currency: values.currency } : {}),
@@ -327,39 +332,17 @@ export default function EditListingPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">No category</SelectItem>
-              {(() => {
-                const priority = categoriesData?.categories.filter((c) =>
-                  ['cash-currency', 'crypto'].includes(c.slug),
-                ) ?? [];
-                const rest = categoriesData?.categories.filter((c) =>
-                  !['cash-currency', 'crypto'].includes(c.slug),
-                ) ?? [];
+              {categoriesData?.categories.map((cat) => {
+                const CatIcon = CATEGORY_ICONS[cat.slug];
                 return (
-                  <>
-                    {priority.length > 0 && (
-                      <SelectGroup>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Finance</div>
-                        {priority.map((cat) => (
-                          <SelectItem key={cat.id} value={String(cat.id)}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {priority.length > 0 && rest.length > 0 && <SelectSeparator />}
-                    {rest.length > 0 && (
-                      <SelectGroup>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Goods & Services</div>
-                        {rest.map((cat) => (
-                          <SelectItem key={cat.id} value={String(cat.id)}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                  </>
+                  <SelectItem key={cat.id} value={String(cat.id)}>
+                    <span className="inline-flex items-center gap-1.5">
+                      {CatIcon && <CatIcon className="h-3.5 w-3.5" />}
+                      {cat.name}
+                    </span>
+                  </SelectItem>
                 );
-              })()}
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -404,11 +387,44 @@ export default function EditListingPage() {
           </Select>
         </div>
 
+        {/* Country */}
+        <div className="space-y-1.5">
+          <Label htmlFor="country">Country (optional)</Label>
+          <Select
+            value={selectedCountry || 'none'}
+            onValueChange={(val) => {
+              setCountrySearch('');
+              setSelectedCountry(val === 'none' ? '' : val);
+            }}
+          >
+            <SelectTrigger id="country" aria-label="Country">
+              <SelectValue placeholder="Select a country" />
+            </SelectTrigger>
+            <SelectContent>
+              <div className="px-2 py-1.5">
+                <Input
+                  placeholder="Search countries…"
+                  value={countrySearch}
+                  onChange={(e) => setCountrySearch(e.target.value)}
+                  className="h-8"
+                  aria-label="Search countries"
+                />
+              </div>
+              <SelectItem value="none">No country</SelectItem>
+              {filteredCountries.map((c) => (
+                <SelectItem key={c.code} value={c.code}>
+                  {c.flag} {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Payment methods */}
         <div className="space-y-2">
           <Label>Accepted payment methods</Label>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Payment methods">
-            {availablePayments.map((opt) => (
+            {PAYMENT_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
@@ -421,7 +437,7 @@ export default function EditListingPage() {
                     : 'bg-transparent border-border text-foreground hover:border-primary/50',
                 )}
               >
-                {opt.label}
+                <PaymentIcon method={opt.value} longLabel />
               </button>
             ))}
           </div>

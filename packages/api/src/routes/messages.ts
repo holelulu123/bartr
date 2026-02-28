@@ -1,15 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 
 export default async function messageRoutes(fastify: FastifyInstance) {
-  // Create or get a message thread (between two users, optionally about a listing)
+  // Create or get a message thread (between two users, optionally about a listing or exchange offer)
   fastify.post<{
-    Body: { recipient_nickname: string; listing_id?: string };
+    Body: { recipient_nickname: string; listing_id?: string; offer_id?: string };
   }>(
     '/threads',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const userId = request.user!.sub;
-      const { recipient_nickname, listing_id } = request.body;
+      const { recipient_nickname, listing_id, offer_id } = request.body;
 
       if (!recipient_nickname) {
         return reply.status(400).send({ error: 'recipient_nickname is required' });
@@ -29,7 +29,7 @@ export default async function messageRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Cannot message yourself' });
       }
 
-      // Check for existing thread between these users (optionally for this listing)
+      // Check for existing thread between these users (optionally for this listing/offer)
       let existingQuery: string;
       let existingParams: (string | null)[];
 
@@ -38,9 +38,14 @@ export default async function messageRoutes(fastify: FastifyInstance) {
           WHERE listing_id = $3
           AND ((participant_1 = $1 AND participant_2 = $2) OR (participant_1 = $2 AND participant_2 = $1))`;
         existingParams = [userId, recipientId, listing_id];
+      } else if (offer_id) {
+        existingQuery = `SELECT id FROM message_threads
+          WHERE offer_id = $3
+          AND ((participant_1 = $1 AND participant_2 = $2) OR (participant_1 = $2 AND participant_2 = $1))`;
+        existingParams = [userId, recipientId, offer_id];
       } else {
         existingQuery = `SELECT id FROM message_threads
-          WHERE listing_id IS NULL
+          WHERE listing_id IS NULL AND offer_id IS NULL
           AND ((participant_1 = $1 AND participant_2 = $2) OR (participant_1 = $2 AND participant_2 = $1))`;
         existingParams = [userId, recipientId];
       }
@@ -52,10 +57,10 @@ export default async function messageRoutes(fastify: FastifyInstance) {
 
       // Create new thread
       const result = await fastify.pg.query(
-        `INSERT INTO message_threads (participant_1, participant_2, listing_id)
-         VALUES ($1, $2, $3)
-         RETURNING id, participant_1, participant_2, listing_id, created_at`,
-        [userId, recipientId, listing_id || null],
+        `INSERT INTO message_threads (participant_1, participant_2, listing_id, offer_id)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, participant_1, participant_2, listing_id, offer_id, created_at`,
+        [userId, recipientId, listing_id || null, offer_id || null],
       );
 
       return reply.status(201).send(result.rows[0]);

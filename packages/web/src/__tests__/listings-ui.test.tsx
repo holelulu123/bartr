@@ -46,6 +46,7 @@ function makeListing(overrides: Partial<ListingSummary> = {}): ListingSummary {
     price_indication: '100',
     currency: 'USD',
     payment_methods: ['btc'],
+    country_code: null,
     status: 'active',
     created_at: new Date(Date.now() - 60_000 * 5).toISOString(), // 5 min ago
     seller_nickname: 'alice',
@@ -136,7 +137,6 @@ describe('ListingCard', () => {
     );
     expect(screen.getByText('BTC')).toBeInTheDocument();
     expect(screen.getByText('+2')).toBeInTheDocument();
-    expect(screen.queryByText('Cash')).not.toBeInTheDocument();
   });
 
   it('renders seller nickname', () => {
@@ -314,11 +314,11 @@ describe('/listings browse page', () => {
   });
 
   it('calls useInfiniteListings with payment_method filter from URL', () => {
-    mockSearchParams = new URLSearchParams('payment=xmr');
+    mockSearchParams = new URLSearchParams('payment=btc');
     setupMocks();
     render(<ListingsPage />);
     expect(mockUseInfiniteListings).toHaveBeenCalledWith(
-      expect.objectContaining({ payment_method: 'xmr' }),
+      expect.objectContaining({ payment_method: 'btc' }),
     );
   });
 

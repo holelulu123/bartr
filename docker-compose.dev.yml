@@ -12,15 +12,11 @@ services:
   nextjs:
     image: node:20-alpine
     working_dir: /app
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm --filter @bartr/shared build && pnpm --filter @bartr/web dev"
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm --filter @bartr/shared build && pnpm --filter @bartr/web dev"
     ports:
       - "3000:3000"
     volumes:
       - .:/app
-      - nextjs_pnpm_store:/app/.pnpm-store
-      - nextjs_node_modules:/app/node_modules
-      - nextjs_web_modules:/app/packages/web/node_modules
-      - nextjs_shared_modules:/app/packages/shared/node_modules
     env_file: .env
     depends_on:
       - api
@@ -28,15 +24,11 @@ services:
   api:
     image: node:20-alpine
     working_dir: /app
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm --filter @bartr/shared build && pnpm --filter @bartr/api dev"
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm --filter @bartr/shared build && pnpm --filter @bartr/api dev"
     ports:
       - "4000:4000"
     volumes:
       - .:/app
-      - api_pnpm_store:/app/.pnpm-store
-      - api_node_modules:/app/node_modules
-      - api_api_modules:/app/packages/api/node_modules
-      - api_shared_modules:/app/packages/shared/node_modules
     env_file: .env
     depends_on:
       postgres:
@@ -47,13 +39,9 @@ services:
   workers:
     image: node:20-alpine
     working_dir: /app
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm --filter @bartr/shared build && pnpm --filter @bartr/workers dev"
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm --filter @bartr/shared build && pnpm --filter @bartr/workers dev"
     volumes:
       - .:/app
-      - workers_pnpm_store:/app/.pnpm-store
-      - workers_node_modules:/app/node_modules
-      - workers_workers_modules:/app/packages/workers/node_modules
-      - workers_shared_modules:/app/packages/shared/node_modules
     env_file: .env
     depends_on:
       postgres:
@@ -101,15 +89,3 @@ services:
 volumes:
   pgdata:
   minio-data:
-  nextjs_pnpm_store:
-  nextjs_node_modules:
-  nextjs_web_modules:
-  nextjs_shared_modules:
-  api_pnpm_store:
-  api_node_modules:
-  api_api_modules:
-  api_shared_modules:
-  workers_pnpm_store:
-  workers_node_modules:
-  workers_workers_modules:
-  workers_shared_modules:
