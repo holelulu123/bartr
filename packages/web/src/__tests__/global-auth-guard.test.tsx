@@ -47,12 +47,7 @@ function renderGuard(path: string) {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('GlobalAuthGuard — public routes (unauthenticated)', () => {
-  const publicPaths = [
-    '/', '/login', '/register', '/donate', '/about', '/privacy',
-    '/auth/callback', '/auth/unlock', '/auth/recover',
-    // Browsing listings and user profiles are public
-    '/listings', '/listings/some-uuid', '/user/alice',
-  ];
+  const publicPaths = ['/', '/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover'];
 
   publicPaths.forEach((path) => {
     it(`renders children on public path: ${path}`, () => {
@@ -68,13 +63,7 @@ describe('GlobalAuthGuard — public routes (unauthenticated)', () => {
 });
 
 describe('GlobalAuthGuard — protected routes, unauthenticated', () => {
-  const protectedPaths = [
-    '/listings/new',
-    '/listings/some-uuid/edit',
-    '/messages',
-    '/trades/1',
-    '/dashboard',
-  ];
+  const protectedPaths = ['/listings', '/listings/abc', '/listings/new', '/messages', '/trades/1', '/dashboard', '/user/alice', '/about', '/privacy'];
 
   protectedPaths.forEach((path) => {
     it(`redirects to /login for protected path: ${path}`, async () => {
@@ -95,7 +84,7 @@ describe('GlobalAuthGuard — loading state', () => {
   });
 
   it('shows spinner on protected route while loading', () => {
-    renderGuard('/messages');
+    renderGuard('/listings');
     expect(document.querySelector('.animate-spin')).toBeTruthy();
     expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument();
   });
@@ -106,14 +95,8 @@ describe('GlobalAuthGuard — loading state', () => {
     expect(document.querySelector('.animate-spin')).not.toBeTruthy();
   });
 
-  it('renders children on public listings route even while loading', () => {
-    renderGuard('/listings');
-    expect(screen.getByTestId('protected-content')).toBeInTheDocument();
-    expect(document.querySelector('.animate-spin')).not.toBeTruthy();
-  });
-
   it('does not redirect while loading', () => {
-    renderGuard('/messages');
+    renderGuard('/listings');
     expect(mockReplace).not.toHaveBeenCalled();
   });
 });

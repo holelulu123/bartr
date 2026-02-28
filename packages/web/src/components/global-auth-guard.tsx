@@ -5,15 +5,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 
 // Routes that are accessible without authentication
-const PUBLIC_PATHS = ['/', '/login', '/register', '/donate', '/about', '/privacy', '/auth/callback', '/auth/unlock', '/auth/recover', '/register/email', '/listings', '/user'];
-
-// Protected sub-paths that would otherwise match a public prefix
-const PROTECTED_PATHS = ['/listings/new', '/listings/edit'];
+const PUBLIC_PATHS = ['/', '/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover', '/register/email'];
 
 function isPublic(pathname: string): boolean {
-  if (PROTECTED_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))) return false;
-  // Also protect /listings/:id/edit
-  if (/^\/listings\/[^/]+\/edit(\/|$)/.test(pathname)) return false;
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
