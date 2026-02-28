@@ -13,6 +13,8 @@ export function useThreads() {
   return useQuery({
     queryKey: messageKeys.threads(),
     queryFn: () => messagesApi.getThreads(),
+    refetchInterval: 10_000,            // poll every 10 s for new thread activity
+    refetchIntervalInBackground: false,
   });
 }
 

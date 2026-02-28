@@ -25,6 +25,11 @@ vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// ── Mock useThreads (used by Navbar for unread indicator) ─────────────────────
+vi.mock('@/hooks/use-messages', () => ({
+  useThreads: () => ({ data: undefined }),
+}));
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();

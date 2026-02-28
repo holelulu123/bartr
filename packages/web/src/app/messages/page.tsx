@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { MessageSquare, Clock } from 'lucide-react';
 import { useThreads } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
+import { useUnreadThreads, isThreadUnread } from '@/hooks/use-unread-threads';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CryptoGuard } from '@/components/crypto-guard';
 
@@ -41,6 +42,7 @@ function MessagesInner() {
   const { data, isLoading } = useThreads();
 
   const threads = data?.threads ?? [];
+  const { markThreadRead } = useUnreadThreads(threads, user?.nickname ?? '');
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -71,21 +73,29 @@ function MessagesInner() {
 
             const lastActivity = thread.last_message_at ?? thread.created_at;
 
+            const unread = user ? isThreadUnread(thread, user.nickname) : false;
+
             return (
               <Link
                 key={thread.id}
                 href={`/messages/${thread.id}`}
+                onClick={() => markThreadRead(thread.id, thread.last_message_at)}
                 className="flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors group"
               >
                 {/* Avatar */}
-                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium shrink-0 group-hover:bg-primary/10 transition-colors">
-                  {otherNickname.slice(0, 2).toUpperCase()}
+                <div className="relative h-10 w-10 shrink-0">
+                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium group-hover:bg-primary/10 transition-colors">
+                    {otherNickname.slice(0, 2).toUpperCase()}
+                  </div>
+                  {unread && (
+                    <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-orange-500 border-2 border-background" aria-label="Unread" />
+                  )}
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">{otherNickname}</span>
+                    <span className={`text-sm truncate ${unread ? 'font-semibold' : 'font-medium'}`}>{otherNickname}</span>
                   </div>
                   {thread.listing_title && (
                     <p className="text-xs text-muted-foreground truncate mt-0.5">

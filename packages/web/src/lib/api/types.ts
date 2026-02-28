@@ -217,6 +217,7 @@ export interface MessageThread {
   participant_2_nickname: string;
   listing_title: string | null;
   last_message_at: string | null;
+  last_sender_nickname: string | null;
 }
 
 export interface Message {

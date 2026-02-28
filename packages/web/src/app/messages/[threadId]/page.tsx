@@ -7,6 +7,7 @@ import { ArrowLeft, Send, AlertCircle } from 'lucide-react';
 import { useMessages, useThreads, useSendMessage } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
+import { useUnreadThreads } from '@/hooks/use-unread-threads';
 import { users as usersApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -118,6 +119,14 @@ function ChatInner() {
   const { data: threadsData } = useThreads();
 
   const threadMeta = threadsData?.threads.find((t) => t.id === threadId) ?? null;
+  const { markThreadRead } = useUnreadThreads(threadsData?.threads ?? [], user?.nickname ?? '');
+
+  // Mark this thread as read whenever we have messages loaded
+  useEffect(() => {
+    if (threadMeta) {
+      markThreadRead(threadId, threadMeta.last_message_at);
+    }
+  }, [threadId, threadMeta?.last_message_at, markThreadRead]);
 
   const otherNickname =
     threadMeta?.participant_1_nickname === user?.nickname

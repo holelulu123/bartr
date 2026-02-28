@@ -87,7 +87,8 @@ export default async function messageRoutes(fastify: FastifyInstance) {
                 u1.nickname as participant_1_nickname,
                 u2.nickname as participant_2_nickname,
                 l.title as listing_title,
-                (SELECT m.created_at FROM messages m WHERE m.thread_id = mt.id ORDER BY m.created_at DESC LIMIT 1) as last_message_at
+                (SELECT m.created_at FROM messages m WHERE m.thread_id = mt.id ORDER BY m.created_at DESC LIMIT 1) as last_message_at,
+                (SELECT u.nickname FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.thread_id = mt.id ORDER BY m.created_at DESC LIMIT 1) as last_sender_nickname
          FROM message_threads mt
          JOIN users u1 ON u1.id = mt.participant_1
          JOIN users u2 ON u2.id = mt.participant_2

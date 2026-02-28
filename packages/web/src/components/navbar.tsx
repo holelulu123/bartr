@@ -7,6 +7,8 @@ import { Menu, X, MessageSquare, Package, Plus, Heart, Moon, Sun, User, BarChart
 import { useTheme } from 'next-themes';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
+import { useThreads } from '@/hooks/use-messages';
+import { useUnreadThreads } from '@/hooks/use-unread-threads';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -60,6 +62,13 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
 
+  // Unread message indicator — only fetch threads when authenticated
+  const { data: threadsData } = useThreads();
+  const { hasUnread } = useUnreadThreads(
+    threadsData?.threads ?? [],
+    user?.nickname ?? '',
+  );
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
@@ -75,11 +84,14 @@ export function Navbar() {
               key={href}
               href={href}
               className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
+                'relative px-3 py-1.5 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
                 pathname === href ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
               )}
             >
               {label}
+              {href === '/messages' && isAuthenticated && hasUnread && (
+                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-orange-500" aria-label="Unread messages" />
+              )}
             </Link>
           ))}
         </nav>
@@ -184,12 +196,15 @@ export function Navbar() {
               href={href}
               onClick={() => setMobileOpen(false)}
               className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent',
+                'relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent',
                 pathname === href ? 'bg-accent' : 'text-muted-foreground'
               )}
             >
               <Icon className="h-4 w-4" />
               {label}
+              {href === '/messages' && isAuthenticated && hasUnread && (
+                <span className="absolute top-2 left-6 h-2 w-2 rounded-full bg-orange-500" aria-label="Unread messages" />
+              )}
             </Link>
           ))}
           {isAuthenticated && (
