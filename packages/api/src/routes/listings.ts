@@ -332,7 +332,24 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         values,
       );
 
-      return reply.send(result.rows[0]);
+      // Re-fetch the full listing detail (with seller_nickname, category, images)
+      // so the response matches what GET /listings/:id returns and the client
+      // cache stays consistent.
+      const full = await fastify.pg.query(
+        `SELECT l.*, u.nickname as seller_nickname,
+                c.name as category_name, c.slug as category_slug,
+                COALESCE(
+                  (SELECT json_agg(json_build_object('id', li.id, 'storage_key', li.storage_key, 'order_index', li.order_index) ORDER BY li.order_index)
+                   FROM listing_images li WHERE li.listing_id = l.id), '[]'
+                ) as images
+         FROM listings l
+         JOIN users u ON u.id = l.user_id
+         LEFT JOIN categories c ON c.id = l.category_id
+         WHERE l.id = $1`,
+        [result.rows[0].id],
+      );
+
+      return reply.send(full.rows[0]);
     },
   );
 
