@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, waitFor, cleanup } from '@testing-library/react';
-import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { AuthProvider, useAuth, resetBootState } from '@/contexts/auth-context';
 import { ApiError } from '@/lib/api/client';
 
 // ── Mock the API auth module ──────────────────────────────────────────────────
@@ -53,6 +53,10 @@ function AuthActions() {
 }
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────
+beforeEach(() => {
+  resetBootState();
+});
+
 afterEach(() => {
   cleanup();
   clearCookie('bartr_refresh');

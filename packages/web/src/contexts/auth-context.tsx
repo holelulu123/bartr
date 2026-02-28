@@ -22,6 +22,15 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const REFRESH_TOKEN_KEY = 'bartr_refresh';
 
+// Module-level dedup: StrictMode mounts/unmounts/remounts so useEffect fires
+// twice. This ensures only one full boot sequence runs per page load.
+let bootPromise: Promise<void> | null = null;
+
+/** Reset boot state — call this in tests between renders. */
+export function resetBootState() {
+  bootPromise = null;
+}
+
 function getRefreshTokenFromCookie(): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(new RegExp(`(?:^|; )${REFRESH_TOKEN_KEY}=([^;]*)`));
@@ -86,44 +95,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // On mount: if there's a refresh cookie, try to get a fresh access token.
-  // Register the refresh promise with the API client so any requests that fire
-  // simultaneously during boot reuse it instead of racing with a second refresh.
+  // Uses a module-level promise to deduplicate — React StrictMode double-fires
+  // useEffect, and without this guard two simultaneous refreshes would race,
+  // the second consuming the rotated token and returning 401.
   useEffect(() => {
-    async function init() {
-      const refreshToken = getRefreshTokenFromCookie();
-      if (!refreshToken) {
-        setIsLoading(false);
-        return;
-      }
-
-      const refreshP: Promise<boolean> = auth.refreshTokens(refreshToken).then(
-        (tokens) => {
-          accessTokenRef.current = tokens.access_token;
-          setRefreshTokenCookie(tokens.refresh_token);
-          return true;
-        },
-        () => {
-          accessTokenRef.current = null;
-          clearRefreshTokenCookie();
-          return false;
-        },
-      );
-
-      // Let the API client reuse this promise for concurrent 401 retries
-      setInitRefreshPromise(refreshP);
-
-      try {
-        const refreshed = await refreshP;
-        if (refreshed) {
-          const me = await auth.getMe();
-          setUser(me);
+    if (!bootPromise) {
+      bootPromise = (async () => {
+        const refreshToken = getRefreshTokenFromCookie();
+        if (!refreshToken) {
+          setIsLoading(false);
+          return;
         }
-      } finally {
-        setIsLoading(false);
-      }
-    }
 
-    init();
+        const refreshP: Promise<boolean> = auth.refreshTokens(refreshToken).then(
+          (tokens) => {
+            accessTokenRef.current = tokens.access_token;
+            setRefreshTokenCookie(tokens.refresh_token);
+            return true;
+          },
+          () => {
+            accessTokenRef.current = null;
+            clearRefreshTokenCookie();
+            return false;
+          },
+        );
+
+        // Let the API client reuse this promise for concurrent 401 retries
+        setInitRefreshPromise(refreshP);
+
+        try {
+          const refreshed = await refreshP;
+          if (refreshed) {
+            const me = await auth.getMe();
+            setUser(me);
+          }
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+    } else {
+      // Second invocation (StrictMode) — just wait for the existing boot to finish
+      bootPromise.finally(() => setIsLoading(false));
+    }
   }, []);
 
   const setTokens = useCallback((access: string, refresh: string) => {
