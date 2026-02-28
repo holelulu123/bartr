@@ -49,7 +49,7 @@ export default function ListingsPage() {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } =
     useInfiniteListings(filters);
 
-  const allListings = data?.pages.flatMap((p) => p.listings) ?? [];
+  const allListings = data?.pages?.flatMap((p) => p.listings) ?? [];
 
   // ── URL helpers ────────────────────────────────────────────────────────────
 
@@ -106,7 +106,7 @@ export default function ListingsPage() {
         {!isLoading && (
           <p className="text-sm text-muted-foreground mt-1">
             {allListings.length > 0
-              ? `${data?.pages[0]?.pagination.total ?? 0} listings`
+              ? `${data?.pages?.[0]?.pagination.total ?? 0} listings`
               : hasFilters
               ? 'No listings match your filters'
               : 'No listings yet'}
