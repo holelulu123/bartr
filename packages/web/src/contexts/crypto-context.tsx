@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useRef, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useRef, useCallback, useState, type ReactNode } from 'react';
 import {
   generateKeyPair,
   exportPublicKey,
@@ -51,6 +51,8 @@ const CryptoContext = createContext<CryptoContextValue | null>(null);
 export function CryptoProvider({ children }: { children: ReactNode }) {
   // Private key lives only in memory — never serialized
   const stateRef = useRef<CryptoState>({ publicKey: null, privateKey: null });
+  // Separate boolean state so components re-render when keys are loaded/cleared
+  const [unlockedState, setUnlockedState] = useState(false);
 
   const register = useCallback(async (password: string) => {
     const keyPair = await generateKeyPair();
@@ -60,6 +62,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
 
     // Keep keys in memory for the session
     stateRef.current = { publicKey: keyPair.publicKey, privateKey: keyPair.privateKey };
+    setUnlockedState(true);
 
     return { publicKeyBase64, privateKeyBlob, recoveryKeyHex, recoveryKeyBlob };
   }, []);
@@ -67,12 +70,14 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
   const unlock = useCallback(async (privateKeyBlob: string, password: string) => {
     const privateKey = await unwrapPrivateKey(privateKeyBlob, password);
     stateRef.current = { ...stateRef.current, privateKey };
+    setUnlockedState(true);
   }, []);
 
   const unlockWithRecovery = useCallback(
     async (recoveryKeyBlob: string, recoveryKeyHex: string) => {
       const privateKey = await unwrapWithRecoveryKey(recoveryKeyBlob, recoveryKeyHex);
       stateRef.current = { ...stateRef.current, privateKey };
+      setUnlockedState(true);
     },
     [],
   );
@@ -99,6 +104,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
 
   const lock = useCallback(() => {
     stateRef.current = { publicKey: null, privateKey: null };
+    setUnlockedState(false);
   }, []);
 
   const value: CryptoContextValue = {
@@ -108,9 +114,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
     encrypt,
     decrypt,
     lock,
-    get isUnlocked() {
-      return stateRef.current.privateKey !== null;
-    },
+    isUnlocked: unlockedState,
   };
 
   return <CryptoContext.Provider value={value}>{children}</CryptoContext.Provider>;

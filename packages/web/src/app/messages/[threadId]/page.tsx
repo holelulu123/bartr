@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Send, AlertCircle } from 'lucide-react';
-import { useMessages, useSendMessage, messageKeys } from '@/hooks/use-messages';
+import { useMessages, useThreads, useSendMessage } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
 import { users as usersApi } from '@/lib/api';
@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CryptoGuard } from '@/components/crypto-guard';
-import { useQueryClient } from '@tanstack/react-query';
 import type { Message } from '@/lib/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -108,16 +107,17 @@ function ChatInner() {
   const { threadId } = useParams<{ threadId: string }>();
   const { user } = useAuth();
   const { decrypt, isUnlocked } = useCrypto();
-  const qc = useQueryClient();
 
   const [decrypted, setDecrypted] = useState<DecryptedMessage[]>([]);
-  const [threadMeta, setThreadMeta] = useState<ThreadMeta | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, isError } = useMessages(threadId);
+  const { data: threadsData } = useThreads();
+
+  const threadMeta = threadsData?.threads.find((t) => t.id === threadId) ?? null;
 
   const otherNickname =
     threadMeta?.participant_1_nickname === user?.nickname
@@ -125,15 +125,6 @@ function ChatInner() {
       : threadMeta?.participant_1_nickname;
 
   const send = useSendMessageStable(threadId, otherNickname ?? '');
-
-  // Populate thread metadata from the threads cache
-  useEffect(() => {
-    const cached = qc.getQueryData<{
-      threads: Array<{ id: string } & ThreadMeta>;
-    }>(messageKeys.threads());
-    const t = cached?.threads.find((t) => t.id === threadId);
-    if (t) setThreadMeta(t);
-  }, [threadId, qc]);
 
   // Decrypt messages
   useEffect(() => {
