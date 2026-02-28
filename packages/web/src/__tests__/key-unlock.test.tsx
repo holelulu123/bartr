@@ -25,10 +25,13 @@ let mockIsAuthenticated = true; // unlock/recover pages assume already logged in
 let mockIsLoading = false;
 let mockIsUnlocked = false;
 
+const mockLogout = vi.fn();
+
 vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({
     isAuthenticated: mockIsAuthenticated,
     isLoading: mockIsLoading,
+    logout: mockLogout,
   }),
 }));
 
@@ -294,7 +297,7 @@ describe('CryptoGuard', () => {
     expect(screen.getByTestId('content')).toBeInTheDocument();
   });
 
-  it('redirects to /auth/unlock?next=<pathname> when keys are locked', async () => {
+  it('logs out when keys are locked instead of prompting for password', async () => {
     mockIsUnlocked = false;
     mockIsAuthenticated = true;
     mockIsLoading = false;
@@ -303,9 +306,7 @@ describe('CryptoGuard', () => {
         <div data-testid="content">Messages</div>
       </CryptoGuard>,
     );
-    await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith('/auth/unlock?next=%2Fmessages'),
-    );
+    await waitFor(() => expect(mockLogout).toHaveBeenCalled());
     expect(screen.queryByTestId('content')).not.toBeInTheDocument();
   });
 

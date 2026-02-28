@@ -73,10 +73,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       accessTokenRef.current = null;
       clearRefreshTokenCookie();
       setUser(null);
-      // Redirect to login — the GlobalAuthGuard will also catch this,
-      // but doing it here is immediate and doesn't wait for a re-render cycle
+      bootPromise = null;
       if (typeof window !== 'undefined') {
-        window.location.replace('/login');
+        window.location.replace('/');
       }
     });
   }, []);
@@ -156,6 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     accessTokenRef.current = null;
     clearRefreshTokenCookie();
     setUser(null);
+    bootPromise = null;
   }, []);
 
   return (
