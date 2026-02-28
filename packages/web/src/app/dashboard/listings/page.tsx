@@ -247,11 +247,13 @@ function ListingRow({
             Mark sold
           </Button>
         )}
-        <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0">
-          <Link href={`/listings/${listing.id}/edit`} aria-label={`Edit ${listing.title}`}>
-            <Edit className="h-4 w-4" />
-          </Link>
-        </Button>
+        {listing.status !== 'sold' && (
+          <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0">
+            <Link href={`/listings/${listing.id}/edit`} aria-label={`Edit ${listing.title}`}>
+              <Edit className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"

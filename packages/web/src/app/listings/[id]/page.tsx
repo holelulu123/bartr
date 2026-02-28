@@ -318,12 +318,14 @@ export default function ListingDetailPage() {
             <div className="space-y-2 pt-2 border-t border-border">
               {isOwner ? (
                 <>
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href={`/listings/${id}/edit`}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit listing
-                    </Link>
-                  </Button>
+                  {listing.status !== 'sold' && (
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href={`/listings/${id}/edit`}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit listing
+                      </Link>
+                    </Button>
+                  )}
                   <Button
                     variant="destructive"
                     className="w-full"

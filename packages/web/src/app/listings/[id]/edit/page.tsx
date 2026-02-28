@@ -134,10 +134,12 @@ export default function EditListingPage() {
     }
   }, [listing, initialised, reset, categoriesData]);
 
-  // Owner guard — redirect non-owners
+  // Owner guard — redirect non-owners or sold listings
   useEffect(() => {
-    if (!isLoading && listing && user && user.nickname !== listing.seller_nickname) {
-      router.replace(`/listings/${id}`);
+    if (!isLoading && listing) {
+      if ((user && user.nickname !== listing.seller_nickname) || listing.status === 'sold') {
+        router.replace(`/listings/${id}`);
+      }
     }
   }, [isLoading, listing, user, id, router]);
 
