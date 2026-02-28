@@ -4,10 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'react-qr-code';
 import { Copy, Check } from 'lucide-react';
-import { BtcIcon } from '@/components/crypto-icons';
 import { Button } from '@/components/ui/button';
 
-const BTC_ADDRESS = 'bc1qexampleaddresshere';
+const BTC_ADDRESS = process.env.NEXT_PUBLIC_BTC_ADDRESS ?? '';
 
 function ExpenseRow({ label, amount, percent }: { label: string; amount: string; percent: number }) {
   return (
@@ -51,7 +50,7 @@ export default function DonatePage() {
         {/* Bitcoin donation card */}
         <div className="max-w-md mx-auto rounded-xl border border-orange-400/30 bg-orange-400/5 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <BtcIcon className="h-8 w-8" />
+            <span className="text-3xl text-orange-400">₿</span>
             <h2 className="text-xl font-semibold text-orange-400">Bitcoin (BTC)</h2>
           </div>
 

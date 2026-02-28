@@ -11,8 +11,8 @@ services:
 
   nextjs:
     image: node:20-alpine
-    working_dir: /app
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm --filter @bartr/shared build && pnpm --filter @bartr/web dev"
+    working_dir: /app/packages/web
+    command: sh -c "npx --yes next dev"
     ports:
       - "3000:3000"
     volumes:
@@ -23,8 +23,8 @@ services:
 
   api:
     image: node:20-alpine
-    working_dir: /app
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm --filter @bartr/shared build && pnpm --filter @bartr/api dev"
+    working_dir: /app/packages/api
+    command: sh -c "npx --yes tsx watch src/index.ts"
     ports:
       - "4000:4000"
     volumes:
@@ -38,8 +38,8 @@ services:
 
   workers:
     image: node:20-alpine
-    working_dir: /app
-    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm --filter @bartr/shared build && pnpm --filter @bartr/workers dev"
+    working_dir: /app/packages/workers
+    command: sh -c "npx --yes tsx watch src/index.ts"
     volumes:
       - .:/app
     env_file: .env

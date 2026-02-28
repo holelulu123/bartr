@@ -74,33 +74,6 @@ export function SolIcon({ className }: IconProps) {
   );
 }
 
-// Dogecoin — yellow circle with D
-export function DogeIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={cn('h-4 w-4', className)}>
-      <circle cx="12" cy="12" r="11" fill="#C2A633" />
-      <path
-        d="M10.5 7.5H13c2.2 0 4 1.8 4 4s-1.8 4-4 4h-2.5v-8zm1.5 6.5h1c1.4 0 2.5-1.1 2.5-2.5S14.4 9 13 9h-1v5zm-2-3h4.5v1.2H10V11z"
-        fill="white"
-      />
-    </svg>
-  );
-}
-
-// Litecoin — silver/grey circle with L
-export function LtcIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={cn('h-4 w-4', className)}>
-      <circle cx="12" cy="12" r="11" fill="#BFBBBB" />
-      <path
-        d="M10.5 7.5h2l-1.5 5.5h3.5l-.5 1.5H9l.5-2 1.5-1-.5 1.5L10.5 7.5z"
-        fill="white"
-      />
-      <path d="M8.5 13l3-2-.3 1-3 2 .3-1z" fill="white" />
-    </svg>
-  );
-}
-
 // XRP — dark circle with X
 export function XrpIcon({ className }: IconProps) {
   return (
@@ -110,35 +83,6 @@ export function XrpIcon({ className }: IconProps) {
         d="M8 8l2.5 2.8L12 9.3l1.5 1.5L16 8h1.5l-3.8 4.1L17.5 16H16l-2.5-2.8-1.5 1.5-1.5-1.5L8 16H6.5l3.8-3.9L6.5 8H8z"
         fill="white"
       />
-    </svg>
-  );
-}
-
-// BNB — yellow circle with diamond shapes
-export function BnbIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={cn('h-4 w-4', className)}>
-      <circle cx="12" cy="12" r="11" fill="#F3BA2F" />
-      <path
-        d="M12 7l1.8 1.8L12 10.5l-1.8-1.7L12 7zm-3.5 3.5L10.3 12l-1.8 1.5L6.7 12l1.8-1.5zm7 0L17.3 12l-1.8 1.5L13.7 12l1.8-1.5zM12 13.5l1.8 1.7L12 17l-1.8-1.8L12 13.5z"
-        fill="white"
-      />
-    </svg>
-  );
-}
-
-// Cardano ADA — blue circle with star-like shape
-export function AdaIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={cn('h-4 w-4', className)}>
-      <circle cx="12" cy="12" r="11" fill="#0033AD" />
-      <circle cx="12" cy="8" r="1" fill="white" />
-      <circle cx="12" cy="16" r="1" fill="white" />
-      <circle cx="8.5" cy="10" r="1" fill="white" />
-      <circle cx="15.5" cy="10" r="1" fill="white" />
-      <circle cx="8.5" cy="14" r="1" fill="white" />
-      <circle cx="15.5" cy="14" r="1" fill="white" />
-      <circle cx="12" cy="12" r="1.2" fill="white" />
     </svg>
   );
 }
@@ -193,11 +137,7 @@ export const CRYPTO_ICONS: Record<string, React.FC<IconProps>> = {
   USDT: UsdtIcon,
   USDC: UsdcIcon,
   SOL: SolIcon,
-  DOGE: DogeIcon,
-  LTC: LtcIcon,
   XRP: XrpIcon,
-  BNB: BnbIcon,
-  ADA: AdaIcon,
 };
 
 export function CoinIcon({ symbol, className }: { symbol: string; className?: string }) {

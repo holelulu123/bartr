@@ -47,7 +47,7 @@ function renderGuard(path: string) {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('GlobalAuthGuard — public routes (unauthenticated)', () => {
-  const publicPaths = ['/', '/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover', '/exchange', '/market', '/about', '/privacy'];
+  const publicPaths = ['/', '/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover', '/about', '/privacy'];
 
   publicPaths.forEach((path) => {
     it(`renders children on public path: ${path}`, () => {
@@ -63,7 +63,7 @@ describe('GlobalAuthGuard — public routes (unauthenticated)', () => {
 });
 
 describe('GlobalAuthGuard — protected routes, unauthenticated', () => {
-  const protectedPaths = ['/listings', '/listings/abc', '/listings/new', '/messages', '/trades/1', '/dashboard', '/user/alice'];
+  const protectedPaths = ['/listings', '/listings/abc', '/listings/new', '/messages', '/trades/1', '/dashboard', '/user/alice', '/exchange', '/market'];
 
   protectedPaths.forEach((path) => {
     it(`redirects to /login for protected path: ${path}`, async () => {

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { useOffers } from '@/hooks/use-exchange';
-import { useSupportedCoins } from '@/hooks/use-prices';
+import { useSupportedCoins, getFiatFlag } from '@/hooks/use-prices';
 import { useAuth } from '@/contexts/auth-context';
 import { OfferRow } from '@/components/offer-row';
 import { PaymentIcon } from '@/components/payment-icon';
@@ -143,7 +143,7 @@ export default function ExchangePage() {
             <SelectItem value="all">All fiat</SelectItem>
             {fiatCoins.map((c) => (
               <SelectItem key={c.symbol} value={c.symbol}>
-                {c.symbol} — {c.name}
+                {getFiatFlag(c.symbol)} {c.symbol}
               </SelectItem>
             ))}
           </SelectContent>

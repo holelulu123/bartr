@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
 import { ProtectedRoute } from '@/components/protected-route';
 import { useCreateOffer } from '@/hooks/use-exchange';
-import { useSupportedCoins } from '@/hooks/use-prices';
+import { useSupportedCoins, getFiatFlag } from '@/hooks/use-prices';
 import { PaymentIcon } from '@/components/payment-icon';
 import { PriceTicker } from '@/components/price-ticker';
 import { CoinIcon } from '@/components/crypto-icons';
@@ -203,7 +203,7 @@ function CreateOfferForm() {
               <SelectContent>
                 {fiatCoins.map((c) => (
                   <SelectItem key={c.symbol} value={c.symbol}>
-                    {c.symbol} — {c.name}
+                    {getFiatFlag(c.symbol)} {c.symbol}
                   </SelectItem>
                 ))}
               </SelectContent>
