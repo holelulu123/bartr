@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useRef, useCallback, useState, type ReactNode } from 'react';
+import { createContext, useContext, useRef, useCallback, useState, useEffect, type ReactNode } from 'react';
 import {
   generateKeyPair,
   exportPublicKey,
@@ -11,7 +11,37 @@ import {
   unwrapWithRecoveryKey,
   encryptMessage,
   decryptMessage,
+  bufToBase64,
+  base64ToBuf,
 } from '@/lib/crypto/e2e';
+
+const SESSION_KEY = 'bartr_e2e_priv';
+
+function cachePrivateKey(key: CryptoKey) {
+  crypto.subtle.exportKey('pkcs8', key).then((raw) => {
+    try { sessionStorage.setItem(SESSION_KEY, bufToBase64(raw)); } catch { /* storage full */ }
+  });
+}
+
+function clearCachedKey() {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch { /* noop */ }
+}
+
+async function loadCachedKey(): Promise<CryptoKey | null> {
+  try {
+    const b64 = sessionStorage.getItem(SESSION_KEY);
+    if (!b64) return null;
+    return crypto.subtle.importKey(
+      'pkcs8',
+      base64ToBuf(b64),
+      { name: 'ECDH', namedCurve: 'P-256' },
+      true,
+      ['deriveKey', 'deriveBits'],
+    );
+  } catch {
+    return null;
+  }
+}
 
 interface CryptoState {
   publicKey: CryptoKey | null;
@@ -49,10 +79,18 @@ interface CryptoContextValue {
 const CryptoContext = createContext<CryptoContextValue | null>(null);
 
 export function CryptoProvider({ children }: { children: ReactNode }) {
-  // Private key lives only in memory — never serialized
   const stateRef = useRef<CryptoState>({ publicKey: null, privateKey: null });
-  // Separate boolean state so components re-render when keys are loaded/cleared
   const [unlockedState, setUnlockedState] = useState(false);
+
+  // On mount, restore private key from sessionStorage (survives refresh)
+  useEffect(() => {
+    loadCachedKey().then((key) => {
+      if (key) {
+        stateRef.current = { ...stateRef.current, privateKey: key };
+        setUnlockedState(true);
+      }
+    });
+  }, []);
 
   const register = useCallback(async (password: string) => {
     const keyPair = await generateKeyPair();
@@ -60,9 +98,9 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
     const privateKeyBlob = await wrapPrivateKey(keyPair.privateKey, password);
     const { recoveryKeyHex, blob: recoveryKeyBlob } = await wrapWithRecoveryKey(keyPair.privateKey);
 
-    // Keep keys in memory for the session
     stateRef.current = { publicKey: keyPair.publicKey, privateKey: keyPair.privateKey };
     setUnlockedState(true);
+    cachePrivateKey(keyPair.privateKey);
 
     return { publicKeyBase64, privateKeyBlob, recoveryKeyHex, recoveryKeyBlob };
   }, []);
@@ -71,6 +109,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
     const privateKey = await unwrapPrivateKey(privateKeyBlob, password);
     stateRef.current = { ...stateRef.current, privateKey };
     setUnlockedState(true);
+    cachePrivateKey(privateKey);
   }, []);
 
   const unlockWithRecovery = useCallback(
@@ -78,6 +117,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
       const privateKey = await unwrapWithRecoveryKey(recoveryKeyBlob, recoveryKeyHex);
       stateRef.current = { ...stateRef.current, privateKey };
       setUnlockedState(true);
+      cachePrivateKey(privateKey);
     },
     [],
   );
@@ -105,6 +145,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
   const lock = useCallback(() => {
     stateRef.current = { publicKey: null, privateKey: null };
     setUnlockedState(false);
+    clearCachedKey();
   }, []);
 
   const value: CryptoContextValue = {
