@@ -19,9 +19,14 @@ type TokenStore = {
 let tokenStore: TokenStore | null = null;
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
+let onUnauthenticated: (() => void) | null = null;
 
 export function setTokenStore(store: TokenStore) {
   tokenStore = store;
+}
+
+export function setOnUnauthenticated(cb: () => void) {
+  onUnauthenticated = cb;
 }
 
 export function getBaseUrl(): string {
@@ -91,6 +96,9 @@ export async function apiRequest<T>(
         headers.set('Authorization', `Bearer ${newToken}`);
       }
       res = await fetch(url, { ...options, headers });
+    } else {
+      // Refresh failed — session is dead, redirect to login
+      onUnauthenticated?.();
     }
   }
 

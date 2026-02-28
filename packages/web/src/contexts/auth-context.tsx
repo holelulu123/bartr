@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { auth, setTokenStore, ApiError } from '@/lib/api';
+import { auth, setTokenStore, setOnUnauthenticated, ApiError } from '@/lib/api';
 import type { CurrentUser } from '@/lib/api';
 
 interface AuthState {
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const accessTokenRef = useRef<string | null>(null);
 
-  // Wire up the token store once — gives the API client access to tokens
+  // Wire up the token store and unauthenticated handler once
   useEffect(() => {
     setTokenStore({
       getAccessToken: () => accessTokenRef.current,
@@ -59,6 +59,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearRefreshTokenCookie();
         setUser(null);
       },
+    });
+    setOnUnauthenticated(() => {
+      accessTokenRef.current = null;
+      clearRefreshTokenCookie();
+      setUser(null);
+      // Redirect to login — the GlobalAuthGuard will also catch this,
+      // but doing it here is immediate and doesn't wait for a re-render cycle
+      if (typeof window !== 'undefined') {
+        window.location.replace('/login');
+      }
     });
   }, []);
 

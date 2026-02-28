@@ -1,4 +1,4 @@
-export { apiRequest, get, post, put, del, upload, uploadPut, setTokenStore, getBaseUrl, ApiError } from './client';
+export { apiRequest, get, post, put, del, upload, uploadPut, setTokenStore, setOnUnauthenticated, getBaseUrl, ApiError } from './client';
 export * from './types';
 export * as auth from './auth';
 export * as listings from './listings';
