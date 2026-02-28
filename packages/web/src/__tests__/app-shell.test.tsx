@@ -30,6 +30,13 @@ vi.mock('@/hooks/use-messages', () => ({
   useThreads: () => ({ data: undefined }),
 }));
 
+// ── Mock UserAvatar (avoids real image requests in tests) ─────────────────────
+vi.mock('@/components/user-avatar', () => ({
+  UserAvatar: ({ nickname }: { nickname: string }) => (
+    <div data-testid="user-avatar" data-nickname={nickname} />
+  ),
+}));
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -104,9 +111,9 @@ describe('Navbar — authenticated', () => {
     expect(sellLink).toBeDefined();
   });
 
-  it('shows identicon avatar for authenticated user', () => {
+  it('shows avatar for authenticated user', () => {
     render(<Navbar />);
-    // NavIdenticon renders an SVG (aria-hidden), dropdown trigger has aria-label = nickname
+    // Dropdown trigger button has aria-label = nickname
     const trigger = screen.getByRole('button', { hidden: true, name: /alice/i });
     expect(trigger).toBeInTheDocument();
   });
@@ -124,15 +131,12 @@ describe('Navbar — authenticated', () => {
     expect(dropdownTrigger).toBeDefined();
   });
 
-  it('shows identicon SVG in dropdown trigger', () => {
+  it('shows user avatar in dropdown trigger', () => {
     render(<Navbar />);
-    // Identicon SVG is aria-hidden; the trigger button has aria-label=nickname
-    const buttons = screen.getAllByRole('button', { hidden: true });
-    const trigger = buttons.find(b => b.getAttribute('aria-haspopup') === 'menu');
-    expect(trigger).toBeDefined();
-    // SVG should be inside the trigger
-    const svg = trigger?.querySelector('svg');
-    expect(svg).not.toBeNull();
+    // UserAvatar is rendered inside the dropdown trigger button
+    const avatar = screen.getByTestId('user-avatar');
+    expect(avatar).toBeInTheDocument();
+    expect(avatar).toHaveAttribute('data-nickname', 'alice');
   });
 });
 

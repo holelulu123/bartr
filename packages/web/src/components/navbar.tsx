@@ -9,6 +9,7 @@ import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
 import { useThreads } from '@/hooks/use-messages';
 import { useUnreadThreads } from '@/hooks/use-unread-threads';
+import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -20,35 +21,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-// Tiny coloured identicon for the navbar avatar trigger
-function NavIdenticon({ seed, size }: { seed: string; size: number }) {
-  const cells = 5;
-  const cellSize = size / cells;
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = Math.imul(31, hash) + seed.charCodeAt(i);
-    hash |= 0;
-  }
-  const h = ((hash >>> 0) * 2654435761) >>> 0;
-  const hue1 = h % 360;
-  const hue2 = (hue1 + 150) % 360;
-  const fg = `hsl(${hue1},65%,55%)`;
-  const bg = `hsl(${hue2},30%,18%)`;
-  const grid: boolean[][] = Array.from({ length: cells }, (_, r) =>
-    Array.from({ length: cells }, (_, c) => {
-      const col = c < Math.ceil(cells / 2) ? c : cells - 1 - c;
-      return ((h >>> (r * Math.ceil(cells / 2) + col)) & 1) === 1;
-    }),
-  );
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ borderRadius: '50%' }} aria-hidden="true">
-      <rect width={size} height={size} fill={bg} />
-      {grid.map((row, r) => row.map((on, c) => on ? (
-        <rect key={`${r}-${c}`} x={c * cellSize} y={r * cellSize} width={cellSize} height={cellSize} fill={fg} />
-      ) : null))}
-    </svg>
-  );
-}
 
 const navLinks = [
   { href: '/listings', label: 'Browse', icon: Package },
@@ -115,7 +87,7 @@ export function Navbar() {
                     className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     aria-label={user?.nickname}
                   >
-                    <NavIdenticon seed={user?.nickname ?? ''} size={32} />
+                    <UserAvatar nickname={user?.nickname ?? ''} size={32} />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">

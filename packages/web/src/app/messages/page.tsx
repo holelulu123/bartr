@@ -5,6 +5,7 @@ import { MessageSquare, Clock } from 'lucide-react';
 import { useThreads } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useUnreadThreads, isThreadUnread } from '@/hooks/use-unread-threads';
+import { UserAvatar } from '@/components/user-avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CryptoGuard } from '@/components/crypto-guard';
 
@@ -83,10 +84,8 @@ function MessagesInner() {
                 className="flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors group"
               >
                 {/* Avatar */}
-                <div className="relative h-10 w-10 shrink-0">
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium group-hover:bg-primary/10 transition-colors">
-                    {otherNickname.slice(0, 2).toUpperCase()}
-                  </div>
+                <div className="relative shrink-0">
+                  <UserAvatar nickname={otherNickname} size={40} />
                   {unread && (
                     <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-orange-500 border-2 border-background" aria-label="Unread" />
                   )}

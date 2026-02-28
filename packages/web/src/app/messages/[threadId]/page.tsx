@@ -8,6 +8,7 @@ import { useMessages, useThreads, useSendMessage } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
 import { useUnreadThreads } from '@/hooks/use-unread-threads';
+import { UserAvatar } from '@/components/user-avatar';
 import { users as usersApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -216,9 +217,7 @@ function ChatInner() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium shrink-0">
-          {(otherNickname ?? '??').slice(0, 2).toUpperCase()}
-        </div>
+        <UserAvatar nickname={otherNickname ?? ''} size={32} />
         <div className="min-w-0">
           <p className="font-medium text-sm truncate">{otherNickname ?? 'Loading…'}</p>
           {threadMeta?.listing_title && (
