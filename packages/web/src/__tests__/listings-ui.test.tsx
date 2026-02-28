@@ -155,9 +155,9 @@ describe('ListingCard', () => {
   });
 
   it('renders thumbnail image when provided', () => {
-    render(<ListingCard listing={makeListing({ thumbnail: 'https://example.com/img.jpg' })} />);
+    render(<ListingCard listing={makeListing({ thumbnail: 'listings/abc/img.jpg' })} />);
     const img = screen.getByRole('img', { name: 'Test Listing' });
-    expect(img).toHaveAttribute('src', 'https://example.com/img.jpg');
+    expect(img).toHaveAttribute('src', expect.stringContaining('listings/abc/img.jpg'));
   });
 
   it('links to the listing detail page', () => {

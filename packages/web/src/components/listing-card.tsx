@@ -45,7 +45,7 @@ export function ListingCard({ listing, className }: ListingCardProps) {
       <div className="relative aspect-[4/3] bg-muted overflow-hidden">
         {listing.thumbnail ? (
           <Image
-            src={listing.thumbnail}
+            src={`/api/images/${listing.thumbnail}`}
             alt={listing.title}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"
