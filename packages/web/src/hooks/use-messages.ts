@@ -24,6 +24,8 @@ export function useMessages(threadId: string) {
       last.pagination.page < last.pagination.pages ? last.pagination.page + 1 : undefined,
     initialPageParam: 1,
     enabled: !!threadId,
+    refetchInterval: 3000,          // poll every 3 s for new messages
+    refetchIntervalInBackground: false, // pause when tab is hidden
   });
 }
 
