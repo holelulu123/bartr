@@ -18,7 +18,7 @@ export function GlobalAuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isPublic(pathname)) {
-      router.replace('/login');
+      router.replace('/');
     }
   }, [isAuthenticated, isLoading, pathname, router]);
 

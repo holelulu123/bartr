@@ -68,7 +68,7 @@ describe('GlobalAuthGuard — protected routes, unauthenticated', () => {
   protectedPaths.forEach((path) => {
     it(`redirects to /login for protected path: ${path}`, async () => {
       renderGuard(path);
-      await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/login'));
+      await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
     });
 
     it(`renders nothing (not content) for protected path: ${path}`, () => {
