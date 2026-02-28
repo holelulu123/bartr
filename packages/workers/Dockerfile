@@ -10,7 +10,6 @@ RUN pnpm install --frozen-lockfile
 
 FROM base AS runner
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=deps /app/packages/workers/node_modules ./packages/workers/node_modules
 COPY packages/shared packages/shared
 COPY packages/workers packages/workers
