@@ -252,6 +252,7 @@ Emails may land in spam on new IPs — add a visible notice to users on registra
 ## Phase 13.7 — Registration UX
 
 - [ ] Password strength meter on `/register/email`: remove the helper text under the password field and replace it with a colourful bar (red → yellow → green). Bar fills up as conditions are met: 8+ chars, uppercase, lowercase, number, special char (`!@#$%^&*()`). All five met = green. Block submit until green.
+- [ ] Enforce password complexity on the backend too (`POST /auth/register/email`): reject passwords that don't meet all five conditions — don't rely on frontend validation alone. Return a clear error message listing what's missing.
 - [ ] Improved identicons: replace the 5×5 pixel grid with a more visually interesting avatar style (e.g. geometric shapes, rings, or a mini art generator) — still deterministic from nickname, still pure SVG, no external deps.
 
 ---
