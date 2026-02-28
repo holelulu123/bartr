@@ -283,8 +283,18 @@ describe('UnlockPage — ?next= redirect', () => {
 import { CryptoGuard } from '@/components/crypto-guard';
 
 describe('CryptoGuard', () => {
-  beforeEach(() => {
-    mockPathname = '/messages';
+  it('always renders children (pass-through)', () => {
+    mockIsUnlocked = false;
+    mockIsAuthenticated = true;
+    mockIsLoading = false;
+    render(
+      <CryptoGuard>
+        <div data-testid="content">Messages</div>
+      </CryptoGuard>,
+    );
+    expect(screen.getByTestId('content')).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockLogout).not.toHaveBeenCalled();
   });
 
   it('renders children when keys are unlocked', () => {
@@ -295,29 +305,5 @@ describe('CryptoGuard', () => {
       </CryptoGuard>,
     );
     expect(screen.getByTestId('content')).toBeInTheDocument();
-  });
-
-  it('logs out when keys are locked instead of prompting for password', async () => {
-    mockIsUnlocked = false;
-    mockIsAuthenticated = true;
-    mockIsLoading = false;
-    render(
-      <CryptoGuard>
-        <div data-testid="content">Messages</div>
-      </CryptoGuard>,
-    );
-    await waitFor(() => expect(mockLogout).toHaveBeenCalled());
-    expect(screen.queryByTestId('content')).not.toBeInTheDocument();
-  });
-
-  it('does not redirect while auth is loading', () => {
-    mockIsUnlocked = false;
-    mockIsLoading = true;
-    render(
-      <CryptoGuard>
-        <div data-testid="content">Messages</div>
-      </CryptoGuard>,
-    );
-    expect(mockReplace).not.toHaveBeenCalled();
   });
 });
