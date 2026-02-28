@@ -9,12 +9,13 @@ export const messageKeys = {
   messages: (threadId: string) => [...messageKeys.all, 'thread', threadId] as const,
 };
 
-export function useThreads() {
+export function useThreads(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: messageKeys.threads(),
     queryFn: () => messagesApi.getThreads(),
     refetchInterval: 10_000,            // poll every 10 s for new thread activity
     refetchIntervalInBackground: false,
+    enabled: options?.enabled ?? true,
   });
 }
 

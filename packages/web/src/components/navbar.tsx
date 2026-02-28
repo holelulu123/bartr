@@ -35,7 +35,7 @@ export function Navbar() {
   const { resolvedTheme, setTheme } = useTheme();
 
   // Unread message indicator — only fetch threads when authenticated
-  const { data: threadsData } = useThreads();
+  const { data: threadsData } = useThreads({ enabled: isAuthenticated });
   const { hasUnread } = useUnreadThreads(
     threadsData?.threads ?? [],
     user?.nickname ?? '',
