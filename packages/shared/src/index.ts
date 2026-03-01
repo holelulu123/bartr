@@ -44,7 +44,22 @@ export type PriceSource = 'coingecko' | 'binance' | 'kraken';
 export type CoinType = 'crypto' | 'fiat';
 
 export interface HealthResponse {
-  status: 'ok' | 'error';
-  db: boolean;
-  redis: boolean;
+  status: 'ok' | 'degraded' | 'error';
+  version: string;
+  uptime_seconds: number;
+  timestamp: string;
+  services: {
+    db: { ok: boolean; latency_ms: number };
+    redis: { ok: boolean; latency_ms: number };
+    minio: { ok: boolean; latency_ms: number };
+  };
+  price_feed: {
+    last_update: string | null;
+    stale: boolean;
+  };
+  stats: {
+    users: number;
+    active_offers: number;
+    trades_today: number;
+  };
 }
