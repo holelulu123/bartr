@@ -1,11 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useHealthStatus, useSystemMetrics, useMetricHistory, useResendQuota } from '@/hooks/use-health';
+import { useQuery } from '@tanstack/react-query';
+import { useHealthStatus, useSystemMetrics, useMetricHistory, useResendQuota, healthKeys } from '@/hooks/use-health';
+import { health as healthApi } from '@/lib/api';
 import { ServiceCard } from '@/components/health/service-card';
 import { StatCard } from '@/components/health/stat-card';
 import { QuotaBar } from '@/components/health/quota-bar';
 import { MetricChart, MultiLineChart } from '@/components/health/metric-chart';
+import type { MetricSample } from '@bartr/shared';
 
 const TIME_RANGES = [
   { label: '1h', hours: 1 },
@@ -43,18 +46,36 @@ const CPU_COLORS = [
   '#22d3ee', '#eab308', '#6366f1', '#d946ef',
 ];
 
+// Separate component so core count is stable across renders (no variable hook count)
+function CpuChart({ cores, hours }: { cores: number; hours: number }) {
+  const { data } = useQuery({
+    queryKey: healthKeys.history('cpu:all', hours),
+    queryFn: async () => {
+      const results = await Promise.all(
+        Array.from({ length: cores }, (_, i) => healthApi.getMetricHistory(`cpu:${i}`, hours)),
+      );
+      return results;
+    },
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+    enabled: cores > 0,
+  });
+
+  const series = Array.from({ length: cores }, (_, i) => ({
+    name: `Core ${i}`,
+    data: (data?.[i] ?? []) as MetricSample[],
+    color: CPU_COLORS[i % CPU_COLORS.length],
+  }));
+
+  return <MultiLineChart title="CPU Usage (per core)" series={series} unit="percent" />;
+}
+
 export default function HealthPage() {
   const [hours, setHours] = useState(6);
   const { data: health, isLoading: healthLoading } = useHealthStatus();
   const { data: system } = useSystemMetrics();
   const { data: resend } = useResendQuota();
 
-  // CPU history per core
-  const cpuCores = system?.cpu_cores ?? 0;
-  const cpuHistories = Array.from({ length: cpuCores }, (_, i) => i).map((i) =>
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useMetricHistory(`cpu:${i}`, hours),
-  );
   const { data: ramHistory } = useMetricHistory('ram', hours);
   const { data: diskHistory } = useMetricHistory('disk', hours);
   const { data: diskReadHistory } = useMetricHistory('disk_read', hours);
@@ -163,16 +184,8 @@ export default function HealthPage() {
 
       {/* Charts */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        {/* Per-CPU */}
-        <MultiLineChart
-          title="CPU Usage (per core)"
-          series={cpuHistories.map((q, i) => ({
-            name: `Core ${i}`,
-            data: q.data ?? [],
-            color: CPU_COLORS[i % CPU_COLORS.length],
-          }))}
-          unit="percent"
-        />
+        {/* Per-CPU — rendered in a child component to keep hook count stable */}
+        <CpuChart cores={system?.cpu_cores ?? 0} hours={hours} />
 
         {/* RAM */}
         <MetricChart

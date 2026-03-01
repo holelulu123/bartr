@@ -51,13 +51,11 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/dynamic', () => ({
   default: (loader: () => Promise<{ default: unknown }>) => {
-    // Return a placeholder for recharts components
     const Component = (props: Record<string, unknown>) => {
       const name = (props as { 'data-testid'?: string })['data-testid'] ?? 'chart';
       return <div data-testid={name} />;
     };
     Component.displayName = 'DynamicComponent';
-    // Try to resolve synchronously for testing
     try {
       const mod = loader as unknown;
       if (typeof mod === 'function') {
@@ -68,7 +66,6 @@ vi.mock('next/dynamic', () => ({
   },
 }));
 
-// Mock recharts entirely for SSR-off
 vi.mock('recharts', () => ({
   AreaChart: ({ children }: { children: React.ReactNode }) => <div data-testid="area-chart">{children}</div>,
   Area: () => null,
@@ -80,7 +77,23 @@ vi.mock('recharts', () => ({
   Line: () => null,
 }));
 
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: [], isLoading: false }),
+}));
+
+vi.mock('@/lib/api', () => ({
+  health: {
+    getMetricHistory: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 vi.mock('@/hooks/use-health', () => ({
+  healthKeys: {
+    status: ['health'],
+    system: ['health', 'system'],
+    history: (metric: string, hours: number) => ['health', 'history', metric, hours],
+    resend: ['health', 'resend'],
+  },
   useHealthStatus: () => ({ data: mockHealth, isLoading: false }),
   useSystemMetrics: () => ({ data: mockSystem }),
   useMetricHistory: () => ({ data: [] }),
@@ -162,15 +175,19 @@ describe('Health page', () => {
 describe('Health page – loading state', () => {
   it('shows spinner when loading', async () => {
     vi.doMock('@/hooks/use-health', () => ({
+      healthKeys: {
+        status: ['health'],
+        system: ['health', 'system'],
+        history: (metric: string, hours: number) => ['health', 'history', metric, hours],
+        resend: ['health', 'resend'],
+      },
       useHealthStatus: () => ({ data: undefined, isLoading: true }),
       useSystemMetrics: () => ({ data: undefined }),
       useMetricHistory: () => ({ data: [] }),
       useResendQuota: () => ({ data: undefined }),
     }));
 
-    // Re-import to pick up new mocks
     vi.resetModules();
-    // Re-mock dependencies that were reset
     vi.doMock('next/navigation', () => ({
       useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
       usePathname: () => '/health',
@@ -192,6 +209,14 @@ describe('Health page – loading state', () => {
       ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
       LineChart: () => <div />,
       Line: () => null,
+    }));
+    vi.doMock('@tanstack/react-query', () => ({
+      useQuery: () => ({ data: [], isLoading: false }),
+    }));
+    vi.doMock('@/lib/api', () => ({
+      health: {
+        getMetricHistory: vi.fn().mockResolvedValue([]),
+      },
     }));
     vi.doMock('@/contexts/auth-context', () => ({
       useAuth: () => ({ isAuthenticated: false, isLoading: false }),
