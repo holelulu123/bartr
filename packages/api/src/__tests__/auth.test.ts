@@ -1,7 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import crypto from 'node:crypto';
 import { buildApp } from '../app.js';
 import type { FastifyInstance } from 'fastify';
 import { signAccessToken, signRefreshToken, verifyToken } from '../lib/jwt.js';
+
+function testEmailHmac(email: string): string {
+  const raw = process.env.ENCRYPTION_KEY;
+  const key = raw
+    ? Buffer.from(raw, 'hex')
+    : Buffer.from('bartr-dev-encryption-key-32bytes!'.padEnd(32).slice(0, 32));
+  return crypto.createHmac('sha256', key).update(email.toLowerCase().trim()).digest('hex');
+}
 
 // Every register call must include key blobs
 const TEST_KEYS = {
@@ -34,24 +43,32 @@ describe('Auth routes', () => {
     await app.ready();
   });
 
-  // Email addresses used in tests — clean all of them between runs
-  const TEST_EMAILS_HMAC = [
+  // Email addresses used in tests — compute HMACs so we only delete these specific users
+  const TEST_EMAILS = [
     'newuser@example.com', 'short@example.com', 'dupe@example.com',
     'nokeys@example.com', 'logintest@example.com', 'rolecheck@example.com',
   ];
+  const TEST_EMAIL_HASHES = TEST_EMAILS.map(testEmailHmac);
+
+  async function cleanupTestUsers() {
+    // Delete OAuth test users by nickname prefix
+    await app.pg.query("DELETE FROM reputation_scores WHERE user_id IN (SELECT id FROM users WHERE nickname LIKE 'testuser_%')");
+    await app.pg.query("DELETE FROM users WHERE nickname LIKE 'testuser_%'");
+    // Delete email test users by their specific email hashes only
+    if (TEST_EMAIL_HASHES.length > 0) {
+      await app.pg.query("DELETE FROM reputation_scores WHERE user_id IN (SELECT id FROM users WHERE email_hash = ANY($1))", [TEST_EMAIL_HASHES]);
+      await app.pg.query('DELETE FROM users WHERE email_hash = ANY($1)', [TEST_EMAIL_HASHES]);
+    }
+    await app.pg.query('DELETE FROM refresh_tokens WHERE user_id NOT IN (SELECT id FROM users)');
+  }
 
   afterAll(async () => {
-    await app.pg.query("DELETE FROM users WHERE nickname LIKE 'testuser_%'");
-    await app.pg.query('DELETE FROM refresh_tokens WHERE user_id NOT IN (SELECT id FROM users)');
+    await cleanupTestUsers();
     await app.close();
   });
 
   beforeEach(async () => {
-    await app.pg.query("DELETE FROM users WHERE nickname LIKE 'testuser_%'");
-    // Clean email-registered test users by deleting via email_encrypted pattern or by known email hashes
-    // Easiest: delete any user with no google_id (email auth test users)
-    await app.pg.query("DELETE FROM users WHERE auth_provider = 'email' AND email_encrypted IS NOT NULL");
-    await app.pg.query('DELETE FROM refresh_tokens WHERE user_id NOT IN (SELECT id FROM users)');
+    await cleanupTestUsers();
   });
 
   // ── POST /auth/register (Google — set password + keys after OAuth) ──────────
