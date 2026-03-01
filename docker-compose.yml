@@ -26,6 +26,8 @@ services:
     expose:
       - "4000"
     env_file: .env
+    volumes:
+      - /proc:/host/proc:ro
     depends_on:
       postgres:
         condition: service_healthy

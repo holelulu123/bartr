@@ -56,9 +56,12 @@ function getDiskUsageBytes(): number {
   }
 }
 
+// Use host /proc if mounted, otherwise fall back to container's /proc
+const HOST_PROC = fs.existsSync('/host/proc') ? '/host/proc' : '/proc';
+
 function parseDiskStats(): { reads: number; writes: number } | null {
   try {
-    const content = fs.readFileSync('/proc/diskstats', 'utf-8');
+    const content = fs.readFileSync(`${HOST_PROC}/diskstats`, 'utf-8');
     let totalReads = 0;
     let totalWrites = 0;
     for (const line of content.trim().split('\n')) {
@@ -79,7 +82,7 @@ function parseDiskStats(): { reads: number; writes: number } | null {
 
 function parseNetDev(): { rx: number; tx: number } | null {
   try {
-    const content = fs.readFileSync('/proc/net/dev', 'utf-8');
+    const content = fs.readFileSync(`${HOST_PROC}/net/dev`, 'utf-8');
     let totalRx = 0;
     let totalTx = 0;
     for (const line of content.trim().split('\n')) {
