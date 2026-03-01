@@ -206,7 +206,7 @@ describe('EmailRegisterPage — successful registration', () => {
     mockRefreshUser.mockResolvedValue(undefined);
   });
 
-  it('redirects to listings after registration (no recovery key screen)', async () => {
+  it('redirects to verify-email after registration', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'Pass123!x');
@@ -216,7 +216,7 @@ describe('EmailRegisterPage — successful registration', () => {
       await userEvent.click(screen.getByRole('button', { name: /create account/i }));
     });
 
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/auth/verify-email'));
     expect(screen.queryByText(/save your recovery key/i)).not.toBeInTheDocument();
   });
 

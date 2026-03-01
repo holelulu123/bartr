@@ -90,7 +90,7 @@ export default function EmailRegisterPage() {
 
       setTokens(tokens.access_token, tokens.refresh_token);
       await refreshUser();
-      router.replace('/listings');
+      router.replace('/auth/verify-email');
     } catch (e: unknown) {
       if (e instanceof Error && e.message.includes('409')) {
         setServerError('Email already registered.');
