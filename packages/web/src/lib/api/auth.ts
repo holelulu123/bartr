@@ -4,9 +4,9 @@ import type { TokenPair, CurrentUser, KeyBlobs } from './types';
 export interface RegisterPayload {
   email: string;
   password: string;
-  public_key: string;
-  private_key_blob: string;
-  recovery_key_blob: string;
+  public_key?: string;
+  private_key_blob?: string;
+  recovery_key_blob?: string;
 }
 
 export function register(payload: RegisterPayload): Promise<TokenPair> {

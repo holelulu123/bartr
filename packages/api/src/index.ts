@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
-import multipart from '@fastify/multipart';
+// multipart is registered per-route in listings.ts and users.ts
 import { env } from './config/env.js';
 import dbPlugin from './plugins/db.js';
 import redisPlugin from './plugins/redis.js';
@@ -19,12 +19,12 @@ import ratingRoutes from './routes/ratings.js';
 import exchangeRoutes from './routes/exchange.js';
 import priceRoutes from './routes/prices.js';
 import { startMetricsCollector } from './lib/metrics-collector.js';
+import { startUnverifiedCleanup } from './lib/unverified-cleanup.js';
 
 const app = Fastify({ logger: true });
 
 await app.register(cors, { origin: true, credentials: true });
 await app.register(cookie);
-await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
 await app.register(dbPlugin);
 await app.register(redisPlugin);
 await app.register(minioPlugin);
@@ -44,6 +44,7 @@ await app.register(priceRoutes);
 try {
   await app.listen({ port: env.port, host: env.host });
   startMetricsCollector(app.redis);
+  startUnverifiedCleanup(app);
 } catch (err) {
   app.log.fatal(err);
   process.exit(1);

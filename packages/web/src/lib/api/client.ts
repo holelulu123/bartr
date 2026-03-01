@@ -45,8 +45,10 @@ export function setInitRefreshPromise(p: Promise<boolean>) {
 
 export function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    // Browser: use relative path so it works from any host (localhost, LAN IP, domain)
+    return process.env.NEXT_PUBLIC_API_URL || '/api';
   }
+  // Server-side (SSR): needs absolute URL to reach the API container
   return process.env.API_URL || 'http://localhost:4000';
 }
 

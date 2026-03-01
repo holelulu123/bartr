@@ -26,9 +26,10 @@ beforeEach(() => {
 });
 
 describe('getBaseUrl', () => {
-  it('returns default localhost URL', () => {
+  it('returns /api in browser environment', () => {
+    // jsdom defines window, so getBaseUrl returns the browser relative path
     const url = getBaseUrl();
-    expect(url).toBe('http://localhost:4000');
+    expect(url).toBe('/api');
   });
 });
 
@@ -40,7 +41,7 @@ describe('apiRequest', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe('http://localhost:4000/health');
+    expect(url).toBe('/api/health');
     expect(opts.method).toBeUndefined(); // defaults in RequestInit
     expect(result).toEqual({ ok: true });
   });

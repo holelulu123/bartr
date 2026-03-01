@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken, type JwtPayload } from '../lib/jwt.js';
+import { env } from '../config/env.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -62,6 +63,9 @@ export default fp(async (fastify) => {
   });
 
   fastify.decorate('requireEmailVerified', async (request: FastifyRequest, reply: FastifyReply) => {
+    // No email service configured — skip verification check entirely
+    if (!env.resendApiKey) return;
+
     // Must run after authenticate (request.user is set)
     if (!request.user) {
       return reply.status(401).send({ error: 'Authentication required' });

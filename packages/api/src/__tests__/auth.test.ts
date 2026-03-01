@@ -270,13 +270,14 @@ describe('Auth routes', () => {
       expect(res.json().error).toMatch(/email already registered/i);
     });
 
-    it('rejects missing key blobs', async () => {
+    it('allows registration without key blobs (non-HTTPS clients)', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/auth/register/email',
         payload: { email: 'nokeys@example.com', password: 'securepassword123' },
       });
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toHaveProperty('access_token');
     });
   });
 

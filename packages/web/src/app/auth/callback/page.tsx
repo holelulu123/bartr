@@ -52,7 +52,7 @@ export default function AuthCallbackPage() {
           // getKeyBlobs failed — non-critical, continue
         }
 
-        router.replace('/auth/verify-email');
+        router.replace('/market');
       } catch {
         setErrorMsg('Something went wrong. Please try again.');
         setStatus('error');

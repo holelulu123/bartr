@@ -1,8 +1,10 @@
 import type { FastifyInstance } from 'fastify';
+import multipart from '@fastify/multipart';
 import { processImage } from '../lib/image.js';
 import crypto from 'node:crypto';
 
 export default async function listingRoutes(fastify: FastifyInstance) {
+  await fastify.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
   // Create listing (protected)
   fastify.post<{
     Body: {

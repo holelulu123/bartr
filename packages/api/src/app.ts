@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
-import multipart from '@fastify/multipart';
+// multipart is registered per-route in listings.ts and users.ts
 import rateLimit from '@fastify/rate-limit';
 import { env } from './config/env.js';
 import dbPlugin from './plugins/db.js';
@@ -43,7 +43,6 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   });
 
   await app.register(cookie);
-  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } }); // 5 MB
 
   if (!opts.skipRateLimit) {
     // Global default: 100 req/min

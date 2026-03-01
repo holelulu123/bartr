@@ -71,31 +71,50 @@ export default function EmailRegisterPage() {
   // If user is already authenticated AND verified, redirect away from register page.
   // Unverified users should stay (they just registered and need to verify).
   useEffect(() => {
-    if (!isLoading && isAuthenticated) router.replace('/auth/verify-email');
+    if (!isLoading && isAuthenticated) router.replace('/market');
   }, [isAuthenticated, isLoading, router]);
 
   if (isLoading) return null;
 
   async function onSubmit(data: FormData) {
     setServerError('');
+
     try {
-      const { publicKeyBase64, privateKeyBlob, recoveryKeyBlob } =
-        await cryptoRegister(data.password);
+      // crypto.subtle requires HTTPS (or localhost). If unavailable, register
+      // without E2E keys — the user can set them up later via HTTPS.
+      let cryptoPayload: {
+        public_key?: string;
+        private_key_blob?: string;
+        recovery_key_blob?: string;
+      } = {};
+
+      if (globalThis.crypto?.subtle) {
+        const { publicKeyBase64, privateKeyBlob, recoveryKeyBlob } =
+          await cryptoRegister(data.password);
+        cryptoPayload = {
+          public_key: publicKeyBase64,
+          private_key_blob: privateKeyBlob,
+          recovery_key_blob: recoveryKeyBlob,
+        };
+      }
 
       const tokens = await auth.register({
         email: data.email,
         password: data.password,
-        public_key: publicKeyBase64,
-        private_key_blob: privateKeyBlob,
-        recovery_key_blob: recoveryKeyBlob,
+        ...cryptoPayload,
       });
 
       setTokens(tokens.access_token, tokens.refresh_token);
       await refreshUser();
-      router.replace('/auth/verify-email');
+      router.replace('/market');
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('409')) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('409')) {
         setServerError('Email already registered.');
+      } else if (msg.includes('429')) {
+        setServerError('Too many attempts. Please wait and try again.');
+      } else if (msg.includes('400')) {
+        setServerError('Invalid registration data. Please check your inputs.');
       } else {
         setServerError('Registration failed. Please try again.');
       }

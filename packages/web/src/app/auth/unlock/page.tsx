@@ -43,6 +43,15 @@ export default function UnlockPage() {
 
   async function onSubmit(data: FormData) {
     setUnlockError('');
+
+    if (!globalThis.crypto?.subtle) {
+      setUnlockError(
+        'Your browser requires a secure connection (HTTPS) for encryption. ' +
+        'Please access this site via HTTPS or localhost.',
+      );
+      return;
+    }
+
     try {
       const blobs = await auth.getKeyBlobs();
       if (!blobs.private_key_blob) {

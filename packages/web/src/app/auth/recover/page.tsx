@@ -45,6 +45,15 @@ export default function RecoverPage() {
 
   async function onSubmit(data: FormData) {
     setRecoverError('');
+
+    if (!globalThis.crypto?.subtle) {
+      setRecoverError(
+        'Your browser requires a secure connection (HTTPS) for encryption. ' +
+        'Please access this site via HTTPS or localhost.',
+      );
+      return;
+    }
+
     try {
       const blobs = await auth.getKeyBlobs();
       if (!blobs.recovery_key_blob) {

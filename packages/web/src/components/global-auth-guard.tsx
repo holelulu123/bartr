@@ -32,7 +32,8 @@ export function GlobalAuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     // Hard gate: unverified users can ONLY access public pages + /auth/verify-email
-    if (isAuthenticated && user && !user.email_verified && !isAllowedUnverified(pathname)) {
+    // (only enforced when the server has email verification enabled)
+    if (isAuthenticated && user && user.email_verification_required && !user.email_verified && !isAllowedUnverified(pathname)) {
       router.replace('/auth/verify-email');
     }
   }, [isAuthenticated, isLoading, pathname, router, user]);
@@ -52,7 +53,7 @@ export function GlobalAuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Unverified user on a restricted page — render nothing while redirect fires
-  if (!isLoading && isAuthenticated && user && !user.email_verified && !isAllowedUnverified(pathname)) {
+  if (!isLoading && isAuthenticated && user && user.email_verification_required && !user.email_verified && !isAllowedUnverified(pathname)) {
     return null;
   }
 

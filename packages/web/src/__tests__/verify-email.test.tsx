@@ -16,6 +16,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const mockRefreshUser = vi.fn();
+const mockLogout = vi.fn().mockResolvedValue(undefined);
 let mockIsAuthenticated = false;
 let mockIsLoading = false;
 let mockUser: { email_verified: boolean } | null = null;
@@ -26,6 +27,7 @@ vi.mock('@/contexts/auth-context', () => ({
     isAuthenticated: mockIsAuthenticated,
     isLoading: mockIsLoading,
     refreshUser: mockRefreshUser,
+    logout: mockLogout,
   }),
 }));
 
@@ -55,6 +57,16 @@ afterEach(() => {
   mockSearchParams = new URLSearchParams();
 });
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Type a 6-digit code into the OTP boxes one digit at a time */
+async function typeCode(code: string) {
+  for (let i = 0; i < code.length; i++) {
+    const input = screen.getByLabelText(`Digit ${i + 1}`);
+    await userEvent.type(input, code[i]);
+  }
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 import VerifyEmailPage from '@/app/auth/verify-email/page';
@@ -65,9 +77,12 @@ describe('VerifyEmailPage — rendering', () => {
     mockUser = { email_verified: false };
   });
 
-  it('renders the verification form with code input and submit button', () => {
+  it('renders the verification form with 6 digit inputs and submit button', () => {
     render(<VerifyEmailPage />);
-    expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument();
+    // 6 individual digit boxes
+    for (let i = 1; i <= 6; i++) {
+      expect(screen.getByLabelText(`Digit ${i}`)).toBeInTheDocument();
+    }
     expect(screen.getByRole('button', { name: /^verify$/i })).toBeInTheDocument();
     expect(screen.getByText(/verify your email/i)).toBeInTheDocument();
     expect(screen.getByText(/6-digit code/i)).toBeInTheDocument();
@@ -117,18 +132,12 @@ describe('VerifyEmailPage — form validation', () => {
     );
   });
 
-  it('shows error for non-6-digit code', async () => {
+  it('shows error for partial code (less than 6 digits)', async () => {
     render(<VerifyEmailPage />);
-    await userEvent.type(screen.getByLabelText(/verification code/i), '123');
-    await userEvent.click(screen.getByRole('button', { name: /^verify$/i }));
-    await waitFor(() =>
-      expect(screen.getByText(/exactly 6 digits/i)).toBeInTheDocument(),
-    );
-  });
-
-  it('shows error for non-numeric code', async () => {
-    render(<VerifyEmailPage />);
-    await userEvent.type(screen.getByLabelText(/verification code/i), 'abcdef');
+    // Type only 3 digits
+    await userEvent.type(screen.getByLabelText('Digit 1'), '1');
+    await userEvent.type(screen.getByLabelText('Digit 2'), '2');
+    await userEvent.type(screen.getByLabelText('Digit 3'), '3');
     await userEvent.click(screen.getByRole('button', { name: /^verify$/i }));
     await waitFor(() =>
       expect(screen.getByText(/exactly 6 digits/i)).toBeInTheDocument(),
@@ -146,7 +155,7 @@ describe('VerifyEmailPage — server error', () => {
     mockVerifyEmail.mockRejectedValue(new Error('Invalid or expired code'));
 
     render(<VerifyEmailPage />);
-    await userEvent.type(screen.getByLabelText(/verification code/i), '999999');
+    await typeCode('999999');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /^verify$/i }));
@@ -168,7 +177,7 @@ describe('VerifyEmailPage — successful verification', () => {
 
   it('shows success toast and redirects on successful verification', async () => {
     render(<VerifyEmailPage />);
-    await userEvent.type(screen.getByLabelText(/verification code/i), '123456');
+    await typeCode('123456');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /^verify$/i }));
@@ -186,7 +195,7 @@ describe('VerifyEmailPage — successful verification', () => {
     mockSearchParams = new URLSearchParams('next=/settings/profile');
 
     render(<VerifyEmailPage />);
-    await userEvent.type(screen.getByLabelText(/verification code/i), '123456');
+    await typeCode('123456');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /^verify$/i }));
@@ -248,6 +257,29 @@ describe('VerifyEmailPage — resend', () => {
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(/rate limited/i),
+    );
+  });
+});
+
+describe('VerifyEmailPage — auto-logout on expiry', () => {
+  beforeEach(() => {
+    mockIsAuthenticated = true;
+    mockUser = { email_verified: false };
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  it('logs out and redirects to /register when code timer expires', async () => {
+    render(<VerifyEmailPage />);
+
+    // Advance past the 5-minute expiry
+    await act(async () => {
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1000);
+    });
+
+    await waitFor(() => expect(mockLogout).toHaveBeenCalled());
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/register'));
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Registration expired' }),
     );
   });
 });

@@ -1,8 +1,10 @@
 import type { FastifyInstance } from 'fastify';
+import multipart from '@fastify/multipart';
 import crypto from 'node:crypto';
 import { processImage } from '../lib/image.js';
 
 export default async function userRoutes(fastify: FastifyInstance) {
+  await fastify.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
   // Get public profile by nickname
   fastify.get<{ Params: { nickname: string } }>('/users/:nickname', async (request, reply) => {
     const { nickname } = request.params;

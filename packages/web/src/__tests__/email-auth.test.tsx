@@ -99,7 +99,7 @@ describe('LoginPage — email tab (default)', () => {
 
     await waitFor(() => expect(mockLogin).toHaveBeenCalledWith('alice@example.com', 'Pass123!x'));
     await waitFor(() => expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt'));
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/auth/verify-email'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/market'));
   });
 
   it('shows error on invalid credentials', async () => {
@@ -136,10 +136,10 @@ describe('LoginPage — form rendering', () => {
 });
 
 describe('LoginPage — auth redirect', () => {
-  it('redirects to /auth/verify-email when already authenticated', async () => {
+  it('redirects to /market when already authenticated', async () => {
     mockIsAuthenticated = true;
     render(<LoginPage />);
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/auth/verify-email'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/market'));
   });
 });
 
@@ -216,7 +216,7 @@ describe('EmailRegisterPage — successful registration', () => {
       await userEvent.click(screen.getByRole('button', { name: /create account/i }));
     });
 
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/auth/verify-email'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/market'));
     expect(screen.queryByText(/save your recovery key/i)).not.toBeInTheDocument();
   });
 

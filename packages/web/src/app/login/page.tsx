@@ -80,7 +80,7 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) router.replace('/auth/verify-email');
+    if (!isLoading && isAuthenticated) router.replace('/market');
   }, [isAuthenticated, isLoading, router]);
 
   // Countdown timer when locked out
@@ -121,8 +121,13 @@ export default function LoginPage() {
       } catch {
         // Non-fatal — user can still browse, messaging just won't decrypt
       }
-      router.replace('/auth/verify-email');
-    } catch {
+      router.replace('/market');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('429')) {
+        setServerError('Too many requests. Please wait and try again.');
+        return;
+      }
       const next = attempts + 1;
       setAttempts(next);
       if (next >= MAX_ATTEMPTS) {

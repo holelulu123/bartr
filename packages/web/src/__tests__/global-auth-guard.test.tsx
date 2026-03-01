@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({
 
 let mockIsAuthenticated = false;
 let mockIsLoading = false;
-let mockUser: { email_verified: boolean } | null = null;
+let mockUser: { email_verified: boolean; email_verification_required?: boolean } | null = null;
 
 vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({
@@ -132,10 +132,10 @@ describe('GlobalAuthGuard — authenticated (verified)', () => {
   });
 });
 
-describe('GlobalAuthGuard — authenticated (unverified)', () => {
+describe('GlobalAuthGuard — authenticated (unverified, verification required)', () => {
   beforeEach(() => {
     mockIsAuthenticated = true;
-    mockUser = { email_verified: false };
+    mockUser = { email_verified: false, email_verification_required: true };
   });
 
   // All non-public paths are blocked for unverified users
@@ -181,6 +181,25 @@ describe('GlobalAuthGuard — authenticated (unverified)', () => {
 
   it('allows unverified user on /auth/verify-email', () => {
     renderGuard('/auth/verify-email');
+    expect(screen.getByTestId('protected-content')).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+});
+
+describe('GlobalAuthGuard — authenticated (unverified, verification NOT required)', () => {
+  beforeEach(() => {
+    mockIsAuthenticated = true;
+    mockUser = { email_verified: false, email_verification_required: false };
+  });
+
+  it('allows unverified user on protected routes when verification is disabled', () => {
+    renderGuard('/listings');
+    expect(screen.getByTestId('protected-content')).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('allows unverified user on messages when verification is disabled', () => {
+    renderGuard('/messages');
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
   });

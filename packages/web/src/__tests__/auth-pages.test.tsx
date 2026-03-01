@@ -81,7 +81,7 @@ describe('/login page', () => {
   it('redirects authenticated users to listings', async () => {
     mockIsAuthenticated = true;
     render(<LoginPage />);
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/auth/verify-email'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/market'));
   });
 
   it('does not redirect while auth is loading', () => {
@@ -143,7 +143,7 @@ describe('/auth/callback page', () => {
     render(<AuthCallbackPage />);
 
     await waitFor(() => expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt'));
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/auth/verify-email'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/market'));
   });
 
   it('redirects to /auth/unlock for existing user with key blobs', async () => {

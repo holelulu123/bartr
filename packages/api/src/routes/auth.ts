@@ -3,6 +3,7 @@ import * as argon2 from 'argon2';
 import crypto from 'node:crypto';
 import { signAccessToken, signRefreshToken, verifyToken, type JwtPayload } from '../lib/jwt.js';
 import { encrypt, decrypt } from '../lib/crypto.js';
+import { env } from '../config/env.js';
 import { generateUniqueNickname } from '../lib/nickname.js';
 import { generateVerificationCode, hashCode } from '../lib/email.js';
 
@@ -81,7 +82,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
       if (user.rows.length === 0) {
         return reply.status(404).send({ error: 'User not found' });
       }
-      return reply.send(user.rows[0]);
+      return reply.send({
+        ...user.rows[0],
+        email_verification_required: !!env.resendApiKey,
+      });
     },
   );
 
@@ -101,9 +105,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'email and password are required' });
     }
 
-    if (!public_key || !private_key_blob || !recovery_key_blob) {
-      return reply.status(400).send({ error: 'public_key, private_key_blob, and recovery_key_blob are required' });
-    }
+    // Crypto keys are optional — browser may lack crypto.subtle on plain HTTP (non-localhost)
+    // Users can set up E2E keys later when they access via HTTPS
 
     if (password.length < 8) {
       return reply.status(400).send({ error: 'Password must be at least 8 characters' });
@@ -120,14 +123,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const nickname = await generateUniqueNickname(fastify.pg);
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const emailEncrypted = encrypt(email);
-    const privateKeyBlobBuf = Buffer.from(private_key_blob, 'base64');
-    const recoveryKeyBlobBuf = Buffer.from(recovery_key_blob, 'base64');
+    const privateKeyBlobBuf = private_key_blob ? Buffer.from(private_key_blob, 'base64') : null;
+    const recoveryKeyBlobBuf = recovery_key_blob ? Buffer.from(recovery_key_blob, 'base64') : null;
 
     const result = await fastify.pg.query(
       `INSERT INTO users (nickname, email_encrypted, email_hash, password_hash, public_key, private_key_blob, recovery_key_blob, auth_provider)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'email')
        RETURNING id, nickname`,
-      [nickname, emailEncrypted, hash, passwordHash, public_key, privateKeyBlobBuf, recoveryKeyBlobBuf],
+      [nickname, emailEncrypted, hash, passwordHash, public_key || null, privateKeyBlobBuf, recoveryKeyBlobBuf],
     );
 
     const user = result.rows[0];
@@ -137,17 +140,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
     await storeRefreshToken(fastify, user.id, refreshToken);
     await fastify.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [user.id]);
 
-    // Send verification email (fire-and-forget)
-    const code = generateVerificationCode();
-    const codeHash = hashCode(code);
-    const expiresAt = new Date(Date.now() + 5 * 60_000); // 15 minutes
-    await fastify.pg.query(
-      `INSERT INTO email_verification_codes (user_id, code_hash, expires_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id) DO UPDATE SET code_hash = $2, expires_at = $3, created_at = now()`,
-      [user.id, codeHash, expiresAt],
-    );
-    fastify.resend.sendVerificationEmail(email, code).catch(() => {});
+    if (env.resendApiKey) {
+      // Send verification email (fire-and-forget)
+      const code = generateVerificationCode();
+      const codeHash = hashCode(code);
+      const expiresAt = new Date(Date.now() + 5 * 60_000);
+      await fastify.pg.query(
+        `INSERT INTO email_verification_codes (user_id, code_hash, expires_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE SET code_hash = $2, expires_at = $3, created_at = now()`,
+        [user.id, codeHash, expiresAt],
+      );
+      fastify.resend.sendVerificationEmail(email, code).catch(() => {});
+    } else {
+      // No email service configured — auto-verify in dev
+      await fastify.pg.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [user.id]);
+    }
 
     return reply.status(201).send({ access_token: accessToken, refresh_token: refreshToken });
   });
@@ -279,6 +287,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
          VALUES ($1, $2, $3)
          ON CONFLICT (user_id) DO UPDATE SET code_hash = $2, expires_at = $3, created_at = now()`,
         [userId, codeH, expiresAt],
+      );
+
+      // Reset user created_at so cleanup job gives them a fresh 5-minute window
+      await fastify.pg.query(
+        'UPDATE users SET created_at = now() WHERE id = $1',
+        [userId],
       );
 
       fastify.resend.sendVerificationEmail(email, code).catch(() => {});

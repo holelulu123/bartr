@@ -26,6 +26,7 @@ export interface CurrentUser {
   last_active: string;
   role?: string;
   email_verified: boolean;
+  email_verification_required: boolean;
 }
 
 export interface KeyBlobs {

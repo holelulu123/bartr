@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -10,7 +10,6 @@ import { useAuth } from '@/contexts/auth-context';
 import { auth } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -36,7 +35,7 @@ export default function VerifyEmailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get('next') ?? '/market';
-  const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
+  const { user, isAuthenticated, isLoading, refreshUser, logout } = useAuth();
   const { toast } = useToast();
   const [serverError, setServerError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -48,8 +47,45 @@ export default function VerifyEmailPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
+
+  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const handleDigitChange = useCallback((index: number, value: string) => {
+    // Only allow single digit
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
+    setValue('code', next.join(''), { shouldValidate: false });
+
+    // Auto-focus next box
+    if (digit && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  }, [digits, setValue]);
+
+  const handleDigitKeyDown = useCallback((index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  }, [digits]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    const next = ['', '', '', '', '', ''];
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
+    setDigits(next);
+    setValue('code', next.join(''), { shouldValidate: false });
+    // Focus the last filled box or the next empty one
+    const focusIndex = Math.min(pasted.length, 5);
+    inputRefs.current[focusIndex]?.focus();
+  }, [setValue]);
 
   // Code expiry countdown (starts on mount)
   useEffect(() => {
@@ -66,6 +102,22 @@ export default function VerifyEmailPage() {
       if (expiryTimerRef.current) clearInterval(expiryTimerRef.current);
     };
   }, []);
+
+  // Auto-logout when code expires (account will be deleted server-side)
+  const hasAutoLoggedOut = useRef(false);
+  useEffect(() => {
+    if (codeExpiry <= 0 && !hasAutoLoggedOut.current) {
+      hasAutoLoggedOut.current = true;
+      logout().then(() => {
+        toast({
+          title: 'Registration expired',
+          description: 'Please register again to get a new verification code.',
+          variant: 'destructive',
+        });
+        router.replace('/register');
+      });
+    }
+  }, [codeExpiry, logout, toast, router]);
 
   // Resend cooldown countdown
   useEffect(() => {
@@ -119,6 +171,7 @@ export default function VerifyEmailPage() {
       setResendCooldown(RESEND_COOLDOWN_S);
       // Reset the expiry timer for the new code
       setCodeExpiry(CODE_EXPIRY_S);
+      hasAutoLoggedOut.current = false;
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to resend code. Please try again.';
       setServerError(message);
@@ -154,21 +207,29 @@ export default function VerifyEmailPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="code">Verification code</Label>
-              <Input
-                id="code"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
-                placeholder="000000"
-                autoComplete="one-time-code"
-                autoFocus
-                className="text-center text-lg tracking-widest"
-                {...register('code')}
-              />
+              <Label>Verification code</Label>
+              {/* Hidden input for form validation */}
+              <input type="hidden" {...register('code')} />
+              <div className="flex justify-center gap-2" onPaste={handlePaste}>
+                {digits.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => { inputRefs.current[i] = el; }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    autoFocus={i === 0}
+                    autoComplete={i === 0 ? 'one-time-code' : 'off'}
+                    onChange={(e) => handleDigitChange(i, e.target.value)}
+                    onKeyDown={(e) => handleDigitKeyDown(i, e)}
+                    className="h-12 w-10 rounded-md border border-input bg-background text-center text-xl font-semibold shadow-sm transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    aria-label={`Digit ${i + 1}`}
+                  />
+                ))}
+              </div>
               {errors.code && (
-                <p className="text-xs text-destructive">{errors.code.message}</p>
+                <p className="text-xs text-destructive text-center">{errors.code.message}</p>
               )}
             </div>
 
