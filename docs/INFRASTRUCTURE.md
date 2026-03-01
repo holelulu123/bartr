@@ -2,7 +2,7 @@
 
 This document covers hardware requirements, storage calculations, and throughput estimates for the Bartr platform at various scales.
 
-Last updated: 2026-02-27 (reflects current schema after migrations 001–008)
+Last updated: 2026-03-01 (reflects current schema after migrations 001–008)
 
 ---
 
@@ -12,11 +12,12 @@ Last updated: 2026-02-27 (reflects current schema after migrations 001–008)
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
-| Frontend | Next.js 15 (App Router, RSC) | 15.x |
+| Frontend | Next.js (App Router) | 14.x |
+| Charts | Recharts | 3.x |
 | Backend API | Fastify | 5.x |
 | Language | TypeScript (ESM) | 5.x |
 | Database | PostgreSQL | 16 |
-| Cache / pub-sub | Redis | 7 |
+| Cache / pub-sub / metrics | Redis | 7 |
 | Object storage | MinIO (S3-compatible) | latest |
 | Monorepo | pnpm workspaces | — |
 | Containerisation | Docker Compose | — |
@@ -26,16 +27,17 @@ Last updated: 2026-02-27 (reflects current schema after migrations 001–008)
 | Service | Port | Role |
 |---------|------|------|
 | `web` (Next.js) | 3000 | SSR + static assets |
-| `api` (Fastify) | 4000 | REST API |
+| `api` (Fastify) | 4000 | REST API + metrics collector |
+| `workers` | — | Background job processing |
 | `postgres` | 5432 | Primary database |
-| `redis` | 6379 | Session cache, rate-limit counters |
+| `redis` | 6379 | Session cache, rate-limit counters, metrics storage |
 | `minio` | 9000 | Listing image storage |
 | `minio-console` | 9001 | MinIO admin console |
+| `nginx` | 80 | Reverse proxy |
 
 ### Authentication
 
-- Google OAuth 2.0 (primary) — no email stored in plaintext
-- Email + password (secondary) — email stored encrypted (AES-256-GCM) + HMAC for lookup
+- Email + password (primary) — email stored encrypted (AES-256-GCM) + HMAC for lookup
 - Passwords hashed with **Argon2id** (memory: 65536, parallelism: 4, iterations: 3)
 - Access tokens: **HS256 JWT**, 15-minute expiry, contains `sub`, `nickname`, `role`
 - Refresh tokens: rotated on use, stored as SHA-256 hash in `refresh_tokens` table, 7-day TTL
@@ -250,10 +252,10 @@ How much storage does one average user consume across their entire lifecycle?
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | /health | — | Health check |
-| GET | /auth/google | — | Redirect to Google OAuth |
-| GET | /auth/google/callback | — | OAuth callback |
-| POST | /auth/register | — | Complete Google registration (set password + keys) |
+| GET | /health | — | Rich health check (services, stats, latencies) |
+| GET | /health/system | — | Live system metrics snapshot (CPU, RAM, disk, net) |
+| GET | /health/history | — | Time-series metric history from Redis |
+| GET | /health/resend | — | Resend email quota status |
 | POST | /auth/register/email | — | Email+password registration |
 | POST | /auth/login/email | — | Email+password login |
 | POST | /auth/refresh | — | Rotate refresh token |
@@ -269,11 +271,17 @@ How much storage does one average user consume across their entire lifecycle?
 | DELETE | /listings/:id/images/:imageId | ✓ owner | Delete image |
 | GET | /categories | — | List categories |
 | GET | /users/:nickname | — | Get user profile |
+| GET | /users/:nickname/public-key | — | Get user's public key for E2E encryption |
+| GET | /users/:nickname/avatar | — | Serve avatar image |
 | PUT | /users/me | ✓ | Update own profile |
+| PUT | /users/me/avatar | ✓ | Upload avatar |
 | POST | /trades | ✓ | Create trade offer |
 | GET | /trades | ✓ | List my trades |
 | GET | /trades/:id | ✓ participant | Get trade detail |
-| PUT | /trades/:id/status | ✓ participant | Update trade status |
+| POST | /trades/:id/accept | ✓ seller | Accept trade |
+| POST | /trades/:id/decline | ✓ seller | Decline trade |
+| POST | /trades/:id/cancel | ✓ buyer | Cancel trade |
+| POST | /trades/:id/complete | ✓ participant | Confirm trade completion (dual confirmation) |
 | GET | /threads | ✓ | List my message threads |
 | POST | /threads | ✓ | Create or get thread |
 | GET | /threads/:threadId/messages | ✓ participant | Get messages |
@@ -285,8 +293,17 @@ How much storage does one average user consume across their entire lifecycle?
 | GET | /admin/flags | ✓ admin | List all flags |
 | PUT | /admin/flags/:id | ✓ admin | Update flag status |
 | POST | /moderation/check | — | Keyword filter check |
+| POST | /exchange/offers | ✓ | Create exchange offer |
+| GET | /exchange/offers | ✓ | List/filter exchange offers |
+| GET | /exchange/offers/:id | ✓ | Get exchange offer |
+| PUT | /exchange/offers/:id | ✓ owner | Update exchange offer |
+| DELETE | /exchange/offers/:id | ✓ owner | Delete exchange offer |
+| GET | /prices | — | Get cached price data |
+| GET | /prices/:crypto | — | Get prices for one crypto |
+| GET | /prices/exchanges | — | Get per-exchange prices |
+| GET | /supported-coins | — | Get list of supported coins |
 
-Auth column: `✓` = any authenticated user, `✓ owner` = listing owner only, `✓ admin` = role=admin only, `✓ participant` = trade/thread participant only.
+Auth column: `✓` = any authenticated user, `✓ owner` = resource owner only, `✓ admin` = role=admin only, `✓ participant` = trade/thread participant only, `✓ seller`/`✓ buyer` = role-specific.
 
 ---
 
@@ -439,7 +456,32 @@ Total backup storage at 10K users: ~37 GB → ~$0.22/month on Backblaze B2.
 
 ---
 
-## 10. Monitoring Thresholds
+## 10. Monitoring
+
+### Self-contained system (no external tools)
+
+Monitoring is built into the API process — no Grafana, Prometheus, or exporters needed.
+
+| Component | Description |
+|-----------|-------------|
+| Metrics collector | Runs every 5s inside the API process (Node.js `os` + `/proc` + `fs.statfsSync`) |
+| Storage | Redis ZSETs with 14-day retention (~10 MB per metric, ~100 MB total for ~10 metrics) |
+| Dashboard | `/health` page in the web app (recharts, public, no auth) |
+| Endpoints | `/health/system` (live snapshot), `/health/history` (time-series), `/health/resend` (email quota) |
+
+### Collected metrics
+
+| Metric | Source | Redis Key |
+|--------|--------|-----------|
+| CPU per core | `os.cpus()` delta | `metrics:cpu:N` |
+| RAM % | `os.totalmem()` / `os.freemem()` | `metrics:ram` |
+| Disk usage | `fs.statfsSync('/')` | `metrics:disk` |
+| Disk read speed | `/proc/diskstats` delta | `metrics:disk_read` |
+| Disk write speed | `/proc/diskstats` delta | `metrics:disk_write` |
+| Network RX | `/proc/net/dev` delta | `metrics:net_rx` |
+| Network TX | `/proc/net/dev` delta | `metrics:net_tx` |
+
+### Thresholds
 
 | Metric | Warning | Critical |
 |--------|---------|----------|
