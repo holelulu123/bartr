@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, Edit, Plus, Trash2, Pause, Play } from 'lucide-react';
+import { ArrowUp, ArrowDown, Plus, Trash2, Pause, Play } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useOffers, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
-// useUpdateOffer used at parent level for pause confirmation dialog
+import { usePrices } from '@/hooks/use-prices';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -20,6 +20,20 @@ import { cn } from '@/lib/utils';
 import type { ExchangeOffer } from '@/lib/api';
 import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
 import type { OfferStatus, SettlementMethod } from '@bartr/shared';
+
+const CRYPTO_COLORS: Record<string, string> = {
+  BTC: 'text-orange-500',
+  ETH: 'text-indigo-400',
+  SOL: 'text-fuchsia-500',
+  XRP: 'text-slate-400',
+  USDT: 'text-emerald-500',
+  USDC: 'text-blue-400',
+};
+
+function fmt(val: number | string | null | undefined, decimals = 2): string {
+  if (val === null || val === undefined) return '0';
+  return Number(val).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
 
 type StatusFilter = 'all' | OfferStatus;
 
@@ -221,51 +235,110 @@ function OfferRow({
   onTogglePause: () => void;
 }) {
   const isBuy = offer.offer_type === 'buy';
+  const { data: priceData } = usePrices();
+
+  // Compute effective price
+  let coinPrice: number | undefined;
+  if (priceData) {
+    const cp = priceData[offer.crypto_currency];
+    if (cp && typeof cp !== 'string') coinPrice = cp[offer.fiat_currency];
+  }
+  const effectivePrice = offer.rate_type === 'fixed'
+    ? Number(offer.fixed_price) || undefined
+    : coinPrice !== undefined
+      ? coinPrice * (1 + (Number(offer.margin_percent) || 0) / 100)
+      : undefined;
+
+  const minFiat = Number(offer.min_amount) || 0;
+  const maxFiat = Number(offer.max_amount) || 0;
+  const minCrypto = effectivePrice ? minFiat / effectivePrice : undefined;
+  const maxCrypto = effectivePrice ? maxFiat / effectivePrice : undefined;
+  const isFixedAmount = minFiat === maxFiat && minFiat > 0;
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-      {/* Type badge */}
-      <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 shrink-0">
-        {isBuy ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />}
-        {isBuy ? 'Buy' : 'Sell'}
-      </Badge>
-
-      {/* Pair + status */}
-      <div className="flex-1 min-w-0">
-        <Link
-          href={`/exchange/${offer.id}`}
-          className="text-sm font-medium hover:underline"
-        >
-          {offer.crypto_currency}/{offer.fiat_currency}
+    <div className={cn(
+      'grid items-center gap-4 rounded-lg border px-4 py-3 border-l-[3px]',
+      'grid-cols-[70px_1fr_160px_120px_80px]',
+      'max-md:grid-cols-[60px_1fr_80px]',
+      isBuy
+        ? 'border-l-emerald-500 bg-emerald-500/[0.03] border-border'
+        : 'border-l-red-400 bg-red-400/[0.03] border-border',
+      offer.status === 'paused' && 'opacity-60',
+    )}>
+      {/* Type + pair */}
+      <div className="space-y-1">
+        <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
+          {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
+          {isBuy ? 'Buy' : 'Sell'}
+        </Badge>
+        <Link href={`/exchange/${offer.id}`} className="block">
+          <p className={cn('text-sm font-semibold hover:underline', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
+            {offer.crypto_currency}/{offer.fiat_currency}
+          </p>
         </Link>
-        <div className="flex items-center gap-2 mt-0.5">
+      </div>
+
+      {/* Amount + crypto equivalent + status + settlement */}
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-[15px] font-bold leading-tight">
+            {isFixedAmount
+              ? `${fmt(minFiat)} ${offer.fiat_currency}`
+              : offer.min_amount || offer.max_amount
+                ? `${fmt(minFiat)} – ${fmt(maxFiat)} ${offer.fiat_currency}`
+                : 'Any amount'}
+          </p>
           <span
             className={cn(
-              'inline-flex items-center rounded-full border px-2 py-0 text-xs font-medium capitalize',
+              'inline-flex items-center rounded-full border px-2 py-0 text-[11px] font-medium capitalize',
               STATUS_COLORS[offer.status],
             )}
           >
             {offer.status}
           </span>
-          <span className="text-xs text-muted-foreground">
-            {offer.rate_type === 'fixed'
-              ? `${offer.fixed_price} ${offer.fiat_currency}`
-              : `Market ${offer.margin_percent > 0 ? '+' : ''}${offer.margin_percent}%`}
-          </span>
         </div>
+        {effectivePrice !== undefined && (offer.min_amount || offer.max_amount) && (
+          <p className="text-xs text-muted-foreground leading-tight mt-0.5">
+            {isFixedAmount
+              ? `${fmt(minCrypto!, 6)} ${offer.crypto_currency}`
+              : `${fmt(minCrypto!, 6)} – ${fmt(maxCrypto!, 6)} ${offer.crypto_currency}`}
+          </p>
+        )}
       </div>
 
-      {/* Settlement methods (compact) */}
-      <div className="hidden sm:flex gap-1 shrink-0">
+      {/* Price + margin */}
+      <div className="hidden md:block">
+        <p className="text-[15px] font-bold leading-tight whitespace-nowrap">
+          {effectivePrice !== undefined
+            ? `${fmt(effectivePrice)} ${offer.fiat_currency}`
+            : '--'}
+        </p>
+        {offer.rate_type === 'market' && (
+          <span className="mt-0.5 inline-block rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0 text-xs font-medium whitespace-nowrap">
+            {Number(offer.margin_percent) > 0 ? '+' : ''}{offer.margin_percent}%
+          </span>
+        )}
+        {offer.rate_type === 'fixed' && (
+          <span className="text-xs text-muted-foreground">Fixed price</span>
+        )}
+      </div>
+
+      {/* Settlement methods */}
+      <div className="hidden md:flex flex-wrap gap-1 overflow-hidden">
         {offer.payment_methods.slice(0, 2).map((pm) => (
           <Badge key={pm} variant="outline" className="text-xs px-1.5 py-0">
             {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
           </Badge>
         ))}
+        {offer.payment_methods.length > 2 && (
+          <Badge variant="outline" className="text-xs px-1.5 py-0">
+            +{offer.payment_methods.length - 2}
+          </Badge>
+        )}
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 justify-end">
         {offer.status !== 'removed' && (
           <Button
             variant="ghost"
@@ -286,7 +359,7 @@ function OfferRow({
           size="sm"
           onClick={onDelete}
           className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-          aria-label="Remove offer"
+          aria-label="Delete offer"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
