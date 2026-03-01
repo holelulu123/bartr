@@ -1,6 +1,6 @@
 # Bartr — Launch Roadmap v3
 
-> Last updated: 2026-02-28
+> Last updated: 2026-03-01
 
 ---
 
@@ -14,12 +14,12 @@ V2 was written before E2E encryption and auth pages existed. Everything in Phase
 
 ### Backend (packages/api) — Complete
 - Fastify 5, PostgreSQL, Redis, MinIO
-- Auth: Google OAuth + email/password, argon2id, JWT (15m access / 7d refresh, rotation)
+- Auth: email/password only (Google OAuth removed), argon2id, JWT (15m access / 7d refresh, rotation)
 - Email field: AES-256-GCM encrypted at rest
 - Messages: server-blind — stores and returns base64 ciphertext only, never decrypts
 - E2E key storage: `public_key`, `private_key_blob`, `recovery_key_blob` on `users` table
 - All endpoints: listings, trades, ratings, users, messages, moderation, exchange offers, prices
-- **134 tests passing**
+- **192 tests** (28 unit + 164 integration requiring Docker)
 
 ### Frontend (packages/web) — Full feature set
 - Next.js 14 App Router, Tailwind, shadcn/ui, React Query, React Hook Form + Zod
@@ -38,7 +38,7 @@ V2 was written before E2E encryption and auth pages existed. Everything in Phase
 - Professional SVG icons for all crypto (BTC, ETH, USDT, USDC, SOL, etc.) and payment methods
 - Password strength meter with live validation on registration
 - 5-minute AFK auto-logout, login cooldown persisted in sessionStorage
-- **474 tests passing**
+- **479 tests passing**
 
 ### Workers (packages/workers) — Complete
 - Price feed worker: polls CoinGecko/Binance/Kraken every 60s, caches in Redis
@@ -62,10 +62,14 @@ V2 was written before E2E encryption and auth pages existed. Everything in Phase
 | 12 — Static & Polish | Landing page, /about, /privacy, /donate (scannable QR via react-qr-code), error pages | — |
 | 13.1 — Admin role | user_role ENUM, role in JWT, requireAdmin hook, /admin/* gated | — |
 | 13.2 — Content security | EXIF stripping (sharp), magic bytes validation | — |
+| 13.5 — Remove Google OAuth | Removed Google routes, env vars, frontend buttons — email-only auth | — |
 | 13.7 — Registration UX | Password strength bar, English-only + complexity validation, live match indicator | — |
 | P2P Exchange | /exchange browse, /exchange/new, /exchange/[id], exchange API, price feed worker, dashboard/offers | — |
 | Route split | /market (marketplace), /exchange (P2P crypto), navbar restructure, SVG crypto icons | — |
-| **Total** | | **608** |
+| 13.8 — MinIO integration tests | Image upload/delete: JPEG/PNG/WebP, reject invalid, max 5, avatar replace | — |
+| 13.9 — E2E API integration tests | Full flows: auth, listings CRUD, messaging, trades, profiles, edge cases | — |
+| 13.6 — Email verification (backend) | Resend plugin, verify/resend endpoints, route gating, 12 tests | 12 |
+| **Total** | | **671** |
 
 ---
 
@@ -87,41 +91,26 @@ V2 was written before E2E encryption and auth pages existed. Everything in Phase
 
 ---
 
-## Phase 13.5 — Remove Google OAuth
 
-Google OAuth contradicts the privacy-first ethos and requires a third-party dependency.
-The email/password auth system is already fully built in the API (`/auth/register/email`, `/auth/login/email`).
+## Phase 13.6 — Email Verification (Resend)
 
-- [ ] Remove `GET /auth/google` and `GET /auth/google/callback` routes from the API
-- [ ] Remove `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` from env config
-- [ ] Remove Google OAuth button from `/login` page
-- [ ] Update `/register` page to use email/password flow only
-- [ ] Remove `google_id` references from frontend
-- [ ] Update `13.3` secrets audit — remove Google OAuth credentials item
+Using **Resend** API (free tier: 3,000/month) instead of self-hosted mail.
+Plugin auto-mocks when `RESEND_API_KEY` is empty (dev/test).
 
----
-
-## Phase 13.6 — Email Verification + Self-Hosted Mail
-
-Self-hosted email via **Mailcow** or **Postal** on the same VPS.
-Emails may land in spam on new IPs — add a visible notice to users on registration.
-
-### Backend
-- [ ] Add `email_verified boolean DEFAULT false` column to `users` table
-- [ ] Add `email_verification_tokens` table: `(id, user_id, code, expires_at, used)`
-- [ ] On `POST /auth/register/email`: generate 6-digit code, store it, send verification email
-- [ ] Add `POST /auth/verify-email` endpoint: validate code, set `email_verified = true`
-- [ ] Add `POST /auth/resend-verification` endpoint (rate-limited)
-- [ ] Gate posting listings + sending messages behind `email_verified = true`
-
-### Email service
-- [ ] Deploy Mailcow (or Postal) on VPS via Docker Compose
-- [ ] Configure DNS: SPF, DKIM, DMARC, PTR/rDNS records
-- [ ] Add `nodemailer` (or Mailcow API) to API for sending transactional email
-- [ ] Verification email template: subject, 6-digit code, expiry notice
-- [ ] Add "email may go to spam" notice on the registration page
+### Backend ✅
+- [x] Add `email_verified boolean DEFAULT false` column to `users` table
+- [x] Add `email_verification_codes` table: `(id, user_id, code_hash, expires_at)`
+- [x] On `POST /auth/register/email`: generate 6-digit code, store it, send verification email
+- [x] Add `POST /auth/verify-email` endpoint: validate code, set `email_verified = true`
+- [x] Add `POST /auth/resend-verification` endpoint (rate-limited)
+- [x] Gate posting listings + sending messages behind `email_verified = true`
+- [x] Resend plugin with auto-mock for dev/test, real Resend SDK when API key set
+- [x] `GET /health/resend` uses plugin for quota
+- [x] 12 new tests covering verify/reject/expire/gate flows
 
 ### Frontend
+- [x] `verifyEmail()` and `resendVerification()` API functions
+- [x] `email_verified` added to `CurrentUser` type
 - [ ] `/auth/verify-email` page: code input, submit, resend link
 - [ ] Redirect unverified users to `/auth/verify-email` when they try to post or message
 
@@ -131,13 +120,13 @@ Emails may land in spam on new IPs — add a visible notice to users on registra
 
 Image upload/delete flows were never covered by automated tests because MinIO requires a running container. Add proper integration tests using a MinIO test instance (spin up via Docker Compose test profile or `minio/minio` in CI).
 
-- [ ] Test `POST /listings/:id/images` — upload JPEG, PNG, WebP successfully
-- [ ] Test upload rejects non-image files (garbage bytes)
-- [ ] Test upload rejects oversized files (>5 MB)
-- [ ] Test `DELETE /listings/:id/images/:imageId` — removes from MinIO and DB
-- [ ] Test that replacing an image (delete + upload) works end-to-end
-- [ ] Test that listing detail returns correct `storage_key` after upload
-- [ ] Add MinIO service to `docker-compose.test.yml` so CI can run these tests
+- [x] Test `POST /listings/:id/images` — upload JPEG, PNG, WebP successfully
+- [x] Test upload rejects non-image files (garbage bytes)
+- [x] Test upload rejects oversized files (>5 MB)
+- [x] Test `DELETE /listings/:id/images/:imageId` — removes from MinIO and DB
+- [x] Test that replacing an image (delete + upload) works end-to-end
+- [x] Test that listing detail returns correct `storage_key` after upload
+- [x] Add MinIO service to `docker-compose.test.yml` so CI can run these tests
 
 ---
 
@@ -146,54 +135,54 @@ Image upload/delete flows were never covered by automated tests because MinIO re
 Automated integration tests that hit the real running API server with real HTTP requests against a real database. No mocks — tests create actual users, authenticate, and exercise full user flows. Run against the Docker Compose dev stack.
 
 ### Setup
-- [ ] Test runner script that checks API is reachable before running
-- [ ] Test helper: register a user (email + password) → returns tokens + nickname
-- [ ] Test helper: login as existing user → returns tokens
-- [ ] Test helper: authenticated fetch wrapper (injects Bearer token)
-- [ ] Seed/teardown: tests create dedicated test users (idempotent — skip if already exist)
+- [x] Test runner script that checks API is reachable before running
+- [x] Test helper: register a user (email + password) → returns tokens + nickname
+- [x] Test helper: login as existing user → returns tokens
+- [x] Test helper: authenticated fetch wrapper (injects Bearer token)
+- [x] Seed/teardown: tests create dedicated test users (idempotent — skip if already exist)
 
 ### Auth flows
-- [ ] Register two test users via `POST /auth/register/email`
-- [ ] Login with correct password → 200 + tokens
-- [ ] Login with wrong password → 401
-- [ ] Refresh token → new token pair
-- [ ] Access protected endpoint without token → 401
-- [ ] Fetch `/auth/me` → returns correct user
+- [x] Register two test users via `POST /auth/register/email`
+- [x] Login with correct password → 200 + tokens
+- [x] Login with wrong password → 401
+- [x] Refresh token → new token pair
+- [x] Access protected endpoint without token → 401
+- [x] Fetch `/auth/me` → returns correct user
 
 ### Listings
-- [ ] Create a listing (User A) → 201 + listing object
-- [ ] Get listing by ID → matches created data
-- [ ] List all listings → contains the created listing
-- [ ] Update listing (User A) → 200 + updated fields
-- [ ] Reject update from non-owner (User B) → 403
-- [ ] Delete listing (User A) → 204
-- [ ] Confirm deleted listing is gone → 404
+- [x] Create a listing (User A) → 201 + listing object
+- [x] Get listing by ID → matches created data
+- [x] List all listings → contains the created listing
+- [x] Update listing (User A) → 200 + updated fields
+- [x] Reject update from non-owner (User B) → 403
+- [x] Delete listing (User A) → 204
+- [x] Confirm deleted listing is gone → 404
 
 ### Messaging (two-user flow)
-- [ ] User A creates a listing
-- [ ] User B creates a thread with User A (via listing) → thread ID
-- [ ] User B sends an encrypted message in the thread → 201
-- [ ] User A fetches thread messages → sees the message
-- [ ] User A replies → 201
-- [ ] User B fetches messages → sees both messages
-- [ ] Both users see the thread in their `/threads` list
+- [x] User A creates a listing
+- [x] User B creates a thread with User A (via listing) → thread ID
+- [x] User B sends an encrypted message in the thread → 201
+- [x] User A fetches thread messages → sees the message
+- [x] User A replies → 201
+- [x] User B fetches messages → sees both messages
+- [x] Both users see the thread in their `/threads` list
 
 ### Trades
-- [ ] User B initiates a trade on User A's listing
-- [ ] User A accepts the trade
-- [ ] Both users can view trade details
-- [ ] Trade status transitions work correctly
+- [x] User B initiates a trade on User A's listing
+- [x] User A accepts the trade
+- [x] Both users can view trade details
+- [x] Trade status transitions work correctly
 
 ### User profiles
-- [ ] Fetch user profile by nickname → 200
-- [ ] Update own profile (bio) → 200
-- [ ] Fetch other user's public key → 200
+- [x] Fetch user profile by nickname → 200
+- [x] Update own profile (bio) → 200
+- [x] Fetch other user's public key → 200
 
 ### Edge cases
-- [ ] Cannot message yourself
-- [ ] Cannot create duplicate thread for same listing+users
-- [ ] Rate limiting on login (brute-force protection)
-- [ ] Expired/invalid tokens are rejected
+- [x] Cannot message yourself
+- [x] Cannot create duplicate thread for same listing+users
+- [x] Rate limiting on login (brute-force protection)
+- [x] Expired/invalid tokens are rejected
 
 ---
 
@@ -225,7 +214,7 @@ Currently migrations only run via PostgreSQL's `docker-entrypoint-initdb.d` on f
 - [ ] Accessibility: semantic HTML, ARIA labels, keyboard navigation, WCAG AA contrast
 - [ ] SEO: dynamic page titles, OG tags, sitemap.xml
 - [ ] Performance: Next.js `<Image>`, lazy loading, bundle analysis
-- [ ] **Captcha on registration** — hCaptcha (privacy-friendly, no Google) on `/register/email` to prevent bot account creation. Backend validates the captcha token before creating the account.
+- [x] ~~Captcha on registration~~ — **Removed**: rate limiting (10 req/min) is sufficient; no captcha needed
 - [ ] DB backup strategy configured
 - [ ] Uptime monitoring configured
 - [ ] Manual smoke test: register → browse → list → message → trade → rate
@@ -239,12 +228,11 @@ All core features are implemented.
 Remaining work is security hardening, testing, and production deployment.
 
 Priority order:
-1. Phase 13.10 — DB Migration Runner (critical for production)
-2. Phase 13.3 — Production secrets
-3. Phase 13.4 — HTTPS / TLS
-4. Phase 13.5 — Remove Google OAuth
-5. Phase 13.6 — Email verification
-6. Phase 14 — Launch checklist
+1. Phase 13.6 — Email verification frontend (verify page + redirect)
+2. Phase 13.10 — DB Migration Runner (critical for production)
+3. Phase 13.3 — Production secrets
+4. Phase 13.4 — HTTPS / TLS
+5. Phase 14 — Launch checklist
 ```
 
 ---
@@ -253,9 +241,9 @@ Priority order:
 
 | Package | Tests |
 |---|---|
-| packages/api | 134 |
-| packages/web | 474 |
-| **Total** | **608** |
+| packages/api | 192 |
+| packages/web | 479 |
+| **Total** | **671** |
 
 ---
 
@@ -265,9 +253,6 @@ Priority order:
 |---|---|---|
 | 13.3 — Production secrets | 🔴 critical | ~3 tasks |
 | 13.4 — HTTPS / TLS | 🔴 critical | ~5 tasks |
-| 13.5 — Remove Google OAuth | 🟠 high | ~6 tasks |
-| 13.6 — Email verification + self-hosted mail | 🟠 high | ~15 tasks |
-| 13.8 — MinIO integration tests | 🟡 medium | ~7 tasks |
-| 13.9 — E2E API integration tests | 🟡 medium | ~25 tasks |
+| 13.6 — Email verification frontend | 🟠 high | ~2 tasks (backend done) |
 | 13.10 — DB migration runner | 🔴 critical | ~5 tasks |
 | 14 — Launch checklist | 🟡 medium | ~10 tasks |

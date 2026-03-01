@@ -29,7 +29,8 @@ INSERT INTO supported_coins (symbol, name, coin_type, sort_order) VALUES
   ('ATOM', 'Cosmos', 'crypto', 15),
   ('UNI', 'Uniswap', 'crypto', 16),
   ('APT', 'Aptos', 'crypto', 17),
-  ('ARB', 'Arbitrum', 'crypto', 18);
+  ('ARB', 'Arbitrum', 'crypto', 18)
+ON CONFLICT (symbol) DO NOTHING;
 
 -- Seed fiat (USD, EUR, ILS first, then alphabetical)
 INSERT INTO supported_coins (symbol, name, coin_type, sort_order) VALUES
@@ -78,7 +79,8 @@ INSERT INTO supported_coins (symbol, name, coin_type, sort_order) VALUES
   ('KES', 'Kenyan Shilling', 'fiat', 142),
   ('GHS', 'Ghanaian Cedi', 'fiat', 143),
   ('EGP', 'Egyptian Pound', 'fiat', 144),
-  ('MAD', 'Moroccan Dirham', 'fiat', 145);
+  ('MAD', 'Moroccan Dirham', 'fiat', 145)
+ON CONFLICT (symbol) DO NOTHING;
 
 -- Exchange offers table
 CREATE TABLE IF NOT EXISTS exchange_offers (
@@ -102,20 +104,27 @@ CREATE TABLE IF NOT EXISTS exchange_offers (
 );
 
 -- Indexes for exchange_offers
-CREATE INDEX idx_exchange_offers_user_id ON exchange_offers(user_id);
-CREATE INDEX idx_exchange_offers_offer_type ON exchange_offers(offer_type);
-CREATE INDEX idx_exchange_offers_crypto ON exchange_offers(crypto_currency);
-CREATE INDEX idx_exchange_offers_fiat ON exchange_offers(fiat_currency);
-CREATE INDEX idx_exchange_offers_status ON exchange_offers(status);
-CREATE INDEX idx_exchange_offers_country ON exchange_offers(country_code);
+CREATE INDEX IF NOT EXISTS idx_exchange_offers_user_id ON exchange_offers(user_id);
+CREATE INDEX IF NOT EXISTS idx_exchange_offers_offer_type ON exchange_offers(offer_type);
+CREATE INDEX IF NOT EXISTS idx_exchange_offers_crypto ON exchange_offers(crypto_currency);
+CREATE INDEX IF NOT EXISTS idx_exchange_offers_fiat ON exchange_offers(fiat_currency);
+CREATE INDEX IF NOT EXISTS idx_exchange_offers_status ON exchange_offers(status);
+CREATE INDEX IF NOT EXISTS idx_exchange_offers_country ON exchange_offers(country_code);
 
 -- Add offer_id to message_threads (parallel to listing_id)
 ALTER TABLE message_threads ADD COLUMN IF NOT EXISTS offer_id UUID REFERENCES exchange_offers(id);
 
 -- Make listing_id nullable on trades, add offer_id
-ALTER TABLE trades ALTER COLUMN listing_id DROP NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE trades ALTER COLUMN listing_id DROP NOT NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
 ALTER TABLE trades ADD COLUMN IF NOT EXISTS offer_id UUID REFERENCES exchange_offers(id);
 
 -- Ensure at least one of listing_id or offer_id is set on trades
-ALTER TABLE trades ADD CONSTRAINT trades_source_check
-  CHECK (listing_id IS NOT NULL OR offer_id IS NOT NULL);
+DO $$ BEGIN
+  ALTER TABLE trades ADD CONSTRAINT trades_source_check
+    CHECK (listing_id IS NOT NULL OR offer_id IS NOT NULL);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

@@ -12,27 +12,20 @@
 
 import crypto from 'node:crypto';
 
+import { env } from '../config/env.js';
+
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;   // 96-bit IV — recommended for GCM
 const TAG_LENGTH = 16;  // 128-bit auth tag
 
 function getKey(): Buffer {
-  const raw = process.env.ENCRYPTION_KEY;
+  const raw = env.encryptionKey;
 
-  if (raw) {
-    // Expect a 64-char hex string (32 bytes)
-    if (raw.length !== 64 || !/^[0-9a-fA-F]+$/.test(raw)) {
-      throw new Error('ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
-    }
-    return Buffer.from(raw, 'hex');
+  // Expect a 64-char hex string (32 bytes)
+  if (raw.length !== 64 || !/^[0-9a-fA-F]+$/.test(raw)) {
+    throw new Error('ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
   }
-
-  // Dev fallback — deterministic, clearly not for production
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('ENCRYPTION_KEY environment variable is required in production');
-  }
-
-  return Buffer.from('bartr-dev-encryption-key-32bytes!'.padEnd(32).slice(0, 32));
+  return Buffer.from(raw, 'hex');
 }
 
 /**

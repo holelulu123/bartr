@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import pg from 'pg';
 import { env } from '../config/env.js';
+import { runMigrations } from '../lib/migrate.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -13,6 +14,8 @@ export default fp(async (fastify) => {
 
   await pool.query('SELECT 1');
   fastify.log.info('PostgreSQL connected');
+
+  await runMigrations(pool);
 
   fastify.decorate('pg', pool);
   fastify.addHook('onClose', async () => {

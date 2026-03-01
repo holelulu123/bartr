@@ -1,7 +1,7 @@
 -- Full-text search index on listings
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS search_vector tsvector;
 
-CREATE INDEX idx_listings_fts ON listings USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_listings_fts ON listings USING GIN (search_vector);
 
 -- Trigger to keep search_vector updated
 CREATE OR REPLACE FUNCTION listings_search_trigger() RETURNS trigger AS $$
@@ -13,6 +13,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_listings_search ON listings;
 CREATE TRIGGER trg_listings_search
   BEFORE INSERT OR UPDATE OF title, description ON listings
   FOR EACH ROW EXECUTE FUNCTION listings_search_trigger();
