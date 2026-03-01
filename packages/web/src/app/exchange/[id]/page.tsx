@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { ArrowLeft, ArrowUp, ArrowDown, MessageSquare } from 'lucide-react';
 import { useOffer } from '@/hooks/use-exchange';
 import { useAuth } from '@/contexts/auth-context';
-import { PaymentIcon } from '@/components/payment-icon';
 import { PriceTicker } from '@/components/price-ticker';
 import { CoinIcon } from '@/components/crypto-icons';
 import { getCountryFlag, getCountryName } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { PaymentMethod } from '@bartr/shared';
+import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
+import type { SettlementMethod } from '@bartr/shared';
 
 function OfferDetailSkeleton() {
   return (
@@ -114,13 +114,13 @@ export default function OfferDetailPage() {
           </div>
         )}
 
-        {/* Payment methods */}
+        {/* Settlement methods */}
         <div>
-          <p className="text-sm text-muted-foreground mb-1.5">Payment methods</p>
+          <p className="text-sm text-muted-foreground mb-1.5">Settlement methods</p>
           <div className="flex flex-wrap gap-2">
             {offer.payment_methods.map((pm) => (
               <Badge key={pm} variant="outline" className="text-sm px-2.5 py-0.5">
-                <PaymentIcon method={pm as PaymentMethod} longLabel />
+                {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
               </Badge>
             ))}
           </div>

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { ArrowUp, ArrowDown, Edit, Plus, Trash2, Pause, Play } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useOffers, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
-import { PaymentIcon } from '@/components/payment-icon';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -18,7 +17,8 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import type { ExchangeOffer } from '@/lib/api';
-import type { OfferStatus, PaymentMethod } from '@bartr/shared';
+import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
+import type { OfferStatus, SettlementMethod } from '@bartr/shared';
 
 type StatusFilter = 'all' | OfferStatus;
 
@@ -218,11 +218,11 @@ function OfferRow({
         </div>
       </div>
 
-      {/* Payment methods (compact) */}
+      {/* Settlement methods (compact) */}
       <div className="hidden sm:flex gap-1 shrink-0">
         {offer.payment_methods.slice(0, 2).map((pm) => (
           <Badge key={pm} variant="outline" className="text-xs px-1.5 py-0">
-            <PaymentIcon method={pm as PaymentMethod} iconClassName="h-3 w-3" />
+            {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
           </Badge>
         ))}
       </div>

@@ -1,4 +1,4 @@
-import type { ListingStatus, TradeStatus, PaymentMethod, ReputationTier, ModerationStatus, OfferType, RateType, OfferStatus, CoinType, PriceSource } from '@bartr/shared';
+import type { ListingStatus, TradeStatus, PaymentMethod, SettlementMethod, ReputationTier, ModerationStatus, OfferType, RateType, OfferStatus, CoinType, PriceSource } from '@bartr/shared';
 
 // Common
 export interface Pagination {
@@ -300,7 +300,7 @@ export interface ExchangeOffer {
   rate_type: RateType;
   margin_percent: number;
   fixed_price: number | null;
-  payment_methods: PaymentMethod[];
+  payment_methods: SettlementMethod[];
   country_code: string | null;
   terms: string | null;
   price_source: PriceSource;
@@ -320,7 +320,7 @@ export interface CreateOfferPayload {
   rate_type: RateType;
   margin_percent?: number;
   fixed_price?: number;
-  payment_methods: PaymentMethod[];
+  payment_methods: SettlementMethod[];
   country_code?: string;
   terms?: string;
   price_source?: PriceSource;
@@ -333,7 +333,7 @@ export interface UpdateOfferPayload {
   rate_type?: RateType;
   margin_percent?: number;
   fixed_price?: number | null;
-  payment_methods?: PaymentMethod[];
+  payment_methods?: SettlementMethod[];
   country_code?: string | null;
   terms?: string | null;
   status?: OfferStatus;
@@ -343,7 +343,7 @@ export interface OffersFilter {
   offer_type?: OfferType;
   crypto_currency?: string;
   fiat_currency?: string;
-  payment_method?: PaymentMethod;
+  payment_method?: SettlementMethod;
   country_code?: string;
   user_id?: string;
   page?: number;

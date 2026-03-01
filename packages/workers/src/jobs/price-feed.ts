@@ -196,12 +196,17 @@ async function fetchFromKraken(): Promise<PriceMap | null> {
     }
 
     const result: PriceMap = {};
+    const krakenResult = data.result as Record<string, { c: string[] }>;
 
     for (const [crypto, krakenPair] of Object.entries(KRAKEN_PAIRS)) {
-      // Kraken returns keys with different naming conventions
-      const tickerData = Object.values(data.result as Record<string, { c: string[] }>)[
-        Object.keys(KRAKEN_PAIRS).indexOf(crypto)
-      ];
+      // Try exact key match first, then fuzzy (Kraken returns e.g. XXBTZUSD for XBTUSD)
+      let tickerData = krakenResult[krakenPair];
+      if (!tickerData) {
+        const altKey = Object.keys(krakenResult).find(
+          (k) => k.includes(krakenPair) || krakenPair.includes(k),
+        );
+        if (altKey) tickerData = krakenResult[altKey];
+      }
       if (tickerData?.c?.[0]) {
         result[crypto] = { USD: parseFloat(tickerData.c[0]) };
       }

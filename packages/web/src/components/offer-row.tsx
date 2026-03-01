@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { PaymentIcon } from '@/components/payment-icon';
 import { PriceTicker } from '@/components/price-ticker';
 import { CoinIcon } from '@/components/crypto-icons';
 import { Button } from '@/components/ui/button';
 import { getCountryFlag } from '@/lib/countries';
 import type { ExchangeOffer } from '@/lib/api';
-import type { PaymentMethod } from '@bartr/shared';
+import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
+import type { SettlementMethod } from '@bartr/shared';
 
 interface OfferRowProps {
   offer: ExchangeOffer;
@@ -76,11 +76,11 @@ export function OfferRow({ offer }: OfferRowProps) {
         )}
       </div>
 
-      {/* Payment methods */}
-      <div className="hidden md:flex flex-wrap gap-1 shrink-0 max-w-[120px]">
+      {/* Settlement methods */}
+      <div className="hidden md:flex flex-wrap gap-1 shrink-0 max-w-[160px]">
         {offer.payment_methods.slice(0, 2).map((pm) => (
           <Badge key={pm} variant="outline" className="text-xs px-1.5 py-0">
-            <PaymentIcon method={pm as PaymentMethod} iconClassName="h-3 w-3" />
+            {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
           </Badge>
         ))}
         {offer.payment_methods.length > 2 && (

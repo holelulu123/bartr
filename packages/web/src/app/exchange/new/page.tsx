@@ -10,7 +10,6 @@ import { ArrowLeft } from 'lucide-react';
 import { ProtectedRoute } from '@/components/protected-route';
 import { useCreateOffer } from '@/hooks/use-exchange';
 import { useSupportedCoins, getFiatFlag, useExchangePrices, getExchangePrice } from '@/hooks/use-prices';
-import { PaymentIcon } from '@/components/payment-icon';
 import { CoinIcon } from '@/components/crypto-icons';
 import { COUNTRIES } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
@@ -25,16 +24,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { PaymentMethod, OfferType, RateType, PriceSource } from '@bartr/shared';
+import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
+import type { SettlementMethod, OfferType, RateType, PriceSource } from '@bartr/shared';
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
-  { value: 'btc', label: 'BTC' },
-  { value: 'eth', label: 'ETH' },
-  { value: 'usdt', label: 'USDT' },
-  { value: 'usdc', label: 'USDC' },
-  { value: 'cash', label: 'Cash' },
-  { value: 'bank_transfer', label: 'Bank transfer' },
-];
+const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_METHOD_LABELS) as [SettlementMethod, string][];
 
 const PRICE_SOURCES: { value: PriceSource; label: string }[] = [
   { value: 'coingecko', label: 'CoinGecko' },
@@ -68,10 +61,11 @@ function CreateOfferForm() {
   const [fiatCurrency, setFiatCurrency] = useState<string>('USD');
   const [rateType, setRateType] = useState<RateType>('market');
   const [priceSource, setPriceSource] = useState<PriceSource>('coingecko');
-  const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
+  const [selectedPayments, setSelectedPayments] = useState<SettlementMethod[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [countrySearch, setCountrySearch] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
+  const [limitsView, setLimitsView] = useState<'fiat' | 'crypto'>('fiat');
 
   // Controlled amount fields (not in react-hook-form)
   const [fiatMin, setFiatMin] = useState('');
@@ -176,7 +170,7 @@ function CreateOfferForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectivePrice]);
 
-  function togglePayment(method: PaymentMethod) {
+  function togglePayment(method: SettlementMethod) {
     setSelectedPayments((prev) =>
       prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method],
     );
@@ -186,7 +180,7 @@ function CreateOfferForm() {
     setServerError(null);
 
     if (selectedPayments.length === 0) {
-      setServerError('Select at least one payment method.');
+      setServerError('Select at least one settlement method.');
       return;
     }
 
@@ -236,55 +230,55 @@ function CreateOfferForm() {
 
   const isProcessing = isSubmitting || createOffer.isPending;
 
+  // Derive helper text for limits toggle
+  const otherSideMin = limitsView === 'fiat' ? cryptoMin : fiatMin;
+  const otherSideMax = limitsView === 'fiat' ? cryptoMax : fiatMax;
+  const otherSideSymbol = limitsView === 'fiat' ? cryptoCurrency : fiatCurrency;
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
       {/* Header */}
       <div>
         <Link
           href="/exchange"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to exchange
         </Link>
         <h1 className="text-2xl font-bold">Create Exchange Offer</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Set your terms for buying or selling crypto.
-        </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
-        {/* Offer type toggle */}
-        <div className="space-y-1.5">
-          <Label>I want to</Label>
-          <div className="flex rounded-lg border border-border overflow-hidden w-fit">
-            <button
-              type="button"
-              onClick={() => setOfferType('buy')}
-              className={cn(
-                'px-6 py-2 text-sm font-medium transition-colors',
-                offerType === 'buy' ? 'bg-primary text-primary-foreground' : 'bg-transparent hover:bg-accent',
-              )}
-            >
-              Buy crypto
-            </button>
-            <button
-              type="button"
-              onClick={() => setOfferType('sell')}
-              className={cn(
-                'px-6 py-2 text-sm font-medium transition-colors',
-                offerType === 'sell' ? 'bg-primary text-primary-foreground' : 'bg-transparent hover:bg-accent',
-              )}
-            >
-              Sell crypto
-            </button>
-          </div>
-        </div>
-
-        {/* Crypto / Fiat pair */}
-        <div className="grid grid-cols-2 gap-3">
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+        {/* Offer type + crypto/fiat selectors — single row on desktop */}
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="crypto">Cryptocurrency</Label>
+            <Label>I want to</Label>
+            <div className="flex rounded-lg border border-border overflow-hidden w-fit">
+              <button
+                type="button"
+                onClick={() => setOfferType('buy')}
+                className={cn(
+                  'px-5 py-2 text-sm font-medium transition-colors',
+                  offerType === 'buy' ? 'bg-primary text-primary-foreground' : 'bg-transparent hover:bg-accent',
+                )}
+              >
+                Buy
+              </button>
+              <button
+                type="button"
+                onClick={() => setOfferType('sell')}
+                className={cn(
+                  'px-5 py-2 text-sm font-medium transition-colors',
+                  offerType === 'sell' ? 'bg-primary text-primary-foreground' : 'bg-transparent hover:bg-accent',
+                )}
+              >
+                Sell
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 space-y-1.5">
+            <Label htmlFor="crypto">Crypto</Label>
             <Select value={cryptoCurrency} onValueChange={setCryptoCurrency}>
               <SelectTrigger id="crypto" aria-label="Cryptocurrency">
                 <SelectValue />
@@ -301,8 +295,8 @@ function CreateOfferForm() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="fiat">Fiat currency</Label>
+          <div className="flex-1 space-y-1.5">
+            <Label htmlFor="fiat">Fiat</Label>
             <Select value={fiatCurrency} onValueChange={setFiatCurrency}>
               <SelectTrigger id="fiat" aria-label="Fiat currency">
                 <SelectValue />
@@ -321,7 +315,7 @@ function CreateOfferForm() {
         {/* Live price preview + source selector */}
         <div className="rounded-lg border border-border bg-muted/50 px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Current market price:{' '}
+            Market price:{' '}
             <span className="font-medium text-foreground">
               {selectedPrice !== undefined ? `${formatPrice(selectedPrice)} ${fiatCurrency}` : '--'}
             </span>
@@ -412,150 +406,171 @@ function CreateOfferForm() {
           </div>
         )}
 
-        {/* Dual min/max: fiat + crypto linked */}
-        <div className="space-y-3">
-          <Label>Trade limits</Label>
-          {/* Fiat row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="fiat_min" className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                {getFiatFlag(fiatCurrency)} Min ({fiatCurrency})
-              </Label>
-              <Input
-                id="fiat_min"
-                type="number"
-                step="0.01"
-                placeholder="e.g. 50"
-                value={fiatMin}
-                onChange={(e) => updateLinkedAmounts('fiat', 'min', e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="fiat_max" className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                {getFiatFlag(fiatCurrency)} Max ({fiatCurrency})
-              </Label>
-              <Input
-                id="fiat_max"
-                type="number"
-                step="0.01"
-                placeholder="e.g. 10000"
-                value={fiatMax}
-                onChange={(e) => updateLinkedAmounts('fiat', 'max', e.target.value)}
-              />
-            </div>
+        {/* Trade limits — single row with fiat/crypto toggle */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">Trade limits ({limitsView === 'fiat' ? fiatCurrency : cryptoCurrency})</Label>
+            <button
+              type="button"
+              onClick={() => setLimitsView((v) => v === 'fiat' ? 'crypto' : 'fiat')}
+              className="text-xs text-primary hover:underline"
+            >
+              Switch to {limitsView === 'fiat' ? cryptoCurrency : fiatCurrency}
+            </button>
           </div>
-          {/* Crypto row */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="crypto_min" className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                <CoinIcon symbol={cryptoCurrency} className="h-4 w-4" /> Min ({cryptoCurrency})
-              </Label>
-              <Input
-                id="crypto_min"
-                type="number"
-                step="0.00000001"
-                placeholder="e.g. 0.001"
-                value={cryptoMin}
-                onChange={(e) => updateLinkedAmounts('crypto', 'min', e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="crypto_max" className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                <CoinIcon symbol={cryptoCurrency} className="h-4 w-4" /> Max ({cryptoCurrency})
-              </Label>
-              <Input
-                id="crypto_max"
-                type="number"
-                step="0.00000001"
-                placeholder="e.g. 0.5"
-                value={cryptoMax}
-                onChange={(e) => updateLinkedAmounts('crypto', 'max', e.target.value)}
-              />
-            </div>
+            {limitsView === 'fiat' ? (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="fiat_min" className="text-sm text-muted-foreground inline-flex items-center gap-1">
+                    {getFiatFlag(fiatCurrency)} Min
+                  </Label>
+                  <Input
+                    id="fiat_min"
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 50"
+                    value={fiatMin}
+                    onChange={(e) => updateLinkedAmounts('fiat', 'min', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="fiat_max" className="text-sm text-muted-foreground inline-flex items-center gap-1">
+                    {getFiatFlag(fiatCurrency)} Max
+                  </Label>
+                  <Input
+                    id="fiat_max"
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 10000"
+                    value={fiatMax}
+                    onChange={(e) => updateLinkedAmounts('fiat', 'max', e.target.value)}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="crypto_min" className="text-sm text-muted-foreground inline-flex items-center gap-1">
+                    <CoinIcon symbol={cryptoCurrency} className="h-4 w-4" /> Min
+                  </Label>
+                  <Input
+                    id="crypto_min"
+                    type="number"
+                    step="0.00000001"
+                    placeholder="e.g. 0.001"
+                    value={cryptoMin}
+                    onChange={(e) => updateLinkedAmounts('crypto', 'min', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="crypto_max" className="text-sm text-muted-foreground inline-flex items-center gap-1">
+                    <CoinIcon symbol={cryptoCurrency} className="h-4 w-4" /> Max
+                  </Label>
+                  <Input
+                    id="crypto_max"
+                    type="number"
+                    step="0.00000001"
+                    placeholder="e.g. 0.5"
+                    value={cryptoMax}
+                    onChange={(e) => updateLinkedAmounts('crypto', 'max', e.target.value)}
+                  />
+                </div>
+              </>
+            )}
           </div>
-          {effectivePrice !== undefined && (
+          {effectivePrice !== undefined && otherSideMin && otherSideMax && (
             <p className="text-xs text-muted-foreground">
-              Amounts are linked at {formatPrice(effectivePrice)} {fiatCurrency}/{cryptoCurrency}
+              {otherSideMin} – {otherSideMax} {otherSideSymbol}
             </p>
           )}
         </div>
 
-        {/* Country */}
-        <div className="space-y-1.5">
-          <Label htmlFor="country">Country (optional)</Label>
-          <Select
-            value={selectedCountry || 'none'}
-            onValueChange={(val) => {
-              setCountrySearch('');
-              setSelectedCountry(val === 'none' ? '' : val);
-            }}
-          >
-            <SelectTrigger id="country" aria-label="Country">
-              <SelectValue placeholder="Select a country" />
-            </SelectTrigger>
-            <SelectContent>
-              <div className="px-2 py-1.5">
-                <Input
-                  placeholder="Search countries…"
-                  value={countrySearch}
-                  onChange={(e) => setCountrySearch(e.target.value)}
-                  className="h-8"
-                  aria-label="Search countries"
-                />
-              </div>
-              <SelectItem value="none">No country</SelectItem>
-              {filteredCountries.map((c) => (
-                <SelectItem key={c.code} value={c.code}>
-                  {c.flag} {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Payment methods */}
+        {/* Settlement methods */}
         <div className="space-y-2">
-          <Label>Accepted payment methods</Label>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Payment methods">
-            {PAYMENT_OPTIONS.map((opt) => (
+          <Label>Settlement methods</Label>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Settlement methods">
+            {SETTLEMENT_OPTIONS.map(([value, label]) => (
               <button
-                key={opt.value}
+                key={value}
                 type="button"
-                onClick={() => togglePayment(opt.value)}
-                aria-pressed={selectedPayments.includes(opt.value)}
+                onClick={() => togglePayment(value)}
+                aria-pressed={selectedPayments.includes(value)}
                 className={cn(
                   'px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
-                  selectedPayments.includes(opt.value)
+                  selectedPayments.includes(value)
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-transparent border-border text-foreground hover:border-primary/50',
                 )}
               >
-                <PaymentIcon method={opt.value} longLabel />
+                {label}
               </button>
             ))}
           </div>
-          {selectedPayments.length === 0 && serverError === 'Select at least one payment method.' && (
-            <p className="text-sm text-destructive">Select at least one payment method.</p>
+          {selectedPayments.length === 0 && serverError === 'Select at least one settlement method.' && (
+            <p className="text-sm text-destructive">Select at least one settlement method.</p>
           )}
         </div>
 
-        {/* Terms */}
-        <div className="space-y-1.5">
-          <Label htmlFor="terms">Trade terms (optional)</Label>
-          <Textarea
-            id="terms"
-            placeholder="Any conditions or instructions for traders…"
-            rows={3}
-            {...register('terms')}
-          />
-          {errors.terms && (
-            <p className="text-sm text-destructive">{errors.terms.message}</p>
-          )}
-        </div>
+        {/* Additional options (Country + Terms) */}
+        <details className="group">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors select-none list-none flex items-center gap-1.5">
+            <span className="text-xs transition-transform group-open:rotate-90">&#9654;</span>
+            Additional options
+          </summary>
+          <div className="mt-3 space-y-4">
+            {/* Country */}
+            <div className="space-y-1.5">
+              <Label htmlFor="country">Country (optional)</Label>
+              <Select
+                value={selectedCountry || 'none'}
+                onValueChange={(val) => {
+                  setCountrySearch('');
+                  setSelectedCountry(val === 'none' ? '' : val);
+                }}
+              >
+                <SelectTrigger id="country" aria-label="Country">
+                  <SelectValue placeholder="Select a country" />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="px-2 py-1.5">
+                    <Input
+                      placeholder="Search countries..."
+                      value={countrySearch}
+                      onChange={(e) => setCountrySearch(e.target.value)}
+                      className="h-8"
+                      aria-label="Search countries"
+                    />
+                  </div>
+                  <SelectItem value="none">No country</SelectItem>
+                  {filteredCountries.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.flag} {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Terms */}
+            <div className="space-y-1.5">
+              <Label htmlFor="terms">Trade terms (optional)</Label>
+              <Textarea
+                id="terms"
+                placeholder="Any conditions or instructions for traders..."
+                rows={3}
+                {...register('terms')}
+              />
+              {errors.terms && (
+                <p className="text-sm text-destructive">{errors.terms.message}</p>
+              )}
+            </div>
+          </div>
+        </details>
 
         {/* Server error */}
         {serverError
-          && serverError !== 'Select at least one payment method.'
+          && serverError !== 'Select at least one settlement method.'
           && (
             <p className="text-sm text-destructive" role="alert">
               {serverError}
@@ -563,9 +578,9 @@ function CreateOfferForm() {
           )}
 
         {/* Submit */}
-        <div className="flex gap-3 pt-2">
+        <div className="flex gap-3 pt-1">
           <Button type="submit" disabled={isProcessing} className="flex-1">
-            {isProcessing ? 'Creating…' : 'Create offer'}
+            {isProcessing ? 'Creating...' : 'Create offer'}
           </Button>
           <Button type="button" variant="outline" asChild>
             <Link href="/exchange">Cancel</Link>

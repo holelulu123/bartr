@@ -3,7 +3,12 @@ import type { FastifyInstance } from 'fastify';
 const VALID_OFFER_TYPES = ['buy', 'sell'];
 const VALID_RATE_TYPES = ['market', 'fixed'];
 const VALID_STATUSES = ['active', 'paused', 'removed'];
-const VALID_PAYMENT_METHODS = ['btc', 'eth', 'usdt', 'usdc', 'cash', 'bank_transfer'];
+const VALID_SETTLEMENT_METHODS = [
+  'cash', 'bank_transfer', 'paypal', 'wise', 'revolut',
+  'zelle', 'venmo', 'sepa', 'interac', 'pix',
+  'upi', 'mpesa', 'skrill', 'neteller', 'western_union',
+  'moneygram', 'gift_card', 'other',
+];
 const VALID_PRICE_SOURCES = ['coingecko', 'binance', 'kraken'];
 
 export default async function exchangeRoutes(fastify: FastifyInstance) {
@@ -64,16 +69,16 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Invalid or unsupported fiat currency' });
       }
 
-      // Validate payment_methods
+      // Validate payment_methods (settlement methods)
       if (!payment_methods || !Array.isArray(payment_methods) || payment_methods.length === 0) {
-        return reply.status(400).send({ error: 'At least one payment method is required' });
+        return reply.status(400).send({ error: 'At least one settlement method is required' });
       }
       if (payment_methods.length > 7) {
-        return reply.status(400).send({ error: 'Too many payment methods (max 7)' });
+        return reply.status(400).send({ error: 'Too many settlement methods (max 7)' });
       }
       for (const pm of payment_methods) {
-        if (!VALID_PAYMENT_METHODS.includes(pm)) {
-          return reply.status(400).send({ error: `Invalid payment method: ${pm}` });
+        if (!VALID_SETTLEMENT_METHODS.includes(pm)) {
+          return reply.status(400).send({ error: `Invalid settlement method: ${pm}` });
         }
       }
 
@@ -174,7 +179,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         values.push(fiat_currency.toUpperCase());
       }
 
-      if (payment_method && VALID_PAYMENT_METHODS.includes(payment_method)) {
+      if (payment_method && VALID_SETTLEMENT_METHODS.includes(payment_method)) {
         conditions.push(`eo.payment_methods @> $${paramIdx++}::jsonb`);
         values.push(JSON.stringify([payment_method]));
       }

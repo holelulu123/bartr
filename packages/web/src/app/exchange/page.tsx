@@ -7,7 +7,6 @@ import { useOffers } from '@/hooks/use-exchange';
 import { useSupportedCoins, getFiatFlag } from '@/hooks/use-prices';
 import { useAuth } from '@/contexts/auth-context';
 import { OfferRow } from '@/components/offer-row';
-import { PaymentIcon } from '@/components/payment-icon';
 import { CoinIcon } from '@/components/crypto-icons';
 import { COUNTRIES, getCountryFlag } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
@@ -20,9 +19,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { OfferType, PaymentMethod } from '@bartr/shared';
+import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
+import type { OfferType, SettlementMethod } from '@bartr/shared';
 
-const PAYMENT_OPTIONS: PaymentMethod[] = ['btc', 'eth', 'usdt', 'usdc', 'cash', 'bank_transfer'];
+const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_METHOD_LABELS) as [SettlementMethod, string][];
 
 export default function ExchangePage() {
   const { isAuthenticated } = useAuth();
@@ -56,7 +56,7 @@ export default function ExchangePage() {
     ...(offerType && { offer_type: offerType as OfferType }),
     ...(crypto && { crypto_currency: crypto }),
     ...(fiat && { fiat_currency: fiat }),
-    ...(paymentMethod && { payment_method: paymentMethod as PaymentMethod }),
+    ...(paymentMethod && { payment_method: paymentMethod as SettlementMethod }),
     ...(country && { country_code: country }),
   };
 
@@ -149,16 +149,16 @@ export default function ExchangePage() {
           </SelectContent>
         </Select>
 
-        {/* Payment method */}
+        {/* Settlement method */}
         <Select value={paymentMethod || 'all'} onValueChange={(v) => setPaymentMethod(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-full sm:w-44" aria-label="Payment method">
-            <SelectValue placeholder="Payment" />
+          <SelectTrigger className="w-full sm:w-44" aria-label="Settlement method">
+            <SelectValue placeholder="Settlement" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Any payment</SelectItem>
-            {PAYMENT_OPTIONS.map((pm) => (
-              <SelectItem key={pm} value={pm}>
-                <PaymentIcon method={pm} longLabel />
+            <SelectItem value="all">Any method</SelectItem>
+            {SETTLEMENT_OPTIONS.map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
               </SelectItem>
             ))}
           </SelectContent>
