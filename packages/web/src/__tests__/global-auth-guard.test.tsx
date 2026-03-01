@@ -138,22 +138,27 @@ describe('GlobalAuthGuard — authenticated (unverified)', () => {
     mockUser = { email_verified: false };
   });
 
-  const verifiedPaths = [
+  // All non-public paths are blocked for unverified users
+  const blockedPaths = [
+    '/listings',
     '/listings/new',
+    '/market',
     '/market/new',
+    '/exchange',
     '/exchange/new',
     '/messages',
     '/messages/some-thread-id',
     '/listings/abc-123/edit',
+    '/dashboard',
+    '/user/alice',
+    '/settings/profile',
   ];
 
-  verifiedPaths.forEach((path) => {
+  blockedPaths.forEach((path) => {
     it(`redirects unverified user to /auth/verify-email on: ${path}`, async () => {
       renderGuard(path);
       await waitFor(() =>
-        expect(mockReplace).toHaveBeenCalledWith(
-          `/auth/verify-email?next=${encodeURIComponent(path)}`,
-        ),
+        expect(mockReplace).toHaveBeenCalledWith('/auth/verify-email'),
       );
     });
 
@@ -163,13 +168,20 @@ describe('GlobalAuthGuard — authenticated (unverified)', () => {
     });
   });
 
-  const allowedPaths = ['/listings', '/market', '/exchange', '/dashboard', '/user/alice', '/settings/profile'];
+  // Public pages still accessible without verification
+  const allowedPaths = ['/', '/login', '/register', '/donate', '/about', '/privacy'];
 
   allowedPaths.forEach((path) => {
-    it(`allows unverified user to browse: ${path}`, () => {
+    it(`allows unverified user on public path: ${path}`, () => {
       renderGuard(path);
       expect(screen.getByTestId('protected-content')).toBeInTheDocument();
       expect(mockReplace).not.toHaveBeenCalled();
     });
+  });
+
+  it('allows unverified user on /auth/verify-email', () => {
+    renderGuard('/auth/verify-email');
+    expect(screen.getByTestId('protected-content')).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });

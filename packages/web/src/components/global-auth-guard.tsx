@@ -4,19 +4,18 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 
-// Routes that are accessible without authentication
+// Routes accessible without authentication
 const PUBLIC_PATHS = ['/', '/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover', '/register/email', '/about', '/privacy', '/health'];
 
-// Routes that require email verification (authenticated + email_verified)
-const VERIFIED_PATHS = ['/listings/new', '/market/new', '/exchange/new', '/messages'];
+// Routes accessible to authenticated-but-unverified users (in addition to PUBLIC_PATHS)
+const UNVERIFIED_PATHS = ['/auth/verify-email'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
-function requiresVerification(pathname: string): boolean {
-  return VERIFIED_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
-    || /^\/listings\/[^/]+\/edit/.test(pathname);
+function isAllowedUnverified(pathname: string): boolean {
+  return isPublic(pathname) || UNVERIFIED_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
 export function GlobalAuthGuard({ children }: { children: React.ReactNode }) {
@@ -32,9 +31,9 @@ export function GlobalAuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Redirect unverified users to verify-email page when they try to post or message
-    if (isAuthenticated && user && !user.email_verified && requiresVerification(pathname)) {
-      router.replace(`/auth/verify-email?next=${encodeURIComponent(pathname)}`);
+    // Hard gate: unverified users can ONLY access public pages + /auth/verify-email
+    if (isAuthenticated && user && !user.email_verified && !isAllowedUnverified(pathname)) {
+      router.replace('/auth/verify-email');
     }
   }, [isAuthenticated, isLoading, pathname, router, user]);
 
@@ -52,8 +51,8 @@ export function GlobalAuthGuard({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  // Unverified user on a verified-only page — render nothing while redirect fires
-  if (!isLoading && isAuthenticated && user && !user.email_verified && requiresVerification(pathname)) {
+  // Unverified user on a restricted page — render nothing while redirect fires
+  if (!isLoading && isAuthenticated && user && !user.email_verified && !isAllowedUnverified(pathname)) {
     return null;
   }
 
