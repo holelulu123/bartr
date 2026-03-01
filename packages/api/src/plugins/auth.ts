@@ -13,6 +13,19 @@ declare module 'fastify' {
 }
 
 export default fp(async (fastify) => {
+  // Throttle last_active updates: at most once per 2 minutes per user
+  const lastActiveCache = new Map<string, number>();
+  const THROTTLE_MS = 2 * 60_000;
+
+  function touchLastActive(userId: string) {
+    const now = Date.now();
+    const last = lastActiveCache.get(userId);
+    if (last && now - last < THROTTLE_MS) return;
+    lastActiveCache.set(userId, now);
+    // Fire-and-forget — don't block the request
+    fastify.pg.query('UPDATE users SET last_active = now() WHERE id = $1', [userId]).catch(() => {});
+  }
+
   fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
@@ -25,6 +38,8 @@ export default fp(async (fastify) => {
     } catch {
       return reply.status(401).send({ error: 'Invalid or expired token' });
     }
+
+    touchLastActive(request.user!.sub);
   });
 
   fastify.decorate('requireAdmin', async (request: FastifyRequest, reply: FastifyReply) => {
