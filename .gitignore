@@ -6,6 +6,7 @@ dist/
 .DS_Store
 .turbo/
 coverage/
+*.tsbuildinfo
 .minio-data/
 pgdata/
 .pnpm-store/
