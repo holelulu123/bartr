@@ -151,21 +151,15 @@ export default async function healthRoutes(fastify: FastifyInstance) {
 
   // ── GET /health/resend — Resend email quota ─────────────────────────────
   fastify.get('/health/resend', async (_request, reply) => {
-    const limit = 3000;
-    let sent = 0;
-
-    try {
-      const val = await fastify.redis.get('resend:monthly_count');
-      if (val) sent = parseInt(val, 10);
-    } catch { /* ignore */ }
+    const quota = await fastify.resend.getQuota();
 
     // Resets on the 1st of next month, UTC
     const now = new Date();
     const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
     const response: ResendQuota = {
-      sent,
-      limit,
+      sent: quota.sent,
+      limit: quota.limit,
       resets_at: nextMonth.toISOString(),
     };
 

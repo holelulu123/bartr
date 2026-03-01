@@ -6,7 +6,7 @@ export default async function messageRoutes(fastify: FastifyInstance) {
     Body: { recipient_nickname: string; listing_id?: string; offer_id?: string };
   }>(
     '/threads',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.requireEmailVerified] },
     async (request, reply) => {
       const userId = request.user!.sub;
       const { recipient_nickname, listing_id, offer_id } = request.body;
@@ -119,7 +119,7 @@ export default async function messageRoutes(fastify: FastifyInstance) {
     Body: { body_encrypted: string };
   }>(
     '/threads/:threadId/messages',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.requireEmailVerified] },
     async (request, reply) => {
       const userId = request.user!.sub;
       const { threadId } = request.params;

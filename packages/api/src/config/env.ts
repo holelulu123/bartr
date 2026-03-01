@@ -22,4 +22,6 @@ export const env = {
   minioAccessKey: requireInProd('MINIO_ROOT_USER', process.env.MINIO_ROOT_USER, 'bartr'),
   minioSecretKey: requireInProd('MINIO_ROOT_PASSWORD', process.env.MINIO_ROOT_PASSWORD, 'bartr_dev_password'),
   minioBucket: process.env.MINIO_BUCKET || 'listing-images',
+  resendApiKey: process.env.RESEND_API_KEY || '',
+  resendFromEmail: process.env.RESEND_FROM_EMAIL || 'noreply@bartr.app',
 } as const;

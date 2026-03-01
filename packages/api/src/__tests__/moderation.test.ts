@@ -34,8 +34,8 @@ describe('Moderation routes', () => {
 
   async function createTestUser(suffix: string) {
     const result = await app.pg.query(
-      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, email_verified)
+       VALUES ($1, $2, $3, $4, $5, TRUE)
        RETURNING id, nickname`,
       [`google_mod_${suffix}`, `modtest_${suffix}`, null, 'hash', ''],
     );
@@ -46,8 +46,8 @@ describe('Moderation routes', () => {
 
   async function createAdminUser(suffix: string) {
     const result = await app.pg.query(
-      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, role)
-       VALUES ($1, $2, $3, $4, $5, 'admin')
+      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, role, email_verified)
+       VALUES ($1, $2, $3, $4, $5, 'admin', TRUE)
        RETURNING id, nickname, role`,
       [`google_mod_${suffix}`, `modtest_${suffix}`, null, 'hash', ''],
     );

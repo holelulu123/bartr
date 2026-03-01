@@ -24,8 +24,8 @@ describe('User routes', () => {
 
   async function createTestUser(suffix: string) {
     const result = await app.pg.query(
-      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, email_verified)
+       VALUES ($1, $2, $3, $4, $5, TRUE)
        RETURNING id, nickname`,
       [`google_prof_${suffix}`, `proftest_${suffix}`, null, 'hash', ''],
     );
@@ -65,8 +65,8 @@ describe('User routes', () => {
   describe('GET /users/:nickname/public-key', () => {
     it('returns public key for user that has one', async () => {
       const result = await app.pg.query(
-        `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, public_key)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, public_key, email_verified)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE)
          RETURNING id, nickname`,
         ['google_prof_pk1', 'proftest_pk1', null, 'hash', '', 'MCowBQYDK2VuAyEAsome_pub_key'],
       );

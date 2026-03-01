@@ -16,7 +16,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
     };
   }>(
     '/listings',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.requireEmailVerified] },
     async (request, reply) => {
       const userId = request.user!.sub;
       const { title, description, category_id, payment_methods, price_indication, currency, country_code } =

@@ -25,6 +25,7 @@ export interface CurrentUser {
   created_at: string;
   last_active: string;
   role?: string;
+  email_verified: boolean;
 }
 
 export interface KeyBlobs {

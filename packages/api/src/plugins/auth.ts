@@ -9,6 +9,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
     requireAdmin: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    requireEmailVerified: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 
@@ -57,6 +58,22 @@ export default fp(async (fastify) => {
 
     if (request.user?.role !== 'admin') {
       return reply.status(403).send({ error: 'Admin access required' });
+    }
+  });
+
+  fastify.decorate('requireEmailVerified', async (request: FastifyRequest, reply: FastifyReply) => {
+    // Must run after authenticate (request.user is set)
+    if (!request.user) {
+      return reply.status(401).send({ error: 'Authentication required' });
+    }
+
+    const result = await fastify.pg.query(
+      'SELECT email_verified FROM users WHERE id = $1',
+      [request.user.sub],
+    );
+
+    if (!result.rows[0]?.email_verified) {
+      return reply.status(403).send({ error: 'Email verification required' });
     }
   });
 });

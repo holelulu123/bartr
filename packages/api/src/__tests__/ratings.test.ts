@@ -35,8 +35,8 @@ describe('Rating & Reputation routes', () => {
 
   async function createTestUser(suffix: string) {
     const result = await app.pg.query(
-      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, email_verified)
+       VALUES ($1, $2, $3, $4, $5, TRUE)
        RETURNING id, nickname`,
       [`google_rep_${suffix}`, `reptest_${suffix}`, null, 'hash', ''],
     );

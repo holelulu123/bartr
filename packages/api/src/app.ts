@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import dbPlugin from './plugins/db.js';
 import redisPlugin from './plugins/redis.js';
 import minioPlugin from './plugins/minio.js';
+import resendPlugin from './plugins/resend.js';
 import authPlugin from './plugins/auth.js';
 import healthRoutes from './routes/health.js';
 import authRoutes from './routes/auth.js';
@@ -64,6 +65,7 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   if (!opts.skipMinio) {
     await app.register(minioPlugin);
   }
+  await app.register(resendPlugin);
   await app.register(authPlugin);
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: '/' });

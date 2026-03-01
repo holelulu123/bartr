@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import * as argon2 from 'argon2';
 import crypto from 'node:crypto';
 import { signAccessToken, signRefreshToken, verifyToken, type JwtPayload } from '../lib/jwt.js';
-import { encrypt } from '../lib/crypto.js';
+import { encrypt, decrypt } from '../lib/crypto.js';
 import { generateUniqueNickname } from '../lib/nickname.js';
+import { generateVerificationCode, hashCode } from '../lib/email.js';
 
 function emailHmac(email: string): string {
   const raw = process.env.ENCRYPTION_KEY;
@@ -74,7 +75,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const user = await fastify.pg.query(
-        'SELECT id, nickname, role, created_at, last_active FROM users WHERE id = $1',
+        'SELECT id, nickname, role, created_at, last_active, email_verified FROM users WHERE id = $1',
         [request.user!.sub],
       );
       if (user.rows.length === 0) {
@@ -136,6 +137,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
     await storeRefreshToken(fastify, user.id, refreshToken);
     await fastify.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [user.id]);
 
+    // Send verification email (fire-and-forget)
+    const code = generateVerificationCode();
+    const codeHash = hashCode(code);
+    const expiresAt = new Date(Date.now() + 15 * 60_000); // 15 minutes
+    await fastify.pg.query(
+      `INSERT INTO email_verification_codes (user_id, code_hash, expires_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET code_hash = $2, expires_at = $3, created_at = now()`,
+      [user.id, codeHash, expiresAt],
+    );
+    fastify.resend.sendVerificationEmail(email, code).catch(() => {});
+
     return reply.status(201).send({ access_token: accessToken, refresh_token: refreshToken });
   });
 
@@ -196,6 +209,81 @@ export default async function authRoutes(fastify: FastifyInstance) {
           ? (recovery_key_blob as Buffer).toString('base64')
           : null,
       });
+    },
+  );
+
+  // Verify email with 6-digit code
+  fastify.post<{ Body: { code: string } }>(
+    '/auth/verify-email',
+    { preHandler: [fastify.authenticate], config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const { code } = request.body;
+      if (!code || !/^\d{6}$/.test(code)) {
+        return reply.status(400).send({ error: 'A 6-digit code is required' });
+      }
+
+      const userId = request.user!.sub;
+
+      // Check if already verified
+      const userRow = await fastify.pg.query('SELECT email_verified FROM users WHERE id = $1', [userId]);
+      if (userRow.rows[0]?.email_verified) {
+        return reply.send({ verified: true });
+      }
+
+      // Atomic consume: delete matching code
+      const codeH = hashCode(code);
+      const deleted = await fastify.pg.query(
+        'DELETE FROM email_verification_codes WHERE user_id = $1 AND code_hash = $2 AND expires_at > now() RETURNING id',
+        [userId, codeH],
+      );
+
+      if (deleted.rows.length === 0) {
+        return reply.status(400).send({ error: 'Invalid or expired verification code' });
+      }
+
+      await fastify.pg.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [userId]);
+      return reply.send({ verified: true });
+    },
+  );
+
+  // Resend verification email
+  fastify.post(
+    '/auth/resend-verification',
+    {
+      preHandler: [fastify.authenticate],
+      config: { rateLimit: { max: 3, timeWindow: '1 hour' } },
+    },
+    async (request, reply) => {
+      const userId = request.user!.sub;
+
+      const userRow = await fastify.pg.query(
+        'SELECT email_verified, email_encrypted FROM users WHERE id = $1',
+        [userId],
+      );
+
+      if (!userRow.rows[0]) {
+        return reply.status(404).send({ error: 'User not found' });
+      }
+
+      if (userRow.rows[0].email_verified) {
+        return reply.send({ message: 'Email already verified' });
+      }
+
+      const email = decrypt(userRow.rows[0].email_encrypted);
+      const code = generateVerificationCode();
+      const codeH = hashCode(code);
+      const expiresAt = new Date(Date.now() + 15 * 60_000);
+
+      await fastify.pg.query(
+        `INSERT INTO email_verification_codes (user_id, code_hash, expires_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE SET code_hash = $2, expires_at = $3, created_at = now()`,
+        [userId, codeH, expiresAt],
+      );
+
+      fastify.resend.sendVerificationEmail(email, code).catch(() => {});
+
+      return reply.send({ message: 'Verification email sent' });
     },
   );
 }

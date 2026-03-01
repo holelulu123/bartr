@@ -32,3 +32,11 @@ export function getMe(): Promise<CurrentUser> {
 export function getKeyBlobs(): Promise<KeyBlobs> {
   return get<KeyBlobs>('/auth/key-blobs');
 }
+
+export function verifyEmail(code: string): Promise<{ verified: boolean }> {
+  return post<{ verified: boolean }>('/auth/verify-email', { code });
+}
+
+export function resendVerification(): Promise<{ message: string }> {
+  return post<{ message: string }>('/auth/resend-verification', {});
+}
