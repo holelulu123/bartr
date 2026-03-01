@@ -13,11 +13,13 @@ vi.mock('next/navigation', () => ({
 
 let mockIsAuthenticated = false;
 let mockIsLoading = false;
+let mockUser: { email_verified: boolean } | null = null;
 
 vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({
     isAuthenticated: mockIsAuthenticated,
     isLoading: mockIsLoading,
+    user: mockUser,
   }),
 }));
 
@@ -30,6 +32,7 @@ afterEach(() => {
   vi.clearAllMocks();
   mockIsAuthenticated = false;
   mockIsLoading = false;
+  mockUser = null;
   mockPathname = '/messages';
 });
 
@@ -101,9 +104,10 @@ describe('GlobalAuthGuard — loading state', () => {
   });
 });
 
-describe('GlobalAuthGuard — authenticated', () => {
+describe('GlobalAuthGuard — authenticated (verified)', () => {
   beforeEach(() => {
     mockIsAuthenticated = true;
+    mockUser = { email_verified: true };
   });
 
   it('renders children on protected route', () => {
@@ -119,5 +123,53 @@ describe('GlobalAuthGuard — authenticated', () => {
   it('renders children on public route too', () => {
     renderGuard('/donate');
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
+  });
+
+  it('renders children on verified-only route', () => {
+    renderGuard('/messages');
+    expect(screen.getByTestId('protected-content')).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+});
+
+describe('GlobalAuthGuard — authenticated (unverified)', () => {
+  beforeEach(() => {
+    mockIsAuthenticated = true;
+    mockUser = { email_verified: false };
+  });
+
+  const verifiedPaths = [
+    '/listings/new',
+    '/market/new',
+    '/exchange/new',
+    '/messages',
+    '/messages/some-thread-id',
+    '/listings/abc-123/edit',
+  ];
+
+  verifiedPaths.forEach((path) => {
+    it(`redirects unverified user to /auth/verify-email on: ${path}`, async () => {
+      renderGuard(path);
+      await waitFor(() =>
+        expect(mockReplace).toHaveBeenCalledWith(
+          `/auth/verify-email?next=${encodeURIComponent(path)}`,
+        ),
+      );
+    });
+
+    it(`renders nothing for unverified user on: ${path}`, () => {
+      renderGuard(path);
+      expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument();
+    });
+  });
+
+  const allowedPaths = ['/listings', '/market', '/exchange', '/dashboard', '/user/alice', '/settings/profile'];
+
+  allowedPaths.forEach((path) => {
+    it(`allows unverified user to browse: ${path}`, () => {
+      renderGuard(path);
+      expect(screen.getByTestId('protected-content')).toBeInTheDocument();
+      expect(mockReplace).not.toHaveBeenCalled();
+    });
   });
 });
