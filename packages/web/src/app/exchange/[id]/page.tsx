@@ -205,10 +205,15 @@ export default function OfferDetailPage() {
                 ? `${fmt(effectivePrice)} ${offer.fiat_currency}`
                 : '--'}
             </p>
-            {offer.rate_type === 'market' && Number(offer.margin_percent) !== 0 && (
-              <span className="inline-block mt-1 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 text-sm font-medium">
-                {Number(offer.margin_percent) > 0 ? '+' : ''}{offer.margin_percent}% margin
-              </span>
+            {offer.rate_type === 'market' && (
+              <div className="mt-1.5">
+                <span className="inline-block rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 text-sm font-medium">
+                  {Number(offer.margin_percent) > 0 ? '+' : ''}{offer.margin_percent}% margin
+                </span>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isBuy ? 'Buyer' : 'Seller'} seeks {Number(offer.margin_percent) === 0 ? 'market price' : `${Math.abs(Number(offer.margin_percent))}% ${Number(offer.margin_percent) > 0 ? 'above' : 'below'} market price`} ({offer.price_source})
+                </p>
+              </div>
             )}
           </div>
         </div>

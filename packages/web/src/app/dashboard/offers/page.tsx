@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowUp, ArrowDown, Edit, Plus, Trash2, Pause, Play } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useOffers, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
+// useUpdateOffer used at parent level for pause confirmation dialog
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -39,6 +40,7 @@ export default function MyOffersDashboard() {
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [deleteTarget, setDeleteTarget] = useState<ExchangeOffer | null>(null);
+  const [pauseTarget, setPauseTarget] = useState<ExchangeOffer | null>(null);
 
   const { data, isLoading } = useOffers({
     user_id: user?.id,
@@ -46,6 +48,7 @@ export default function MyOffersDashboard() {
   });
 
   const deleteMutation = useDeleteOffer();
+  const pauseMutation = useUpdateOffer(pauseTarget?.id ?? '');
 
   // Client-side status filter (API filters by active status only for public browse)
   const allOffers = data?.offers ?? [];
@@ -57,6 +60,13 @@ export default function MyOffersDashboard() {
     if (!deleteTarget) return;
     await deleteMutation.mutateAsync(deleteTarget.id);
     setDeleteTarget(null);
+  }
+
+  async function handlePause() {
+    if (!pauseTarget) return;
+    const newStatus = pauseTarget.status === 'active' ? 'paused' : 'active';
+    await pauseMutation.mutateAsync({ status: newStatus });
+    setPauseTarget(null);
   }
 
   return (
@@ -138,30 +148,61 @@ export default function MyOffersDashboard() {
               key={offer.id}
               offer={offer}
               onDelete={() => setDeleteTarget(offer)}
+              onTogglePause={() => setPauseTarget(offer)}
             />
           ))}
         </div>
       )}
 
+      {/* Pause/Resume confirmation dialog */}
+      <Dialog open={!!pauseTarget} onOpenChange={(open) => !open && setPauseTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pauseTarget?.status === 'active' ? 'Pause offer?' : 'Resume offer?'}
+            </DialogTitle>
+            <DialogDescription>
+              {pauseTarget?.status === 'active'
+                ? `This will pause your ${pauseTarget?.offer_type} offer for ${pauseTarget?.crypto_currency}/${pauseTarget?.fiat_currency}. It will no longer be visible to other users.`
+                : `This will resume your ${pauseTarget?.offer_type} offer for ${pauseTarget?.crypto_currency}/${pauseTarget?.fiat_currency}. It will become visible to other users again.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPauseTarget(null)}>
+              Keep
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handlePause}
+              disabled={pauseMutation.isPending}
+            >
+              {pauseMutation.isPending
+                ? (pauseTarget?.status === 'active' ? 'Pausing…' : 'Resuming…')
+                : (pauseTarget?.status === 'active' ? 'Pause' : 'Resume')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove offer?</DialogTitle>
+            <DialogTitle>Delete offer?</DialogTitle>
             <DialogDescription>
-              This will remove your {deleteTarget?.offer_type} offer for {deleteTarget?.crypto_currency}/{deleteTarget?.fiat_currency}.
+              This will permanently remove your {deleteTarget?.offer_type} offer for {deleteTarget?.crypto_currency}/{deleteTarget?.fiat_currency}. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              Cancel
+              Keep
             </Button>
             <Button
               variant="destructive"
               onClick={handleDelete}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Removing…' : 'Remove'}
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -173,17 +214,13 @@ export default function MyOffersDashboard() {
 function OfferRow({
   offer,
   onDelete,
+  onTogglePause,
 }: {
   offer: ExchangeOffer;
   onDelete: () => void;
+  onTogglePause: () => void;
 }) {
-  const updateMutation = useUpdateOffer(offer.id);
   const isBuy = offer.offer_type === 'buy';
-
-  async function handleTogglePause() {
-    const newStatus = offer.status === 'active' ? 'paused' : 'active';
-    await updateMutation.mutateAsync({ status: newStatus });
-  }
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
@@ -233,8 +270,7 @@ function OfferRow({
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleTogglePause}
-            disabled={updateMutation.isPending}
+            onClick={onTogglePause}
             className="h-8 w-8 p-0"
             aria-label={offer.status === 'active' ? 'Pause offer' : 'Resume offer'}
           >

@@ -92,112 +92,121 @@ export function OfferRow({ offer }: OfferRowProps) {
 
   return (
     <div className={cn(
-      'flex items-center gap-4 rounded-lg border px-4 py-3 border-l-[3px]',
+      'grid items-center gap-4 rounded-lg border px-4 py-3 border-l-[3px]',
+      'grid-cols-[70px_200px_1fr_180px_130px_60px]',
+      'max-md:grid-cols-[70px_1fr_180px_60px]',
       isBuy
         ? 'border-l-emerald-500 bg-emerald-500/[0.03] border-border'
         : 'border-l-red-400 bg-red-400/[0.03] border-border',
     )}>
       {/* Type indicator + pair */}
-      <div className="shrink-0 space-y-1">
-        <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-[15px] px-2.5 py-0.5">
-          {isBuy ? <ArrowDown className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
-          {isBuy ? 'Buy' : 'Sell'}
-        </Badge>
-        <p className={cn('text-[15px] font-semibold', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
+      <div className="space-y-1">
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="cursor-help">
+                <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
+                  {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
+                  {isBuy ? 'Buy' : 'Sell'}
+                </Badge>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {offer.seller_nickname} wants to {isBuy ? 'buy' : 'sell'} {offer.crypto_currency} for {offer.fiat_currency}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <p className={cn('text-sm font-semibold', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
           {offer.crypto_currency}/{offer.fiat_currency}
         </p>
       </div>
 
       {/* Seller — identicon + name + stars */}
-      <div className="hidden sm:flex items-center gap-2 w-[200px] shrink-0">
+      <div className="hidden md:flex items-center gap-2 overflow-hidden">
         <Link href={`/user/${offer.seller_nickname}`} className="shrink-0">
-          <MiniIdenticon seed={offer.seller_nickname} size={36} />
+          <MiniIdenticon seed={offer.seller_nickname} size={32} />
         </Link>
-        <div className="min-w-0">
+        <div className="min-w-0 overflow-hidden">
+          {offer.country_code && (
+            <span className="text-xs">{getCountryFlag(offer.country_code)}</span>
+          )}
           <Link
             href={`/user/${offer.seller_nickname}`}
-            className="text-[15px] font-semibold hover:underline block"
+            className="text-xs font-semibold hover:underline block truncate"
           >
-            {offer.country_code && (
-              <span className="mr-1">{getCountryFlag(offer.country_code)}</span>
-            )}
             {offer.seller_nickname}
           </Link>
           <div className="flex items-center gap-0.5">
             {[1, 2, 3, 4, 5].map((n) => (
               <Star
                 key={n}
-                className={cn('h-4 w-4', n <= stars ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/30')}
+                className={cn('h-3.5 w-3.5', n <= stars ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/30')}
               />
             ))}
-            <span className="text-sm text-muted-foreground ml-1">
+            <span className="text-xs text-muted-foreground ml-1">
               {ratingAvg.toFixed(1)}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Amount + Price + Margin */}
-      <div className="flex-1 flex items-start min-w-0">
-        {/* Amount */}
-        <div className="min-w-0 flex-1 pl-6">
-          <p className="text-lg font-bold leading-tight">
+      {/* Amount */}
+      <div className="min-w-0">
+        <p className="text-[15px] font-bold leading-tight">
+          {isFixed
+            ? `${fmt(minFiat)} ${offer.fiat_currency}`
+            : offer.min_amount || offer.max_amount
+              ? `${fmt(minFiat)} – ${fmt(maxFiat)} ${offer.fiat_currency}`
+              : 'Any amount'}
+        </p>
+        {effectivePrice !== undefined && (offer.min_amount || offer.max_amount) && (
+          <p className="text-xs text-muted-foreground leading-tight mt-0.5">
             {isFixed
-              ? `${fmt(minFiat)} ${offer.fiat_currency}`
-              : offer.min_amount || offer.max_amount
-                ? `${fmt(minFiat)} – ${fmt(maxFiat)} ${offer.fiat_currency}`
-                : 'Any amount'}
+              ? `${fmt(minCrypto!, 6)} ${offer.crypto_currency}`
+              : `${fmt(minCrypto!, 6)} – ${fmt(maxCrypto!, 6)} ${offer.crypto_currency}`}
           </p>
-          {effectivePrice !== undefined && (offer.min_amount || offer.max_amount) && (
-            <p className="text-sm text-muted-foreground leading-tight mt-0.5">
-              {isFixed
-                ? `${fmt(minCrypto!, 6)} ${offer.crypto_currency}`
-                : `${fmt(minCrypto!, 6)} – ${fmt(maxCrypto!, 6)} ${offer.crypto_currency}`}
-            </p>
-          )}
-        </div>
+        )}
+      </div>
 
-        {/* Price per coin + margin — left-aligned so margin aligns with price start */}
-        <div className="shrink-0 ml-auto pl-8">
-          <p className="text-lg font-bold leading-tight whitespace-nowrap">
-            {effectivePrice !== undefined
-              ? `${fmt(effectivePrice)} ${offer.fiat_currency}`
-              : '--'}
-          </p>
-          {offer.rate_type === 'market' && (
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button type="button" className="mt-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0 text-[13px] font-medium cursor-help whitespace-nowrap">
-                    {Number(offer.margin_percent) > 0 ? '+' : ''}{offer.margin_percent}%
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  The {isBuy ? 'buyer' : 'seller'} seeks {Number(offer.margin_percent) === 0 ? 'market price' : `${Math.abs(Number(offer.margin_percent))}% ${Number(offer.margin_percent) > 0 ? 'above' : 'below'} market price`} ({offer.price_source})
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-
+      {/* Price per coin + margin */}
+      <div>
+        <p className="text-[15px] font-bold leading-tight whitespace-nowrap">
+          {effectivePrice !== undefined
+            ? `${fmt(effectivePrice)} ${offer.fiat_currency}`
+            : '--'}
+        </p>
+        {offer.rate_type === 'market' && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="mt-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0 text-xs font-medium cursor-help whitespace-nowrap">
+                  {Number(offer.margin_percent) > 0 ? '+' : ''}{offer.margin_percent}%
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                The {isBuy ? 'buyer' : 'seller'} seeks {Number(offer.margin_percent) === 0 ? 'market price' : `${Math.abs(Number(offer.margin_percent))}% ${Number(offer.margin_percent) > 0 ? 'above' : 'below'} market price`} ({offer.price_source})
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
 
       {/* Settlement methods */}
-      <div className="hidden md:flex flex-wrap gap-1 shrink-0 max-w-[160px]">
+      <div className="hidden md:flex flex-wrap gap-1 overflow-hidden">
         {offer.payment_methods.slice(0, 2).map((pm) => (
-          <Badge key={pm} variant="outline" className="text-[13px] px-1.5 py-0">
+          <Badge key={pm} variant="outline" className="text-xs px-1.5 py-0">
             {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
           </Badge>
         ))}
         {offer.payment_methods.length > 2 && (
-          <Badge variant="outline" className="text-[13px] px-1.5 py-0">
+          <Badge variant="outline" className="text-xs px-1.5 py-0">
             +{offer.payment_methods.length - 2}
           </Badge>
         )}
       </div>
 
       {/* Action */}
-      <div className="shrink-0">
+      <div>
         <Button asChild size="sm" variant="outline">
           <Link href={`/exchange/${offer.id}`}>
             View

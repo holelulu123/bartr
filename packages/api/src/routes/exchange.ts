@@ -160,9 +160,19 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
       const offset = (pageNum - 1) * limitNum;
 
-      const conditions: string[] = ["eo.status = 'active'"];
+      const conditions: string[] = [];
       const values: (string | number)[] = [];
       let paramIdx = 1;
+
+      if (user_id) {
+        // When fetching a user's own offers, show active + paused (removed are permanently gone)
+        conditions.push(`eo.user_id = $${paramIdx++}`);
+        values.push(user_id);
+        conditions.push(`eo.status != 'removed'`);
+      } else {
+        // Public browse: only show active offers
+        conditions.push(`eo.status = 'active'`);
+      }
 
       if (offer_type && VALID_OFFER_TYPES.includes(offer_type)) {
         conditions.push(`eo.offer_type = $${paramIdx++}`);
@@ -187,11 +197,6 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       if (country_code) {
         conditions.push(`eo.country_code = $${paramIdx++}`);
         values.push(country_code.toUpperCase());
-      }
-
-      if (user_id) {
-        conditions.push(`eo.user_id = $${paramIdx++}`);
-        values.push(user_id);
       }
 
       const where = `WHERE ${conditions.join(' AND ')}`;
