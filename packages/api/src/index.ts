@@ -15,6 +15,8 @@ import tradeRoutes from './routes/trades.js';
 import messageRoutes from './routes/messages.js';
 import moderationRoutes from './routes/moderation.js';
 import ratingRoutes from './routes/ratings.js';
+import exchangeRoutes from './routes/exchange.js';
+import priceRoutes from './routes/prices.js';
 
 const app = Fastify({ logger: true });
 
@@ -33,6 +35,8 @@ await app.register(tradeRoutes);
 await app.register(messageRoutes);
 await app.register(moderationRoutes);
 await app.register(ratingRoutes);
+await app.register(exchangeRoutes);
+await app.register(priceRoutes);
 
 try {
   await app.listen({ port: env.port, host: env.host });

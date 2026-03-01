@@ -1,318 +1,177 @@
-# ROADMAP V4 — Manual Browser Testing Guide
+# Bartr — Roadmap V4: Missing Pieces
 
-This document is a **click-through test plan** for manual QA in the browser.
-No unit tests or API calls — just open the site, follow each scenario, and verify the expected result.
-
-Start the stack first:
-```bash
-docker compose up -d
-cd packages/api && pnpm dev &
-cd packages/web && pnpm dev &
-```
-Site: http://localhost:3000 | API: http://localhost:4000
+> Items not covered in ROADMAP_V3. These are features, infrastructure, and polish
+> needed beyond the existing phases to make Bartr production-ready.
 
 ---
 
-## 1. Authentication
+## 1. Admin Dashboard UI
 
-### 1.1 Email Registration
-1. Go to `/login`, click **"Create account"**
-2. Enter email + password (8+ chars) + confirm password
-3. Click **Register**
-4. **Expected**: Redirected to home `/`, navbar shows your nickname (e.g. `BlueFox42`)
+Backend has admin role + `requireAdmin` hook, but no frontend panel.
 
-### 1.2 Email Login
-1. Log out (navbar → dropdown → Logout)
-2. Go to `/login`, enter the same email + password
-3. Click **Login**
-4. **Expected**: Back on home, authenticated as same user
-
-### 1.3 Wrong Password
-1. Go to `/login`, enter correct email but wrong password
-2. **Expected**: Error message "Invalid email or password" — no redirect
-
-### 1.4 Session Persistence
-1. Log in, then close the browser tab and reopen http://localhost:3000
-2. **Expected**: Still logged in (refresh token cookie survives)
-
-### 1.5 Google OAuth (requires Google credentials configured)
-1. Click **Continue with Google**
-2. Complete Google sign-in flow
-3. **Expected**: Redirected back, logged in with Google account
-
-### 1.6 Logout
-1. Click the user avatar / nickname in navbar → **Logout**
-2. **Expected**: Redirected to `/login` (or home), no longer authenticated
+- [ ] `/admin` — overview: user count, listing count, active trades, pending flags
+- [ ] `/admin/users` — user list with search, role management (promote/demote)
+- [ ] `/admin/listings` — all listings, bulk actions (remove, pause)
+- [ ] `/admin/flags` — already exists, but needs polish (bulk dismiss, sort by date)
 
 ---
 
-## 2. Profile
+## 2. Dispute Resolution
 
-### 2.1 View Own Profile
-1. Log in, click your nickname in the navbar
-2. **Expected**: Profile page shows nickname, bio (if set), avatar placeholder, reputation tier "New"
+Reputation system design mentions disputes but no implementation exists.
 
-### 2.2 Edit Nickname
-1. Go to `/settings` (or profile edit page)
-2. Change nickname to something unique (3–30 chars)
-3. Save
-4. **Expected**: Navbar updates to new nickname
-
-### 2.3 Edit Bio
-1. Go to profile settings, enter a bio (max 500 chars)
-2. Save
-3. **Expected**: Bio shows on profile page
-
-### 2.4 Upload Avatar
-1. Go to profile settings → upload a JPEG/PNG/WebP image
-2. **Expected**: Avatar appears in navbar and profile page
-
-### 2.5 Reject Non-Image File
-1. Try uploading a `.txt` or `.pdf` as avatar
-2. **Expected**: Error "Only JPEG, PNG, and WebP images are allowed"
-
-### 2.6 View Another User's Public Profile
-1. Note a seller's nickname from a listing
-2. Navigate to `/users/<nickname>`
-3. **Expected**: Public profile with reputation score visible; no edit controls
+- [ ] "Open Dispute" button on accepted/in-progress trades
+- [ ] Dispute reason form (text + optional image evidence)
+- [ ] Admin dispute queue (`/admin/disputes`)
+- [ ] Admin can rule in favor of buyer or seller
+- [ ] Dispute outcome affects reputation scores
 
 ---
 
-## 3. Listings
+## 3. Notification System
 
-### 3.1 Create a Listing
-1. Click **"Post Listing"** (or go to `/listings/new`)
-2. Fill: title (3–200 chars), description (10–5000 chars), select a category, check at least one payment method
-3. Click **Submit**
-4. **Expected**: Redirected to the new listing page, listing is visible
+No way to notify users of trade updates, messages, or flags.
 
-### 3.2 Upload Images to Listing
-1. On the new listing page (or edit page), click **Add Image**
-2. Upload up to 5 images
-3. **Expected**: Images appear in a gallery on the listing
-
-### 3.3 Reject 6th Image
-1. On a listing with 5 images, try uploading a 6th
-2. **Expected**: Error "Maximum 5 images per listing"
-
-### 3.4 Edit Own Listing
-1. Go to your listing → **Edit**
-2. Change the title or description
-3. Save
-4. **Expected**: Changes reflected on listing detail page
-
-### 3.5 Change Listing Status
-1. On your listing → **Edit** or **My Listings** dashboard
-2. Change status to **Paused**
-3. **Expected**: Listing shows "Paused" badge; doesn't appear in public search
-
-### 3.6 Search Listings
-1. Go to `/listings` (browse page)
-2. Type a keyword in the search box
-3. **Expected**: Only matching listings appear (full-text search)
-
-### 3.7 Filter by Category
-1. Select a category from the dropdown
-2. **Expected**: Only listings in that category shown
-
-### 3.8 Filter by Payment Method
-1. Select "BTC" from payment filter
-2. **Expected**: Only listings accepting BTC shown
-
-### 3.9 Delete Listing
-1. Go to **My Listings**, click **Delete** on a listing
-2. Confirm the prompt
-3. **Expected**: Listing removed from your dashboard and from search
-
-### 3.10 Cannot Edit Someone Else's Listing
-1. Note the ID of another user's listing
-2. Try navigating to `/listings/<id>/edit`
-3. **Expected**: 403 / redirect to home
+- [ ] In-app notification bell in navbar with unread count
+- [ ] Notification types: new message, trade status change, new offer, flag resolved
+- [ ] Notification dropdown with mark-as-read
+- [ ] Optional email notifications (after 13.6 email is set up)
 
 ---
 
-## 4. Trades
+## 4. Exchange Search
 
-### 4.1 Initiate a Trade (as Buyer)
-1. Open an active listing from another user
-2. Click **"Make Offer"** or **"Contact Seller"**
-3. **Expected**: Trade created, appears in `/trades` with status "Offered"
+Marketplace has full-text search, exchange doesn't.
 
-### 4.2 Cannot Trade on Own Listing
-1. Open one of your own active listings
-2. **Expected**: No "Make Offer" button — or button disabled/hidden
-
-### 4.3 Accept a Trade (as Seller)
-1. Log in as the seller account
-2. Go to `/trades`, find the incoming offer
-3. Click **Accept**
-4. **Expected**: Trade status changes to "Accepted"
-
-### 4.4 Decline a Trade (as Seller)
-1. As seller, find an "Offered" trade
-2. Click **Decline**
-3. **Expected**: Trade status changes to "Declined"
-
-### 4.5 Cancel a Trade (as Buyer)
-1. As buyer, find an "Offered" or "Accepted" trade
-2. Click **Cancel**
-3. **Expected**: Trade status changes to "Cancelled"
-
-### 4.6 Complete a Trade (Both Parties Must Confirm)
-1. As buyer, click **Confirm Completion** on an "Accepted" trade
-2. **Expected**: Message "Waiting for the other party to confirm"
-3. Log in as seller, find the same trade, click **Confirm Completion**
-4. **Expected**: Trade status changes to "Completed"
+- [ ] Search bar on `/exchange` — search by user nickname, notes, or description
+- [ ] Sort options: newest, best price, highest reputation
 
 ---
 
-## 5. Ratings
+## 5. Terms of Service Page
 
-### 5.1 Rate After Trade
-1. On a completed trade, click **Leave Rating**
-2. Select 1–5 stars and optionally write a comment
-3. Submit
-4. **Expected**: Rating saved; seller's/buyer's reputation score updated
+`/about` and `/privacy` exist, but no `/terms`.
 
-### 5.2 Cannot Rate Twice
-1. Try to submit another rating for the same trade
-2. **Expected**: Error "You have already rated this trade"
-
-### 5.3 Reputation Tier Progression
-- After 3+ completed trades with good ratings: profile shows **Verified** tier
-- After 15+: **Trusted** tier
-- After 50+: **Elite** tier
+- [ ] `/terms` — terms of service, acceptable use policy, liability disclaimer
+- [ ] Link in footer and registration page
+- [ ] "I agree to Terms" checkbox on registration (optional — depends on legal stance)
 
 ---
 
-## 6. Messaging (End-to-End Encrypted)
+## 6. Rate Limiting on Registration
 
-### 6.1 Send a Message
-1. Open a listing or trade, click **Message Seller/Buyer**
-2. Type a message and send
-3. **Expected**: Message appears in the conversation thread
+Only login has brute-force protection.
 
-### 6.2 Receive a Message
-1. Log in as the other party
-2. Go to `/messages`
-3. **Expected**: New message notification; message is readable
-
-### 6.3 Messages Are Private
-1. As a third user, try accessing the message thread URL directly
-2. **Expected**: 403 or redirect — messages not visible
+- [ ] Rate limit `POST /auth/register/email` — max 3 registrations per IP per hour
+- [ ] Rate limit `POST /auth/register/email` — max 10 per IP per day
 
 ---
 
-## 7. Moderation (Admin Only)
+## 7. CI/CD Pipeline
 
-### 7.1 Flag a Listing (User)
-1. On any listing, click **Report**
-2. Select a reason and submit
-3. **Expected**: Confirmation "Report submitted"
+No automated build, test, or deploy.
 
-### 7.2 Admin: View Flags
-1. Log in as an admin account (set `role = 'admin'` in DB)
-2. Go to `/admin/flags`
-3. **Expected**: List of reported listings with reasons
-
-### 7.3 Admin: Resolve a Flag
-1. On a flagged listing, click **Approve** or **Remove**
-2. **Expected**: Flag resolved, listing status updated if removed
-
-### 7.4 Non-Admin Cannot Access Admin Panel
-1. Log in as a regular user, navigate to `/admin/flags`
-2. **Expected**: 403 error or redirect
+- [ ] GitHub Actions workflow: lint + test on every push/PR
+- [ ] Separate jobs for API tests and web tests (parallel)
+- [ ] Docker image build + push to registry on main branch merge
+- [ ] Auto-deploy to VPS on successful main build (SSH or webhook)
 
 ---
 
-## 8. Security & Edge Cases
+## 8. Production Docker Compose
 
-### 8.1 Auth Required for Protected Pages
-1. Log out, then try to navigate directly to `/listings/new`, `/trades`, `/messages`
-2. **Expected**: Redirected to `/login`
+Only dev compose exists. Production needs optimized builds.
 
-### 8.2 Public Pages Accessible Without Login
-1. While logged out, visit `/`, `/about`, `/privacy`, `/donate`
-2. **Expected**: Pages load without redirect
-
-### 8.3 Rate Limit on Login
-1. Attempt to log in with wrong password 6+ times in one minute
-2. **Expected**: After 5 attempts: "Too many requests — please slow down" (429)
-
-### 8.4 EXIF Metadata Stripped from Images
-1. Upload a photo taken with a smartphone (contains GPS/EXIF data)
-2. Download the uploaded image from the listing
-3. **Expected**: EXIF data is not present in downloaded image
-
-### 8.5 Large File Rejected
-1. Try uploading an image > 5MB
-2. **Expected**: Error about file size limit
-
-### 8.6 XSS Prevention
-1. In a listing title or description, type `<script>alert('xss')</script>`
-2. **Expected**: The text appears as literal characters, no alert popup
+- [ ] Multi-stage Dockerfiles for API, web, workers (build → slim runtime)
+- [ ] `docker-compose.prod.yml` with production settings
+- [ ] No source mounts — built images only
+- [ ] Health checks on all services
+- [ ] Restart policies (`unless-stopped`)
+- [ ] Log rotation configured
 
 ---
 
-## 9. Dark Mode / Light Mode (Upcoming Feature)
+## 9. Backup & Restore
 
-> **Status: Not yet implemented** — planned for next sprint.
+Mentioned in launch checklist but not fleshed out.
 
-When implemented, verify:
-
-### 9.1 Toggle Theme from Settings
-1. Go to `/settings`
-2. Click the **Dark Mode** / **Light Mode** toggle
-3. **Expected**: Entire UI switches theme immediately without page reload
-
-### 9.2 Theme Persists Across Sessions
-1. Switch to dark mode, close the browser, reopen the site
-2. **Expected**: Dark mode is still active (preference saved in localStorage)
-
-### 9.3 System Preference Respected
-1. Without setting a preference, change OS to dark mode
-2. **Expected**: Site follows system dark mode automatically
-
-### 9.4 All Pages Readable in Both Modes
-- Browse: `/`, `/listings`, `/listings/<id>`, `/trades`, `/messages`, `/settings`, `/about`, `/privacy`, `/donate`
-- Verify: no invisible text, no clashing colors, all buttons visible
+- [ ] Automated daily PostgreSQL backup (pg_dump to encrypted file)
+- [ ] MinIO bucket backup (sync to secondary storage)
+- [ ] Backup retention policy (keep 7 daily, 4 weekly)
+- [ ] Documented restore procedure
+- [ ] Test restore on a fresh VPS
 
 ---
 
-## 10. Performance Sanity Checks
+## 10. Monitoring & Alerting
 
-### 10.1 Listing Search Response Time
-1. Search for a common keyword with 20+ results
-2. **Expected**: Results appear within 1 second
+No visibility into production health.
 
-### 10.2 Image Loading
-1. Open a listing with multiple images
-2. **Expected**: Images load progressively, no broken image icons
-
-### 10.3 Pagination
-1. Browse listings page and click **Next Page**
-2. **Expected**: New set of listings loads, pagination controls update correctly
+- [ ] Health check endpoint already exists (`/health`) — wire it to uptime monitor
+- [ ] Error tracking (Sentry or self-hosted GlitchTip)
+- [ ] Basic metrics: response times, error rates, active users
+- [ ] Alerts: service down, high error rate, disk space low
 
 ---
 
-## Test Accounts Setup
+## 11. Improved Identicons
 
-For a complete manual test run, create these accounts:
+Mentioned in ROADMAP_V3 Phase 13.7 but not done.
 
-| Role    | Email               | Purpose                           |
-|---------|---------------------|-----------------------------------|
-| Buyer   | buyer@test.local    | Initiating trades, rating sellers |
-| Seller  | seller@test.local   | Posting listings, accepting trades |
-| Admin   | admin@test.local    | Set `role = 'admin'` in DB        |
-| Third   | other@test.local    | Testing access control            |
-
-To set admin role:
-```sql
-UPDATE users SET role = 'admin' WHERE email_hash = '<hash>';
--- Or find by nickname:
-UPDATE users SET role = 'admin' WHERE nickname = 'YourAdminNickname';
-```
+- [ ] Replace 5x5 pixel grid avatars with a more visually distinct style
+- [ ] Options: geometric shapes, rings, gradient blobs — still deterministic from nickname
+- [ ] Pure SVG, no external dependencies
 
 ---
 
-*Generated: 2026-02-27 | Stack: Next.js + Fastify + PostgreSQL | 559 automated tests passing*
+## 12. Real-Time Features
+
+Currently everything requires manual refresh.
+
+- [ ] WebSocket or SSE for live message delivery (no polling)
+- [ ] Real-time trade status updates
+- [ ] "User is typing..." indicator in message threads
+- [ ] Online/offline user status (optional)
+
+---
+
+## 13. Image CDN & Caching
+
+MinIO serves images directly with no optimization.
+
+- [ ] Cache headers on MinIO-served images (Cache-Control, ETag)
+- [ ] Nginx proxy cache in front of MinIO
+- [ ] Responsive image sizes (thumbnails vs full-size)
+- [ ] Lazy loading with blur placeholders
+
+---
+
+## 14. Price Feed Resilience
+
+Worker depends on external APIs (CoinGecko/Binance/Kraken).
+
+- [ ] If all sources fail, keep serving last known prices (already cached in Redis)
+- [ ] Add staleness indicator — show "Prices may be outdated" if cache > 5 minutes old
+- [ ] Log/alert when price feeds fail repeatedly
+- [ ] Fallback: allow manual price entry on offers when feed is down
+
+---
+
+## Priority Summary
+
+| Item | Priority | Why |
+|---|---|---|
+| 8 — Production Docker | 🔴 critical | Can't deploy without it |
+| 7 — CI/CD | 🔴 critical | Manual deploys don't scale |
+| 9 — Backup & Restore | 🔴 critical | Data loss = game over |
+| 6 — Registration rate limit | 🟠 high | Bot prevention |
+| 1 — Admin Dashboard UI | 🟠 high | Can't moderate without it |
+| 3 — Notifications | 🟠 high | Users miss trade/message updates |
+| 10 — Monitoring | 🟠 high | Blind in production |
+| 2 — Dispute Resolution | 🟡 medium | Needed for trust, not day-one |
+| 5 — Terms of Service | 🟡 medium | Legal protection |
+| 14 — Price Feed Resilience | 🟡 medium | Graceful degradation |
+| 4 — Exchange Search | 🟡 medium | Nice to have |
+| 12 — Real-Time | 🟡 medium | Polling works for now |
+| 11 — Improved Identicons | ⚪ low | Cosmetic |
+| 13 — Image CDN | ⚪ low | Optimization, not blocking |

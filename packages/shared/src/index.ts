@@ -13,6 +13,7 @@ export type ModerationStatus = 'pending' | 'reviewed' | 'resolved' | 'dismissed'
 export type OfferType = 'buy' | 'sell';
 export type RateType = 'market' | 'fixed';
 export type OfferStatus = 'active' | 'paused' | 'removed';
+export type PriceSource = 'coingecko' | 'binance' | 'kraken';
 export type CoinType = 'crypto' | 'fiat';
 
 export interface HealthResponse {

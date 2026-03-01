@@ -34,6 +34,12 @@ const REDIS_TTL = 300; // 5 minutes
 const REDIS_KEY = 'prices:all';
 const REDIS_LAST_UPDATE = 'prices:last_update';
 
+// Per-exchange Redis keys
+const REDIS_KEY_COINGECKO = 'prices:exchange:coingecko';
+const REDIS_KEY_BINANCE = 'prices:exchange:binance';
+const REDIS_KEY_KRAKEN = 'prices:exchange:kraken';
+const REDIS_KEY_FIAT_RATES = 'prices:fiat_rates';
+
 // Binance symbol mapping (crypto → USDT pairs)
 const BINANCE_SYMBOLS: Record<string, string> = {
   BTC: 'BTCUSDT',
@@ -68,7 +74,49 @@ const KRAKEN_PAIRS: Record<string, string> = {
 
 let consecutiveFailures = 0;
 
-async function fetchFromCoinGecko(): Promise<Record<string, Record<string, number>> | null> {
+type PriceMap = Record<string, Record<string, number>>;
+
+/**
+ * Derive fiat prices from USD-only prices using fiat conversion rates.
+ * e.g. BTC→ILS = BTC_USD × USD→ILS rate
+ */
+function deriveFiatPrices(
+  usdOnlyPrices: PriceMap,
+  fiatRates: Record<string, number>,
+): PriceMap {
+  const result: PriceMap = {};
+
+  for (const [crypto, prices] of Object.entries(usdOnlyPrices)) {
+    const usdPrice = prices['USD'];
+    if (usdPrice === undefined) continue;
+
+    result[crypto] = { USD: usdPrice };
+
+    for (const [fiat, rate] of Object.entries(fiatRates)) {
+      if (fiat === 'USD') continue;
+      result[crypto][fiat] = usdPrice * rate;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Extract fiat conversion rates from CoinGecko's USDT data.
+ * Since USDT ≈ 1 USD, CoinGecko's USDT→fiat prices give us USD→fiat rates.
+ */
+function extractFiatRates(coingeckoData: PriceMap): Record<string, number> {
+  const usdtPrices = coingeckoData['USDT'];
+  if (!usdtPrices) return {};
+
+  const rates: Record<string, number> = {};
+  for (const [fiat, price] of Object.entries(usdtPrices)) {
+    rates[fiat] = price;
+  }
+  return rates;
+}
+
+async function fetchFromCoinGecko(): Promise<PriceMap | null> {
   const ids = Object.values(CRYPTO_IDS).join(',');
   const currencies = FIAT_IDS.join(',');
   const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=${currencies}`;
@@ -84,7 +132,7 @@ async function fetchFromCoinGecko(): Promise<Record<string, Record<string, numbe
   }
 
   const data = await res.json();
-  const result: Record<string, Record<string, number>> = {};
+  const result: PriceMap = {};
 
   for (const [symbol, geckoId] of Object.entries(CRYPTO_IDS)) {
     const prices = data[geckoId];
@@ -100,7 +148,7 @@ async function fetchFromCoinGecko(): Promise<Record<string, Record<string, numbe
   return result;
 }
 
-async function fetchFromBinance(): Promise<Record<string, Record<string, number>> | null> {
+async function fetchFromBinance(): Promise<PriceMap | null> {
   try {
     const symbols = Object.values(BINANCE_SYMBOLS);
     const url = `https://api.binance.com/api/v3/ticker/price?symbols=${JSON.stringify(symbols)}`;
@@ -111,12 +159,11 @@ async function fetchFromBinance(): Promise<Record<string, Record<string, number>
     }
 
     const data: Array<{ symbol: string; price: string }> = await res.json();
-    const result: Record<string, Record<string, number>> = {};
+    const result: PriceMap = {};
 
     for (const [crypto, binanceSymbol] of Object.entries(BINANCE_SYMBOLS)) {
       const ticker = data.find((t) => t.symbol === binanceSymbol);
       if (ticker) {
-        // Binance only gives USDT price; we map that as USD approximation
         result[crypto] = { USD: parseFloat(ticker.price) };
       }
     }
@@ -132,7 +179,7 @@ async function fetchFromBinance(): Promise<Record<string, Record<string, number>
   }
 }
 
-async function fetchFromKraken(): Promise<Record<string, Record<string, number>> | null> {
+async function fetchFromKraken(): Promise<PriceMap | null> {
   try {
     const pairs = Object.values(KRAKEN_PAIRS).join(',');
     const url = `https://api.kraken.com/0/public/Ticker?pair=${pairs}`;
@@ -148,7 +195,7 @@ async function fetchFromKraken(): Promise<Record<string, Record<string, number>>
       return null;
     }
 
-    const result: Record<string, Record<string, number>> = {};
+    const result: PriceMap = {};
 
     for (const [crypto, krakenPair] of Object.entries(KRAKEN_PAIRS)) {
       // Kraken returns keys with different naming conventions
@@ -171,20 +218,26 @@ async function fetchFromKraken(): Promise<Record<string, Record<string, number>>
 }
 
 async function fetchPrices(): Promise<void> {
-  // Try CoinGecko first (has all crypto + fiat pairs)
-  let prices = await fetchFromCoinGecko();
+  // Fetch all three exchanges in parallel
+  const [coingecko, binance, kraken] = await Promise.all([
+    fetchFromCoinGecko().catch((err) => {
+      console.warn('[price-feed] CoinGecko fetch error:', err);
+      return null;
+    }),
+    fetchFromBinance().catch((err) => {
+      console.warn('[price-feed] Binance fetch error:', err);
+      return null;
+    }),
+    fetchFromKraken().catch((err) => {
+      console.warn('[price-feed] Kraken fetch error:', err);
+      return null;
+    }),
+  ]);
 
-  if (!prices) {
-    console.log('[price-feed] CoinGecko unavailable, trying Binance...');
-    prices = await fetchFromBinance();
-  }
+  // Need at least one source for merged blob
+  const merged = coingecko ?? binance ?? kraken;
 
-  if (!prices) {
-    console.log('[price-feed] Binance unavailable, trying Kraken...');
-    prices = await fetchFromKraken();
-  }
-
-  if (!prices) {
+  if (!merged) {
     consecutiveFailures++;
     console.error(`[price-feed] All sources failed (${consecutiveFailures} consecutive)`);
     return;
@@ -192,13 +245,47 @@ async function fetchPrices(): Promise<void> {
 
   consecutiveFailures = 0;
   const now = new Date().toISOString();
-  const payload = { ...prices, updated_at: now };
 
-  await redis.set(REDIS_KEY, JSON.stringify(payload), 'EX', REDIS_TTL);
-  await redis.set(REDIS_LAST_UPDATE, now, 'EX', REDIS_TTL);
+  // Extract fiat rates from CoinGecko USDT data for deriving Binance/Kraken fiat prices
+  const fiatRates = coingecko ? extractFiatRates(coingecko) : {};
 
-  const coinCount = Object.keys(prices).length;
-  console.log(`[price-feed] Cached prices for ${coinCount} coins at ${now}`);
+  // Derive full fiat prices for Binance and Kraken (they only have USD)
+  const binanceFull = binance && Object.keys(fiatRates).length > 0
+    ? deriveFiatPrices(binance, fiatRates)
+    : binance;
+  const krakenFull = kraken && Object.keys(fiatRates).length > 0
+    ? deriveFiatPrices(kraken, fiatRates)
+    : kraken;
+
+  // Write all keys atomically using pipeline
+  const pipeline = redis.pipeline();
+
+  // Backward-compatible merged blob
+  const mergedPayload = { ...merged, updated_at: now };
+  pipeline.set(REDIS_KEY, JSON.stringify(mergedPayload), 'EX', REDIS_TTL);
+  pipeline.set(REDIS_LAST_UPDATE, now, 'EX', REDIS_TTL);
+
+  // Per-exchange keys
+  if (coingecko) {
+    pipeline.set(REDIS_KEY_COINGECKO, JSON.stringify({ ...coingecko, updated_at: now }), 'EX', REDIS_TTL);
+  }
+  if (binanceFull) {
+    pipeline.set(REDIS_KEY_BINANCE, JSON.stringify({ ...binanceFull, updated_at: now }), 'EX', REDIS_TTL);
+  }
+  if (krakenFull) {
+    pipeline.set(REDIS_KEY_KRAKEN, JSON.stringify({ ...krakenFull, updated_at: now }), 'EX', REDIS_TTL);
+  }
+
+  // Fiat rates for reference
+  if (Object.keys(fiatRates).length > 0) {
+    pipeline.set(REDIS_KEY_FIAT_RATES, JSON.stringify(fiatRates), 'EX', REDIS_TTL);
+  }
+
+  await pipeline.exec();
+
+  const sources = [coingecko && 'CoinGecko', binance && 'Binance', kraken && 'Kraken'].filter(Boolean).join(', ');
+  const coinCount = Object.keys(merged).length;
+  console.log(`[price-feed] Cached prices for ${coinCount} coins from [${sources}] at ${now}`);
 }
 
 export function startPriceFeed(): void {

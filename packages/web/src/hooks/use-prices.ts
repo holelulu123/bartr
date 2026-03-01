@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { prices as pricesApi } from '@/lib/api';
-import type { SupportedCoin } from '@/lib/api/types';
+import type { SupportedCoin, ExchangePricesResponse, PriceData } from '@/lib/api/types';
+import type { PriceSource } from '@bartr/shared';
 
 export const priceKeys = {
   all: ['prices'] as const,
+  exchanges: ['prices', 'exchanges'] as const,
   coins: () => ['supported-coins'] as const,
 };
 
@@ -14,6 +16,33 @@ export function usePrices() {
     refetchInterval: 30_000, // 30 seconds
     staleTime: 15_000,
   });
+}
+
+export function useExchangePrices() {
+  return useQuery({
+    queryKey: priceKeys.exchanges,
+    queryFn: () => pricesApi.getExchangePrices(),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+}
+
+/**
+ * Extract a single crypto→fiat price from exchange-specific data.
+ * Returns undefined if the exchange has no data for this pair.
+ */
+export function getExchangePrice(
+  data: ExchangePricesResponse | undefined,
+  source: PriceSource,
+  crypto: string,
+  fiat: string,
+): number | undefined {
+  if (!data) return undefined;
+  const exchangeData: PriceData | null = data[source];
+  if (!exchangeData) return undefined;
+  const cryptoPrices = exchangeData[crypto];
+  if (!cryptoPrices || typeof cryptoPrices === 'string') return undefined;
+  return cryptoPrices[fiat];
 }
 
 // ── Static coin lists ──────────────────────────────────────────────────────

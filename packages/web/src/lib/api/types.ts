@@ -1,4 +1,4 @@
-import type { ListingStatus, TradeStatus, PaymentMethod, ReputationTier, ModerationStatus, OfferType, RateType, OfferStatus, CoinType } from '@bartr/shared';
+import type { ListingStatus, TradeStatus, PaymentMethod, ReputationTier, ModerationStatus, OfferType, RateType, OfferStatus, CoinType, PriceSource } from '@bartr/shared';
 
 // Common
 export interface Pagination {
@@ -295,14 +295,15 @@ export interface ExchangeOffer {
   crypto_currency: string;
   fiat_currency: string;
   amount: number | null;
-  min_amount: number | null;
-  max_amount: number | null;
+  min_amount: number;
+  max_amount: number;
   rate_type: RateType;
   margin_percent: number;
   fixed_price: number | null;
   payment_methods: PaymentMethod[];
   country_code: string | null;
   terms: string | null;
+  price_source: PriceSource;
   status: OfferStatus;
   created_at: string;
   updated_at: string;
@@ -314,14 +315,15 @@ export interface CreateOfferPayload {
   crypto_currency: string;
   fiat_currency: string;
   amount?: number;
-  min_amount?: number;
-  max_amount?: number;
+  min_amount: number;
+  max_amount: number;
   rate_type: RateType;
   margin_percent?: number;
   fixed_price?: number;
   payment_methods: PaymentMethod[];
   country_code?: string;
   terms?: string;
+  price_source?: PriceSource;
 }
 
 export interface UpdateOfferPayload {
@@ -357,6 +359,12 @@ export interface PriceData {
   [crypto: string]: {
     [fiat: string]: number;
   } | string; // updated_at is a string
+}
+
+export interface ExchangePricesResponse {
+  coingecko: PriceData | null;
+  binance: PriceData | null;
+  kraken: PriceData | null;
 }
 
 export interface SupportedCoinsResponse {

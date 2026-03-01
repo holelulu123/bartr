@@ -4,6 +4,7 @@ const VALID_OFFER_TYPES = ['buy', 'sell'];
 const VALID_RATE_TYPES = ['market', 'fixed'];
 const VALID_STATUSES = ['active', 'paused', 'removed'];
 const VALID_PAYMENT_METHODS = ['btc', 'eth', 'usdt', 'usdc', 'cash', 'bank_transfer'];
+const VALID_PRICE_SOURCES = ['coingecko', 'binance', 'kraken'];
 
 export default async function exchangeRoutes(fastify: FastifyInstance) {
   // POST /exchange/offers — create an exchange offer
@@ -13,14 +14,15 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       crypto_currency: string;
       fiat_currency: string;
       amount?: number;
-      min_amount?: number;
-      max_amount?: number;
+      min_amount: number;
+      max_amount: number;
       rate_type: string;
       margin_percent?: number;
       fixed_price?: number;
       payment_methods: string[];
       country_code?: string;
       terms?: string;
+      price_source?: string;
     };
   }>(
     '/exchange/offers',
@@ -32,6 +34,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         amount, min_amount, max_amount,
         rate_type, margin_percent, fixed_price,
         payment_methods, country_code, terms,
+        price_source = 'coingecko',
       } = request.body;
 
       // Validate offer_type
@@ -74,6 +77,22 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // Validate min_amount and max_amount (required)
+      if (min_amount === undefined || min_amount === null || min_amount < 0) {
+        return reply.status(400).send({ error: 'min_amount is required and must be >= 0' });
+      }
+      if (max_amount === undefined || max_amount === null || max_amount <= 0) {
+        return reply.status(400).send({ error: 'max_amount is required and must be > 0' });
+      }
+      if (min_amount >= max_amount) {
+        return reply.status(400).send({ error: 'min_amount must be less than max_amount' });
+      }
+
+      // Validate price_source
+      if (!VALID_PRICE_SOURCES.includes(price_source)) {
+        return reply.status(400).send({ error: 'price_source must be "coingecko", "binance", or "kraken"' });
+      }
+
       // Validate fixed_price for fixed rate_type
       if (rate_type === 'fixed' && (fixed_price === undefined || fixed_price <= 0)) {
         return reply.status(400).send({ error: 'fixed_price is required for fixed rate type' });
@@ -94,14 +113,15 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
           user_id, offer_type, crypto_currency, fiat_currency,
           amount, min_amount, max_amount,
           rate_type, margin_percent, fixed_price,
-          payment_methods, country_code, terms
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          payment_methods, country_code, terms, price_source
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING *`,
         [
           userId, offer_type, crypto_currency, fiat_currency,
-          amount ?? null, min_amount ?? null, max_amount ?? null,
+          amount ?? null, min_amount, max_amount,
           rate_type, margin_percent ?? 0, fixed_price ?? null,
           JSON.stringify(payment_methods), country_code ?? null, terms ?? null,
+          price_source,
         ],
       );
 
@@ -232,6 +252,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       country_code?: string | null;
       terms?: string | null;
       status?: string;
+      price_source?: string;
     };
   }>(
     '/exchange/offers/:id',
@@ -320,6 +341,14 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         }
         updates.push(`terms = $${paramIdx++}`);
         values.push(body.terms);
+      }
+
+      if (body.price_source !== undefined) {
+        if (!VALID_PRICE_SOURCES.includes(body.price_source)) {
+          return reply.status(400).send({ error: 'price_source must be "coingecko", "binance", or "kraken"' });
+        }
+        updates.push(`price_source = $${paramIdx++}`);
+        values.push(body.price_source);
       }
 
       if (updates.length === 0) {

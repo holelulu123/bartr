@@ -34,6 +34,24 @@ export default async function priceRoutes(fastify: FastifyInstance) {
     },
   );
 
+  // GET /prices/exchanges — per-exchange prices (public)
+  fastify.get(
+    '/prices/exchanges',
+    async (_request, reply) => {
+      const [coingecko, binance, kraken] = await Promise.all([
+        fastify.redis.get('prices:exchange:coingecko'),
+        fastify.redis.get('prices:exchange:binance'),
+        fastify.redis.get('prices:exchange:kraken'),
+      ]);
+
+      return reply.send({
+        coingecko: coingecko ? JSON.parse(coingecko) : null,
+        binance: binance ? JSON.parse(binance) : null,
+        kraken: kraken ? JSON.parse(kraken) : null,
+      });
+    },
+  );
+
   // GET /supported-coins — list from supported_coins table (public)
   fastify.get(
     '/supported-coins',

@@ -90,6 +90,7 @@ export default function OfferDetailPage() {
               <PriceTicker
                 crypto={offer.crypto_currency}
                 fiat={offer.fiat_currency}
+                source={offer.price_source}
                 className="text-2xl font-bold"
               />
               {offer.margin_percent !== 0 && (

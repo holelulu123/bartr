@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
@@ -9,9 +9,8 @@ import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
 import { ProtectedRoute } from '@/components/protected-route';
 import { useCreateOffer } from '@/hooks/use-exchange';
-import { useSupportedCoins, getFiatFlag } from '@/hooks/use-prices';
+import { useSupportedCoins, getFiatFlag, useExchangePrices, getExchangePrice } from '@/hooks/use-prices';
 import { PaymentIcon } from '@/components/payment-icon';
-import { PriceTicker } from '@/components/price-ticker';
 import { CoinIcon } from '@/components/crypto-icons';
 import { COUNTRIES } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { PaymentMethod, OfferType, RateType } from '@bartr/shared';
+import type { PaymentMethod, OfferType, RateType, PriceSource } from '@bartr/shared';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'btc', label: 'BTC' },
@@ -37,9 +36,13 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'bank_transfer', label: 'Bank transfer' },
 ];
 
+const PRICE_SOURCES: { value: PriceSource; label: string }[] = [
+  { value: 'coingecko', label: 'CoinGecko' },
+  { value: 'binance', label: 'Binance' },
+  { value: 'kraken', label: 'Kraken' },
+];
+
 const schema = z.object({
-  min_amount: z.string().optional(),
-  max_amount: z.string().optional(),
   margin_percent: z.string().optional(),
   fixed_price: z.string().optional(),
   terms: z.string().max(2000, 'Terms too long').optional(),
@@ -47,19 +50,37 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+function formatPrice(price: number | undefined): string {
+  if (price === undefined) return '--';
+  return price >= 1
+    ? price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+}
+
 function CreateOfferForm() {
   const router = useRouter();
   const { data: coinsData } = useSupportedCoins();
+  const { data: exchangePrices } = useExchangePrices();
   const createOffer = useCreateOffer();
 
   const [offerType, setOfferType] = useState<OfferType>('sell');
   const [cryptoCurrency, setCryptoCurrency] = useState<string>('BTC');
   const [fiatCurrency, setFiatCurrency] = useState<string>('USD');
   const [rateType, setRateType] = useState<RateType>('market');
+  const [priceSource, setPriceSource] = useState<PriceSource>('coingecko');
   const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [countrySearch, setCountrySearch] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Controlled amount fields (not in react-hook-form)
+  const [fiatMin, setFiatMin] = useState('');
+  const [fiatMax, setFiatMax] = useState('');
+  const [cryptoMin, setCryptoMin] = useState('');
+  const [cryptoMax, setCryptoMax] = useState('');
+
+  // Track which side was last edited to avoid infinite loops
+  const lastEditedSide = useRef<'fiat' | 'crypto'>('fiat');
 
   const cryptoCoins = useMemo(
     () => coinsData?.coins.filter((c) => c.coin_type === 'crypto') ?? [],
@@ -81,10 +102,79 @@ function CreateOfferForm() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
+    defaultValues: { margin_percent: '0' },
   });
+
+  const watchedMargin = watch('margin_percent');
+
+  // Compute current exchange price for selected source/pair
+  const selectedPrice = getExchangePrice(exchangePrices, priceSource, cryptoCurrency, fiatCurrency);
+
+  // Compute effective price = exchangePrice * (1 + margin/100)
+  const effectivePrice = useMemo(() => {
+    if (selectedPrice === undefined) return undefined;
+    if (rateType === 'fixed') return undefined;
+    const margin = parseFloat(watchedMargin || '0') || 0;
+    return selectedPrice * (1 + margin / 100);
+  }, [selectedPrice, watchedMargin, rateType]);
+
+  // Helper to update linked amounts
+  const updateLinkedAmounts = useCallback((side: 'fiat' | 'crypto', field: 'min' | 'max', value: string) => {
+    lastEditedSide.current = side;
+
+    if (side === 'fiat') {
+      if (field === 'min') setFiatMin(value);
+      else setFiatMax(value);
+
+      const numVal = parseFloat(value);
+      if (!value || isNaN(numVal) || !effectivePrice) {
+        if (field === 'min') setCryptoMin('');
+        else setCryptoMax('');
+        return;
+      }
+      const cryptoVal = (numVal / effectivePrice).toFixed(8);
+      if (field === 'min') setCryptoMin(cryptoVal);
+      else setCryptoMax(cryptoVal);
+    } else {
+      if (field === 'min') setCryptoMin(value);
+      else setCryptoMax(value);
+
+      const numVal = parseFloat(value);
+      if (!value || isNaN(numVal) || !effectivePrice) {
+        if (field === 'min') setFiatMin('');
+        else setFiatMax('');
+        return;
+      }
+      const fiatVal = (numVal * effectivePrice).toFixed(2);
+      if (field === 'min') setFiatMin(fiatVal);
+      else setFiatMax(fiatVal);
+    }
+  }, [effectivePrice]);
+
+  // When effective price changes, recalculate the derived side
+  useEffect(() => {
+    if (!effectivePrice) return;
+
+    if (lastEditedSide.current === 'fiat') {
+      // Recalculate crypto from fiat
+      const minVal = parseFloat(fiatMin);
+      const maxVal = parseFloat(fiatMax);
+      if (!isNaN(minVal) && fiatMin) setCryptoMin((minVal / effectivePrice).toFixed(8));
+      if (!isNaN(maxVal) && fiatMax) setCryptoMax((maxVal / effectivePrice).toFixed(8));
+    } else {
+      // Recalculate fiat from crypto
+      const minVal = parseFloat(cryptoMin);
+      const maxVal = parseFloat(cryptoMax);
+      if (!isNaN(minVal) && cryptoMin) setFiatMin((minVal * effectivePrice).toFixed(2));
+      if (!isNaN(maxVal) && cryptoMax) setFiatMax((maxVal * effectivePrice).toFixed(2));
+    }
+    // Only react to effectivePrice changes, not the values themselves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectivePrice]);
 
   function togglePayment(method: PaymentMethod) {
     setSelectedPayments((prev) =>
@@ -105,6 +195,22 @@ function CreateOfferForm() {
       return;
     }
 
+    const minAmount = parseFloat(fiatMin);
+    const maxAmount = parseFloat(fiatMax);
+
+    if (!fiatMin || isNaN(minAmount) || minAmount < 0) {
+      setServerError('Min amount is required.');
+      return;
+    }
+    if (!fiatMax || isNaN(maxAmount) || maxAmount <= 0) {
+      setServerError('Max amount is required and must be greater than 0.');
+      return;
+    }
+    if (minAmount >= maxAmount) {
+      setServerError('Min amount must be less than max amount.');
+      return;
+    }
+
     try {
       const offer = await createOffer.mutateAsync({
         offer_type: offerType,
@@ -112,8 +218,9 @@ function CreateOfferForm() {
         fiat_currency: fiatCurrency,
         rate_type: rateType,
         payment_methods: selectedPayments,
-        ...(values.min_amount && { min_amount: parseFloat(values.min_amount) }),
-        ...(values.max_amount && { max_amount: parseFloat(values.max_amount) }),
+        min_amount: minAmount,
+        max_amount: maxAmount,
+        ...(rateType === 'market' && { price_source: priceSource }),
         ...(rateType === 'market' && values.margin_percent && { margin_percent: parseFloat(values.margin_percent) }),
         ...(rateType === 'fixed' && values.fixed_price && { fixed_price: parseFloat(values.fixed_price) }),
         ...(selectedCountry && { country_code: selectedCountry }),
@@ -211,11 +318,28 @@ function CreateOfferForm() {
           </div>
         </div>
 
-        {/* Live price preview */}
-        <div className="rounded-lg border border-border bg-muted/50 px-4 py-3">
+        {/* Live price preview + source selector */}
+        <div className="rounded-lg border border-border bg-muted/50 px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Current market price: <PriceTicker crypto={cryptoCurrency} fiat={fiatCurrency} className="font-medium text-foreground" />
+            Current market price:{' '}
+            <span className="font-medium text-foreground">
+              {selectedPrice !== undefined ? `${formatPrice(selectedPrice)} ${fiatCurrency}` : '--'}
+            </span>
+            {' '}
+            <span className="text-muted-foreground">
+              ({PRICE_SOURCES.find((s) => s.value === priceSource)?.label})
+            </span>
           </p>
+          <Select value={priceSource} onValueChange={(v) => setPriceSource(v as PriceSource)}>
+            <SelectTrigger className="w-36 h-8 text-xs" aria-label="Price source">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRICE_SOURCES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Rate type */}
@@ -245,20 +369,35 @@ function CreateOfferForm() {
           </div>
         </div>
 
-        {/* Margin or fixed price */}
+        {/* Margin + effective price (side-by-side) or fixed price */}
         {rateType === 'market' ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="margin_percent">Margin % (optional)</Label>
-            <Input
-              id="margin_percent"
-              type="number"
-              step="0.01"
-              placeholder="e.g. 2.5 for +2.5% above market"
-              {...register('margin_percent')}
-            />
-            <p className="text-xs text-muted-foreground">
-              Positive = above market, negative = below market
-            </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="margin_percent">Margin %</Label>
+              <Input
+                id="margin_percent"
+                type="number"
+                step="0.01"
+                placeholder="e.g. 2.5"
+                {...register('margin_percent')}
+              />
+              <p className="text-xs text-muted-foreground">
+                Positive = above market, negative = below
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Effective price</Label>
+              <div className="flex items-center h-10 rounded-md border border-border bg-muted/50 px-3">
+                <span className="text-sm font-medium">
+                  {effectivePrice !== undefined
+                    ? `${formatPrice(effectivePrice)} ${fiatCurrency}`
+                    : '--'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Price per 1 {cryptoCurrency}
+              </p>
+            </div>
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -273,28 +412,72 @@ function CreateOfferForm() {
           </div>
         )}
 
-        {/* Amount limits */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="min_amount">Min amount ({fiatCurrency}, optional)</Label>
-            <Input
-              id="min_amount"
-              type="number"
-              step="0.01"
-              placeholder="e.g. 50"
-              {...register('min_amount')}
-            />
+        {/* Dual min/max: fiat + crypto linked */}
+        <div className="space-y-3">
+          <Label>Trade limits</Label>
+          {/* Fiat row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="fiat_min" className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                {getFiatFlag(fiatCurrency)} Min ({fiatCurrency})
+              </Label>
+              <Input
+                id="fiat_min"
+                type="number"
+                step="0.01"
+                placeholder="e.g. 50"
+                value={fiatMin}
+                onChange={(e) => updateLinkedAmounts('fiat', 'min', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fiat_max" className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                {getFiatFlag(fiatCurrency)} Max ({fiatCurrency})
+              </Label>
+              <Input
+                id="fiat_max"
+                type="number"
+                step="0.01"
+                placeholder="e.g. 10000"
+                value={fiatMax}
+                onChange={(e) => updateLinkedAmounts('fiat', 'max', e.target.value)}
+              />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="max_amount">Max amount ({fiatCurrency}, optional)</Label>
-            <Input
-              id="max_amount"
-              type="number"
-              step="0.01"
-              placeholder="e.g. 10000"
-              {...register('max_amount')}
-            />
+          {/* Crypto row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="crypto_min" className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                <CoinIcon symbol={cryptoCurrency} className="h-4 w-4" /> Min ({cryptoCurrency})
+              </Label>
+              <Input
+                id="crypto_min"
+                type="number"
+                step="0.00000001"
+                placeholder="e.g. 0.001"
+                value={cryptoMin}
+                onChange={(e) => updateLinkedAmounts('crypto', 'min', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="crypto_max" className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                <CoinIcon symbol={cryptoCurrency} className="h-4 w-4" /> Max ({cryptoCurrency})
+              </Label>
+              <Input
+                id="crypto_max"
+                type="number"
+                step="0.00000001"
+                placeholder="e.g. 0.5"
+                value={cryptoMax}
+                onChange={(e) => updateLinkedAmounts('crypto', 'max', e.target.value)}
+              />
+            </div>
           </div>
+          {effectivePrice !== undefined && (
+            <p className="text-xs text-muted-foreground">
+              Amounts are linked at {formatPrice(effectivePrice)} {fiatCurrency}/{cryptoCurrency}
+            </p>
+          )}
         </div>
 
         {/* Country */}
@@ -371,11 +554,13 @@ function CreateOfferForm() {
         </div>
 
         {/* Server error */}
-        {serverError && serverError !== 'Select at least one payment method.' && (
-          <p className="text-sm text-destructive" role="alert">
-            {serverError}
-          </p>
-        )}
+        {serverError
+          && serverError !== 'Select at least one payment method.'
+          && (
+            <p className="text-sm text-destructive" role="alert">
+              {serverError}
+            </p>
+          )}
 
         {/* Submit */}
         <div className="flex gap-3 pt-2">
