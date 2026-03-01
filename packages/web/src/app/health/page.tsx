@@ -201,6 +201,7 @@ export default function HealthPage() {
           data={diskHistory ?? []}
           unit="bytes"
           color="#10b981"
+          yMax={system?.disk_total_bytes}
         />
 
         {/* Disk I/O */}

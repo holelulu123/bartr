@@ -58,14 +58,19 @@ interface MetricChartProps {
   data: MetricSample[];
   unit?: 'percent' | 'bytes' | 'bytes_per_sec';
   color?: string;
+  /** Fixed Y-axis maximum. For percent charts defaults to 100. */
+  yMax?: number;
 }
 
-export function MetricChart({ title, data, unit = 'percent', color = '#f97316' }: MetricChartProps) {
+export function MetricChart({ title, data, unit = 'percent', color = '#f97316', yMax }: MetricChartProps) {
   const formatValue = (v: number) => {
     if (unit === 'percent') return `${v}%`;
     if (unit === 'bytes') return formatBytes(v);
     return formatBytesPerSec(v);
   };
+
+  const domain: [number, number] | undefined =
+    yMax != null ? [0, yMax] : unit === 'percent' ? [0, 100] : undefined;
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
@@ -84,6 +89,7 @@ export function MetricChart({ title, data, unit = 'percent', color = '#f97316' }
                 tickLine={false}
               />
               <YAxis
+                domain={domain}
                 tickFormatter={(v: number) => formatValue(v)}
                 tick={{ fill: '#737373', fontSize: 10 }}
                 axisLine={false}
@@ -116,14 +122,18 @@ interface MultiLineChartProps {
   title: string;
   series: Array<{ name: string; data: MetricSample[]; color: string }>;
   unit?: 'percent' | 'bytes' | 'bytes_per_sec';
+  yMax?: number;
 }
 
-export function MultiLineChart({ title, series, unit = 'percent' }: MultiLineChartProps) {
+export function MultiLineChart({ title, series, unit = 'percent', yMax }: MultiLineChartProps) {
   const formatValue = (v: number) => {
     if (unit === 'percent') return `${v}%`;
     if (unit === 'bytes') return formatBytes(v);
     return formatBytesPerSec(v);
   };
+
+  const domain: [number, number] | undefined =
+    yMax != null ? [0, yMax] : unit === 'percent' ? [0, 100] : undefined;
 
   // Merge all series into a single dataset keyed by timestamp
   const merged = new Map<number, Record<string, number>>();
@@ -155,6 +165,7 @@ export function MultiLineChart({ title, series, unit = 'percent' }: MultiLineCha
                 tickLine={false}
               />
               <YAxis
+                domain={domain}
                 tickFormatter={(v: number) => formatValue(v)}
                 tick={{ fill: '#737373', fontSize: 10 }}
                 axisLine={false}

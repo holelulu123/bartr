@@ -2,7 +2,8 @@ import os from 'node:os';
 import fs from 'node:fs';
 import type Redis from 'ioredis';
 
-const INTERVAL_MS = 5_000;
+const FAST_INTERVAL_MS = 5_000;       // CPU, RAM, disk I/O, network
+const SLOW_INTERVAL_MS = 5 * 60_000;  // disk usage (every 5 min)
 const RETENTION_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 
 // ── Previous-tick state for delta calculations ────────────────────────────
@@ -96,9 +97,9 @@ function parseNetDev(): { rx: number; tx: number } | null {
   }
 }
 
-// ── Collect and store ─────────────────────────────────────────────────────
+// ── Fast metrics (every 5s): CPU, RAM, disk I/O, network ──────────────────
 
-async function collectAndStore(redis: Redis) {
+async function collectFast(redis: Redis) {
   const now = Date.now();
   const cutoff = now - RETENTION_MS;
   const pipeline = redis.pipeline();
@@ -115,11 +116,6 @@ async function collectAndStore(redis: Redis) {
   const ram = getRamPercent();
   pipeline.zadd('metrics:ram', now.toString(), `${now}|${ram}`);
   pipeline.zremrangebyscore('metrics:ram', '-inf', cutoff.toString());
-
-  // Disk usage
-  const diskUsed = getDiskUsageBytes();
-  pipeline.zadd('metrics:disk', now.toString(), `${now}|${diskUsed}`);
-  pipeline.zremrangebyscore('metrics:disk', '-inf', cutoff.toString());
 
   // Disk I/O
   const diskStats = parseDiskStats();
@@ -158,25 +154,49 @@ async function collectAndStore(redis: Redis) {
   await pipeline.exec();
 }
 
+// ── Slow metrics (every 5 min): disk usage ────────────────────────────────
+
+async function collectSlow(redis: Redis) {
+  const now = Date.now();
+  const cutoff = now - RETENTION_MS;
+  const pipeline = redis.pipeline();
+
+  const diskUsed = getDiskUsageBytes();
+  pipeline.zadd('metrics:disk', now.toString(), `${now}|${diskUsed}`);
+  pipeline.zremrangebyscore('metrics:disk', '-inf', cutoff.toString());
+
+  await pipeline.exec();
+}
+
 // ── Public API ────────────────────────────────────────────────────────────
 
-let timer: ReturnType<typeof setInterval> | null = null;
+let fastTimer: ReturnType<typeof setInterval> | null = null;
+let slowTimer: ReturnType<typeof setInterval> | null = null;
 
 export function startMetricsCollector(redis: Redis) {
-  // Initial tick to seed deltas (first real values appear on second tick)
-  collectAndStore(redis).catch(() => {});
+  // Seed deltas on first tick
+  collectFast(redis).catch(() => {});
+  collectSlow(redis).catch(() => {});
 
-  timer = setInterval(() => {
-    collectAndStore(redis).catch(() => {});
-  }, INTERVAL_MS);
+  fastTimer = setInterval(() => {
+    collectFast(redis).catch(() => {});
+  }, FAST_INTERVAL_MS);
 
-  // Allow process to exit without waiting for this interval
-  if (timer.unref) timer.unref();
+  slowTimer = setInterval(() => {
+    collectSlow(redis).catch(() => {});
+  }, SLOW_INTERVAL_MS);
+
+  if (fastTimer.unref) fastTimer.unref();
+  if (slowTimer.unref) slowTimer.unref();
 }
 
 export function stopMetricsCollector() {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
+  if (fastTimer) {
+    clearInterval(fastTimer);
+    fastTimer = null;
+  }
+  if (slowTimer) {
+    clearInterval(slowTimer);
+    slowTimer = null;
   }
 }
