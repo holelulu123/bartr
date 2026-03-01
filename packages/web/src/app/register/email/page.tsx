@@ -80,7 +80,7 @@ export default function EmailRegisterPage() {
       const { publicKeyBase64, privateKeyBlob, recoveryKeyBlob } =
         await cryptoRegister(data.password);
 
-      const tokens = await auth.registerEmail({
+      const tokens = await auth.register({
         email: data.email,
         password: data.password,
         public_key: publicKeyBase64,

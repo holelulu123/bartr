@@ -38,15 +38,13 @@ vi.mock('@/contexts/crypto-context', () => ({
   useCrypto: () => ({ register: mockCryptoRegister }),
 }));
 
-const mockLoginEmail = vi.fn();
-const mockRegisterEmail = vi.fn();
-const mockGetGoogleAuthUrl = vi.fn(() => 'http://localhost:4000/auth/google');
+const mockLogin = vi.fn();
+const mockRegister = vi.fn();
 
 vi.mock('@/lib/api', () => ({
   auth: {
-    loginEmail: (...args: unknown[]) => mockLoginEmail(...args),
-    registerEmail: (...args: unknown[]) => mockRegisterEmail(...args),
-    getGoogleAuthUrl: () => mockGetGoogleAuthUrl(),
+    login: (...args: unknown[]) => mockLogin(...args),
+    register: (...args: unknown[]) => mockRegister(...args),
   },
 }));
 
@@ -86,8 +84,8 @@ describe('LoginPage — email tab (default)', () => {
     await waitFor(() => expect(screen.getByText(/valid email/i)).toBeInTheDocument());
   });
 
-  it('calls loginEmail with credentials and redirects on success', async () => {
-    mockLoginEmail.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' });
+  it('calls login with credentials and redirects on success', async () => {
+    mockLogin.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' });
     mockRefreshUser.mockResolvedValue(undefined);
 
     render(<LoginPage />);
@@ -98,13 +96,13 @@ describe('LoginPage — email tab (default)', () => {
       await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
     });
 
-    await waitFor(() => expect(mockLoginEmail).toHaveBeenCalledWith('alice@example.com', 'Pass123!x'));
+    await waitFor(() => expect(mockLogin).toHaveBeenCalledWith('alice@example.com', 'Pass123!x'));
     await waitFor(() => expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt'));
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
   });
 
   it('shows error on invalid credentials', async () => {
-    mockLoginEmail.mockRejectedValue(new Error('401'));
+    mockLogin.mockRejectedValue(new Error('401'));
 
     render(<LoginPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'alice@example.com');
@@ -118,12 +116,11 @@ describe('LoginPage — email tab (default)', () => {
   });
 });
 
-describe('LoginPage — email-only mode', () => {
-  it('shows email and password fields (no Google tab)', () => {
+describe('LoginPage — form rendering', () => {
+  it('shows email and password fields', () => {
     render(<LoginPage />);
     expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /google/i })).not.toBeInTheDocument();
   });
 
   it('shows sign in button', () => {
@@ -204,7 +201,7 @@ describe('EmailRegisterPage — successful registration', () => {
       recoveryKeyHex: 'aabbccdd1122',
       recoveryKeyBlob: 'recblob',
     });
-    mockRegisterEmail.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' });
+    mockRegister.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' });
     mockRefreshUser.mockResolvedValue(undefined);
   });
 
@@ -222,7 +219,7 @@ describe('EmailRegisterPage — successful registration', () => {
     expect(screen.queryByText(/save your recovery key/i)).not.toBeInTheDocument();
   });
 
-  it('calls registerEmail with email (no nickname in payload)', async () => {
+  it('calls register with email (no nickname in payload)', async () => {
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'new@example.com');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'Pass123!x');
@@ -233,12 +230,12 @@ describe('EmailRegisterPage — successful registration', () => {
     });
 
     await waitFor(() =>
-      expect(mockRegisterEmail).toHaveBeenCalledWith(
+      expect(mockRegister).toHaveBeenCalledWith(
         expect.objectContaining({ email: 'new@example.com' }),
       ),
     );
     // Nickname must NOT be in the payload
-    expect(mockRegisterEmail).toHaveBeenCalledWith(
+    expect(mockRegister).toHaveBeenCalledWith(
       expect.not.objectContaining({ nickname: expect.anything() }),
     );
   });
@@ -261,7 +258,7 @@ describe('EmailRegisterPage — successful registration', () => {
 describe('EmailRegisterPage — server errors', () => {
   it('shows error for duplicate email', async () => {
     mockCryptoRegister.mockResolvedValue({ publicKeyBase64: 'pk', privateKeyBlob: 'priv', recoveryKeyHex: 'hex', recoveryKeyBlob: 'rec' });
-    mockRegisterEmail.mockRejectedValue(new Error('409: email already registered'));
+    mockRegister.mockRejectedValue(new Error('409: email already registered'));
 
     render(<EmailRegisterPage />);
     await userEvent.type(screen.getByLabelText(/^email$/i), 'dupe@example.com');

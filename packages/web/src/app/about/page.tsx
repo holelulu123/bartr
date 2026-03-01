@@ -41,7 +41,7 @@ export default function AboutPage() {
 
         <Section title="How it works">
           <ol className="list-decimal list-inside space-y-2 text-neutral-300">
-            <li>Create an account with Google or email — no real name required.</li>
+            <li>Create an account with email — no real name required.</li>
             <li>Your private key is encrypted with your password and stored only on our servers as an opaque blob.</li>
             <li>Post listings for anything you want to sell or trade.</li>
             <li>Buyers message you — all messages are end-to-end encrypted between you and them.</li>
@@ -53,7 +53,7 @@ export default function AboutPage() {
         <Section title="What we store — and what we don't">
           <p>We keep the minimum necessary to run the platform:</p>
           <ul className="list-disc list-inside space-y-1 text-neutral-300">
-            <li>Your Google ID or a one-way HMAC of your email (not the email itself)</li>
+            <li>A one-way HMAC of your email (not the email itself)</li>
             <li>Your nickname (auto-generated, random by default)</li>
             <li>Your encrypted private key blob (we cannot read it)</li>
             <li>Your listings and messages (messages are E2E encrypted)</li>

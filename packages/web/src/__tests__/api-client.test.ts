@@ -234,10 +234,11 @@ describe('domain API modules', () => {
   it('auth module exports expected functions', async () => {
     const auth = await import('@/lib/api/auth');
     expect(auth.register).toBeTypeOf('function');
+    expect(auth.login).toBeTypeOf('function');
     expect(auth.refreshTokens).toBeTypeOf('function');
     expect(auth.logout).toBeTypeOf('function');
     expect(auth.getMe).toBeTypeOf('function');
-    expect(auth.getGoogleAuthUrl).toBeTypeOf('function');
+    expect(auth.getKeyBlobs).toBeTypeOf('function');
   });
 
   it('listings module exports expected functions', async () => {
@@ -313,10 +314,14 @@ describe('domain API modules', () => {
     expect(url).toContain('status=offered');
   });
 
-  it('auth.getGoogleAuthUrl returns correct URL', async () => {
-    const { getGoogleAuthUrl } = await import('@/lib/api/auth');
-    const url = getGoogleAuthUrl();
-    expect(url).toContain('/auth/google');
+  it('auth.login calls correct endpoint', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ access_token: 'at', refresh_token: 'rt' }));
+
+    const { login } = await import('@/lib/api/auth');
+    await login('test@example.com', 'pass123');
+
+    const url = mockFetch.mock.calls[0][0];
+    expect(url).toContain('/auth/login/email');
   });
 });
 

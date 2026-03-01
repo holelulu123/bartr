@@ -27,7 +27,7 @@ export default function AuthCallbackPage() {
       const authError = searchParams.get('auth_error');
 
       if (authError || !accessToken || !refreshToken) {
-        setErrorMsg(authError === 'google_denied' ? 'Google sign-in was cancelled.' : 'Authentication failed. Please try again.');
+        setErrorMsg('Authentication failed. Please try again.');
         setStatus('error');
         return;
       }

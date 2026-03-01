@@ -27,14 +27,6 @@ export interface CurrentUser {
   role?: string;
 }
 
-export interface RegisterPayload {
-  google_id: string;
-  password: string;
-  public_key: string;
-  private_key_blob: string;
-  recovery_key_blob: string;
-}
-
 export interface KeyBlobs {
   public_key: string | null;
   private_key_blob: string | null;

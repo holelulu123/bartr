@@ -109,7 +109,7 @@ export default function LoginPage() {
     if (isLocked) return;
     setServerError('');
     try {
-      const tokens = await auth.loginEmail(data.email, data.password);
+      const tokens = await auth.login(data.email, data.password);
       setTokens(tokens.access_token, tokens.refresh_token);
       await refreshUser();
       // Unlock E2E keys immediately using the password already in hand

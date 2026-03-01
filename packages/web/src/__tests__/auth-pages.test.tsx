@@ -49,7 +49,6 @@ vi.mock('@/lib/api', () => ({
   auth: {
     register: vi.fn(),
     getKeyBlobs: vi.fn(),
-    getGoogleAuthUrl: () => 'https://accounts.google.com/oauth',
   },
 }));
 
@@ -92,65 +91,12 @@ describe('/login page', () => {
   });
 });
 
-// ── /register ──────────────────────────────────────────────────────────────
+// ── /register (redirects to /register/email) ──────────────────────────────
 
 describe('/register page', () => {
-  beforeEach(() => {
-    mockSearchParams = new URLSearchParams('google_id=gid123');
-  });
-
-  it('renders password fields (no nickname field)', () => {
+  it('redirects to /register/email', async () => {
     render(<RegisterPage />);
-    expect(screen.queryByLabelText(/nickname/i)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
-  });
-
-  it('shows error when passwords do not match', async () => {
-    render(<RegisterPage />);
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'different123');
-    await userEvent.click(screen.getByRole('button', { name: /create account/i }));
-    await waitFor(() => expect(screen.getByText(/do not match/i)).toBeInTheDocument());
-  });
-
-  it('generates keys, registers, and redirects to listings on success', async () => {
-    mockCryptoRegister.mockResolvedValue({
-      publicKeyBase64: 'pub-key',
-      privateKeyBlob: 'priv-blob',
-      recoveryKeyHex: 'deadbeef'.repeat(8),
-      recoveryKeyBlob: 'rec-blob',
-    });
-    vi.mocked(apiModule.auth.register).mockResolvedValue({
-      access_token: 'at',
-      refresh_token: 'rt',
-    });
-    mockRefreshUser.mockResolvedValue(undefined);
-
-    render(<RegisterPage />);
-    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123');
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123');
-
-    await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: /create account/i }));
-    });
-
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/listings'));
-    expect(mockSetTokens).toHaveBeenCalledWith('at', 'rt');
-    expect(apiModule.auth.register).toHaveBeenCalledWith(
-      expect.objectContaining({
-        google_id: 'gid123',
-        public_key: 'pub-key',
-        private_key_blob: 'priv-blob',
-        recovery_key_blob: 'rec-blob',
-      })
-    );
-  });
-
-  it('redirects to /login if no google_id in query', async () => {
-    mockSearchParams = new URLSearchParams();
-    render(<RegisterPage />);
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/login'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/register/email'));
   });
 });
 
@@ -170,10 +116,10 @@ describe('/auth/callback page', () => {
   });
 
   it('shows error on auth_error param', async () => {
-    mockSearchParams = new URLSearchParams('auth_error=google_denied');
+    mockSearchParams = new URLSearchParams('auth_error=something');
     render(<AuthCallbackPage />);
     await waitFor(() =>
-      expect(screen.getByText(/cancelled/i)).toBeInTheDocument()
+      expect(screen.getByText(/authentication failed/i)).toBeInTheDocument()
     );
   });
 

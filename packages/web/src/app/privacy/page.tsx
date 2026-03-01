@@ -20,8 +20,8 @@ export default function PrivacyPage() {
             <p>We collect only what is necessary to operate the platform:</p>
             <ul className="list-disc list-inside space-y-1 mt-2">
               <li>
-                <strong>Identifier:</strong> Your Google account ID (OAuth), or a one-way HMAC
-                of your email address. We never store your email in plaintext.
+                <strong>Identifier:</strong> A one-way HMAC of your email address. We never
+                store your email in plaintext.
               </li>
               <li>
                 <strong>Nickname:</strong> A random alias assigned at registration. You may

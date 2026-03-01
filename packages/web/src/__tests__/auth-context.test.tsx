@@ -8,7 +8,6 @@ vi.mock('@/lib/api/auth', () => ({
   getMe: vi.fn(),
   refreshTokens: vi.fn(),
   logout: vi.fn(),
-  getGoogleAuthUrl: vi.fn(() => 'http://localhost:4000/auth/google'),
 }));
 
 // Mock setTokenStore so we can inspect what's passed

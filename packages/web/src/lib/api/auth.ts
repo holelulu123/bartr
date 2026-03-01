@@ -1,11 +1,7 @@
 import { get, post } from './client';
-import type { TokenPair, CurrentUser, RegisterPayload, KeyBlobs } from './types';
+import type { TokenPair, CurrentUser, KeyBlobs } from './types';
 
-export function register(payload: RegisterPayload): Promise<TokenPair> {
-  return post<TokenPair>('/auth/register', payload);
-}
-
-export interface EmailRegisterPayload {
+export interface RegisterPayload {
   email: string;
   password: string;
   public_key: string;
@@ -13,11 +9,11 @@ export interface EmailRegisterPayload {
   recovery_key_blob: string;
 }
 
-export function registerEmail(payload: EmailRegisterPayload): Promise<TokenPair> {
+export function register(payload: RegisterPayload): Promise<TokenPair> {
   return post<TokenPair>('/auth/register/email', payload);
 }
 
-export function loginEmail(email: string, password: string): Promise<TokenPair> {
+export function login(email: string, password: string): Promise<TokenPair> {
   return post<TokenPair>('/auth/login/email', { email, password });
 }
 
@@ -35,9 +31,4 @@ export function getMe(): Promise<CurrentUser> {
 
 export function getKeyBlobs(): Promise<KeyBlobs> {
   return get<KeyBlobs>('/auth/key-blobs');
-}
-
-export function getGoogleAuthUrl(): string {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-  return `${baseUrl}/auth/google`;
 }

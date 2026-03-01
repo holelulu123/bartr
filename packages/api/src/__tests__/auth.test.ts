@@ -19,20 +19,18 @@ const TEST_KEYS = {
   recovery_key_blob: Buffer.from('recovery_wrapped_key').toString('base64'),
 };
 
-// Helper: insert a user row directly as if OAuth callback had run
-async function createOAuthUser(
+// Helper: register a user via email and return tokens
+async function registerEmailUser(
   app: FastifyInstance,
-  googleId: string,
-  nickname: string,
-): Promise<string> {
-  const result = await app.pg.query(
-    `INSERT INTO users (google_id, nickname, auth_provider)
-     VALUES ($1, $2, 'google')
-     RETURNING id`,
-    [googleId, nickname],
-  );
-  await app.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [result.rows[0].id]);
-  return result.rows[0].id;
+  email: string,
+  password = 'securepassword123',
+): Promise<{ access_token: string; refresh_token: string }> {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/auth/register/email',
+    payload: { email, password, ...TEST_KEYS },
+  });
+  return res.json();
 }
 
 describe('Auth routes', () => {
@@ -47,14 +45,12 @@ describe('Auth routes', () => {
   const TEST_EMAILS = [
     'newuser@example.com', 'short@example.com', 'dupe@example.com',
     'nokeys@example.com', 'logintest@example.com', 'rolecheck@example.com',
+    'refresh@example.com', 'logout@example.com', 'me@example.com',
+    'e2ekeys@example.com',
   ];
   const TEST_EMAIL_HASHES = TEST_EMAILS.map(testEmailHmac);
 
   async function cleanupTestUsers() {
-    // Delete OAuth test users by nickname prefix
-    await app.pg.query("DELETE FROM reputation_scores WHERE user_id IN (SELECT id FROM users WHERE nickname LIKE 'testuser_%')");
-    await app.pg.query("DELETE FROM users WHERE nickname LIKE 'testuser_%'");
-    // Delete email test users by their specific email hashes only
     if (TEST_EMAIL_HASHES.length > 0) {
       await app.pg.query("DELETE FROM reputation_scores WHERE user_id IN (SELECT id FROM users WHERE email_hash = ANY($1))", [TEST_EMAIL_HASHES]);
       await app.pg.query('DELETE FROM users WHERE email_hash = ANY($1)', [TEST_EMAIL_HASHES]);
@@ -71,106 +67,20 @@ describe('Auth routes', () => {
     await cleanupTestUsers();
   });
 
-  // ── POST /auth/register (Google — set password + keys after OAuth) ──────────
+  // ── GET /auth/key-blobs ────────────────────────────────────────────────────
 
-  describe('POST /auth/register', () => {
-    it('sets password + key blobs for a Google user created by OAuth callback', async () => {
-      await createOAuthUser(app, 'google_test_123', 'testuser_one');
-
+  describe('GET /auth/key-blobs', () => {
+    it('requires authentication', async () => {
       const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_test_123',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
+        method: 'GET',
+        url: '/auth/key-blobs',
       });
 
-      expect(res.statusCode).toBe(201);
-      const body = res.json();
-      expect(body.access_token).toBeDefined();
-      expect(body.refresh_token).toBeDefined();
-
-      const payload = await verifyToken(body.access_token);
-      expect(payload.nickname).toBe('testuser_one');
+      expect(res.statusCode).toBe(401);
     });
 
-    it('rejects short password', async () => {
-      await createOAuthUser(app, 'google_test_456', 'testuser_two');
-
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_test_456',
-          password: 'short',
-          ...TEST_KEYS,
-        },
-      });
-
-      expect(res.statusCode).toBe(400);
-      expect(res.json().error).toContain('8 characters');
-    });
-
-    it('rejects registration without key blobs', async () => {
-      await createOAuthUser(app, 'google_nokeys_test', 'testuser_nokeys');
-
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_nokeys_test',
-          password: 'securepassword123',
-        },
-      });
-
-      expect(res.statusCode).toBe(400);
-      expect(res.json().error).toContain('required');
-    });
-
-    it('returns 404 for unknown google_id', async () => {
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'nonexistent_google_id',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
-      });
-
-      expect(res.statusCode).toBe(404);
-    });
-
-    it('rejects missing google_id', async () => {
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: { password: 'securepassword123', ...TEST_KEYS },
-      });
-      expect(res.statusCode).toBe(400);
-    });
-  });
-
-  // ── POST /auth/register — E2E key blobs ────────────────────────────────────
-
-  describe('POST /auth/register — E2E key blobs', () => {
     it('stores key blobs and returns them via GET /auth/key-blobs', async () => {
-      await createOAuthUser(app, 'google_e2e_test', 'testuser_e2e');
-
-      const res = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_e2e_test',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
-      });
-
-      expect(res.statusCode).toBe(201);
-      const { access_token } = res.json();
+      const { access_token } = await registerEmailUser(app, 'e2ekeys@example.com');
 
       const keyRes = await app.inject({
         method: 'GET',
@@ -186,36 +96,11 @@ describe('Auth routes', () => {
     });
   });
 
-  // ── GET /auth/key-blobs ────────────────────────────────────────────────────
-
-  describe('GET /auth/key-blobs', () => {
-    it('requires authentication', async () => {
-      const res = await app.inject({
-        method: 'GET',
-        url: '/auth/key-blobs',
-      });
-
-      expect(res.statusCode).toBe(401);
-    });
-  });
-
   // ── POST /auth/refresh ─────────────────────────────────────────────────────
 
   describe('POST /auth/refresh', () => {
     it('rotates refresh token and returns new tokens', async () => {
-      await createOAuthUser(app, 'google_refresh_test', 'testuser_refresh');
-
-      const regRes = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_refresh_test',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
-      });
-
-      const { refresh_token } = regRes.json();
+      const { refresh_token } = await registerEmailUser(app, 'refresh@example.com');
 
       const res = await app.inject({
         method: 'POST',
@@ -252,19 +137,7 @@ describe('Auth routes', () => {
 
   describe('POST /auth/logout', () => {
     it('revokes refresh token', async () => {
-      await createOAuthUser(app, 'google_logout_test', 'testuser_logout');
-
-      const regRes = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_logout_test',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
-      });
-
-      const { refresh_token } = regRes.json();
+      const { refresh_token } = await registerEmailUser(app, 'logout@example.com');
 
       const logoutRes = await app.inject({
         method: 'POST',
@@ -288,19 +161,7 @@ describe('Auth routes', () => {
 
   describe('GET /auth/me', () => {
     it('returns user info with valid token', async () => {
-      await createOAuthUser(app, 'google_me_test', 'testuser_me');
-
-      const regRes = await app.inject({
-        method: 'POST',
-        url: '/auth/register',
-        payload: {
-          google_id: 'google_me_test',
-          password: 'securepassword123',
-          ...TEST_KEYS,
-        },
-      });
-
-      const { access_token } = regRes.json();
+      const { access_token } = await registerEmailUser(app, 'me@example.com');
 
       const res = await app.inject({
         method: 'GET',
@@ -310,7 +171,7 @@ describe('Auth routes', () => {
 
       expect(res.statusCode).toBe(200);
       const body = res.json();
-      expect(body.nickname).toBe('testuser_me');
+      expect(body.nickname).toBeTruthy();
       expect(body.id).toBeDefined();
     });
 
