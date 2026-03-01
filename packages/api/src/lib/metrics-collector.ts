@@ -2,8 +2,9 @@ import os from 'node:os';
 import fs from 'node:fs';
 import type Redis from 'ioredis';
 
-const FAST_INTERVAL_MS = 5_000;       // CPU, RAM, disk I/O, network
-const SLOW_INTERVAL_MS = 5 * 60_000;  // disk usage (every 5 min)
+const SAMPLE_INTERVAL_MS = 5_000;      // sample every 5s in memory
+const FLUSH_INTERVAL_MS = 5 * 60_000;  // flush max to Redis every 5 min
+const DISK_INTERVAL_MS = 5 * 60_000;   // disk usage every 5 min
 const RETENTION_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 
 // ── Previous-tick state for delta calculations ────────────────────────────
@@ -11,6 +12,27 @@ const RETENTION_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 let prevCpuTimes: Array<{ idle: number; total: number }> | null = null;
 let prevDiskStats: { reads: number; writes: number; ts: number } | null = null;
 let prevNetStats: { rx: number; tx: number; ts: number } | null = null;
+
+// ── In-memory buffers ─────────────────────────────────────────────────────
+
+// Tracks max value per metric in the current 5-min window (for Redis flush)
+const maxBuffer = new Map<string, number>();
+
+// Tracks the most recent sampled value per metric (for live /health/system)
+const latestBuffer = new Map<string, number>();
+
+function bufferMax(key: string, value: number) {
+  latestBuffer.set(key, value);
+  const prev = maxBuffer.get(key);
+  if (prev === undefined || value > prev) {
+    maxBuffer.set(key, value);
+  }
+}
+
+/** Get the most recent sampled value for a metric (updated every 5s). */
+export function getLatestSample(metric: string): number {
+  return latestBuffer.get(metric) ?? 0;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -66,13 +88,11 @@ function parseDiskStats(): { reads: number; writes: number } | null {
     let totalWrites = 0;
     for (const line of content.trim().split('\n')) {
       const parts = line.trim().split(/\s+/);
-      // fields: major minor name rd_ios rd_merges rd_sectors rd_ticks wr_ios wr_merges wr_sectors ...
       const name = parts[2];
-      // Only count whole-disk devices (sda, vda, nvme0n1) not partitions
       if (!name || /\d+$/.test(name)) continue;
       if (!/^(sd|vd|nvme|xvd)/.test(name)) continue;
-      totalReads += parseInt(parts[5], 10) * 512; // rd_sectors * 512
-      totalWrites += parseInt(parts[9], 10) * 512; // wr_sectors * 512
+      totalReads += parseInt(parts[5], 10) * 512;
+      totalWrites += parseInt(parts[9], 10) * 512;
     }
     return { reads: totalReads, writes: totalWrites };
   } catch {
@@ -100,66 +120,67 @@ function parseNetDev(): { rx: number; tx: number } | null {
   }
 }
 
-// ── Fast metrics (every 5s): CPU, RAM, disk I/O, network ──────────────────
+// ── Sample (every 5s): collect values into in-memory max buffer ───────────
 
-async function collectFast(redis: Redis) {
-  const now = Date.now();
-  const cutoff = now - RETENTION_MS;
-  const pipeline = redis.pipeline();
-
+function sample() {
   // CPU per core
   const cpuPerCore = getCpuUsagePerCore();
   for (let i = 0; i < cpuPerCore.length; i++) {
-    const key = `metrics:cpu:${i}`;
-    pipeline.zadd(key, now.toString(), `${now}|${cpuPerCore[i]}`);
-    pipeline.zremrangebyscore(key, '-inf', cutoff.toString());
+    bufferMax(`cpu:${i}`, cpuPerCore[i]);
   }
 
   // RAM
-  const ram = getRamPercent();
-  pipeline.zadd('metrics:ram', now.toString(), `${now}|${ram}`);
-  pipeline.zremrangebyscore('metrics:ram', '-inf', cutoff.toString());
+  bufferMax('ram', getRamPercent());
 
   // Disk I/O
   const diskStats = parseDiskStats();
   if (diskStats && prevDiskStats) {
-    const dt = (now - prevDiskStats.ts) / 1000;
+    const dt = (Date.now() - prevDiskStats.ts) / 1000;
     if (dt > 0) {
-      const readSpeed = Math.max(0, Math.round((diskStats.reads - prevDiskStats.reads) / dt));
-      const writeSpeed = Math.max(0, Math.round((diskStats.writes - prevDiskStats.writes) / dt));
-      pipeline.zadd('metrics:disk_read', now.toString(), `${now}|${readSpeed}`);
-      pipeline.zremrangebyscore('metrics:disk_read', '-inf', cutoff.toString());
-      pipeline.zadd('metrics:disk_write', now.toString(), `${now}|${writeSpeed}`);
-      pipeline.zremrangebyscore('metrics:disk_write', '-inf', cutoff.toString());
+      bufferMax('disk_read', Math.max(0, Math.round((diskStats.reads - prevDiskStats.reads) / dt)));
+      bufferMax('disk_write', Math.max(0, Math.round((diskStats.writes - prevDiskStats.writes) / dt)));
     }
   }
   if (diskStats) {
-    prevDiskStats = { reads: diskStats.reads, writes: diskStats.writes, ts: now };
+    prevDiskStats = { reads: diskStats.reads, writes: diskStats.writes, ts: Date.now() };
   }
 
   // Network
   const netStats = parseNetDev();
   if (netStats && prevNetStats) {
-    const dt = (now - prevNetStats.ts) / 1000;
+    const dt = (Date.now() - prevNetStats.ts) / 1000;
     if (dt > 0) {
-      const rxRate = Math.max(0, Math.round((netStats.rx - prevNetStats.rx) / dt));
-      const txRate = Math.max(0, Math.round((netStats.tx - prevNetStats.tx) / dt));
-      pipeline.zadd('metrics:net_rx', now.toString(), `${now}|${rxRate}`);
-      pipeline.zremrangebyscore('metrics:net_rx', '-inf', cutoff.toString());
-      pipeline.zadd('metrics:net_tx', now.toString(), `${now}|${txRate}`);
-      pipeline.zremrangebyscore('metrics:net_tx', '-inf', cutoff.toString());
+      bufferMax('net_rx', Math.max(0, Math.round((netStats.rx - prevNetStats.rx) / dt)));
+      bufferMax('net_tx', Math.max(0, Math.round((netStats.tx - prevNetStats.tx) / dt)));
     }
   }
   if (netStats) {
-    prevNetStats = { rx: netStats.rx, tx: netStats.tx, ts: now };
+    prevNetStats = { rx: netStats.rx, tx: netStats.tx, ts: Date.now() };
+  }
+}
+
+// ── Flush (every 5 min): write max values to Redis, clear buffer ──────────
+
+async function flush(redis: Redis) {
+  if (maxBuffer.size === 0) return;
+
+  const now = Date.now();
+  const cutoff = now - RETENTION_MS;
+  const pipeline = redis.pipeline();
+
+  for (const [metric, value] of maxBuffer) {
+    const key = `metrics:${metric}`;
+    pipeline.zadd(key, now.toString(), `${now}|${value}`);
+    pipeline.zremrangebyscore(key, '-inf', cutoff.toString());
   }
 
+  maxBuffer.clear();
   await pipeline.exec();
 }
 
-// ── Slow metrics (every 5 min): disk usage ────────────────────────────────
+// ── Disk usage (every 5 min): written directly, no max aggregation needed ─
 
-async function collectSlow(redis: Redis) {
+async function collectDisk(redis: Redis) {
   const now = Date.now();
   const cutoff = now - RETENTION_MS;
   const pipeline = redis.pipeline();
@@ -173,33 +194,36 @@ async function collectSlow(redis: Redis) {
 
 // ── Public API ────────────────────────────────────────────────────────────
 
-let fastTimer: ReturnType<typeof setInterval> | null = null;
-let slowTimer: ReturnType<typeof setInterval> | null = null;
+let sampleTimer: ReturnType<typeof setInterval> | null = null;
+let flushTimer: ReturnType<typeof setInterval> | null = null;
+let diskTimer: ReturnType<typeof setInterval> | null = null;
 
 export function startMetricsCollector(redis: Redis) {
-  // Seed deltas on first tick
-  collectFast(redis).catch(() => {});
-  collectSlow(redis).catch(() => {});
+  // Initial sample to seed deltas (first real values on second tick)
+  sample();
 
-  fastTimer = setInterval(() => {
-    collectFast(redis).catch(() => {});
-  }, FAST_INTERVAL_MS);
+  sampleTimer = setInterval(() => {
+    sample();
+  }, SAMPLE_INTERVAL_MS);
 
-  slowTimer = setInterval(() => {
-    collectSlow(redis).catch(() => {});
-  }, SLOW_INTERVAL_MS);
+  // First flush after one window
+  flushTimer = setInterval(() => {
+    flush(redis).catch(() => {});
+  }, FLUSH_INTERVAL_MS);
 
-  if (fastTimer.unref) fastTimer.unref();
-  if (slowTimer.unref) slowTimer.unref();
+  // Disk usage on its own schedule
+  collectDisk(redis).catch(() => {});
+  diskTimer = setInterval(() => {
+    collectDisk(redis).catch(() => {});
+  }, DISK_INTERVAL_MS);
+
+  if (sampleTimer.unref) sampleTimer.unref();
+  if (flushTimer.unref) flushTimer.unref();
+  if (diskTimer.unref) diskTimer.unref();
 }
 
 export function stopMetricsCollector() {
-  if (fastTimer) {
-    clearInterval(fastTimer);
-    fastTimer = null;
-  }
-  if (slowTimer) {
-    clearInterval(slowTimer);
-    slowTimer = null;
-  }
+  if (sampleTimer) { clearInterval(sampleTimer); sampleTimer = null; }
+  if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
+  if (diskTimer) { clearInterval(diskTimer); diskTimer = null; }
 }

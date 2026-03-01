@@ -2,6 +2,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota } from '@bartr/shared';
+import { getLatestSample } from '../lib/metrics-collector.js';
 
 const startedAt = Date.now();
 const PRICE_STALE_MS = 10 * 60_000; // 10 minutes
@@ -91,44 +92,15 @@ export default async function healthRoutes(fastify: FastifyInstance) {
       diskUsed = (stat.blocks - stat.bfree) * stat.bsize;
     } catch { /* ignore */ }
 
-    // Get latest I/O and net rates from Redis (last stored sample)
-    let diskReadRate = 0;
-    let diskWriteRate = 0;
-    let netRxRate = 0;
-    let netTxRate = 0;
-    try {
-      const [dr, dw, nr, nt] = await Promise.all([
-        fastify.redis.zrange('metrics:disk_read', -1, -1),
-        fastify.redis.zrange('metrics:disk_write', -1, -1),
-        fastify.redis.zrange('metrics:net_rx', -1, -1),
-        fastify.redis.zrange('metrics:net_tx', -1, -1),
-      ]);
-      if (dr[0]) diskReadRate = parseFloat(dr[0].split('|')[1]);
-      if (dw[0]) diskWriteRate = parseFloat(dw[0].split('|')[1]);
-      if (nr[0]) netRxRate = parseFloat(nr[0].split('|')[1]);
-      if (nt[0]) netTxRate = parseFloat(nt[0].split('|')[1]);
-    } catch { /* ignore */ }
+    // Read latest values from in-memory buffer (updated every 5s)
+    const diskReadRate = getLatestSample('disk_read');
+    const diskWriteRate = getLatestSample('disk_write');
+    const netRxRate = getLatestSample('net_rx');
+    const netTxRate = getLatestSample('net_tx');
 
-    // CPU per-core from latest Redis sample
     const cpuPerCore: number[] = [];
-    try {
-      const pipeline = fastify.redis.pipeline();
-      for (let i = 0; i < cpus.length; i++) {
-        pipeline.zrange(`metrics:cpu:${i}`, -1, -1);
-      }
-      const results = await pipeline.exec();
-      if (results) {
-        for (const [err, val] of results) {
-          const arr = val as string[];
-          if (!err && arr && arr[0]) {
-            cpuPerCore.push(parseFloat(arr[0].split('|')[1]));
-          } else {
-            cpuPerCore.push(0);
-          }
-        }
-      }
-    } catch {
-      for (let i = 0; i < cpus.length; i++) cpuPerCore.push(0);
+    for (let i = 0; i < cpus.length; i++) {
+      cpuPerCore.push(getLatestSample(`cpu:${i}`));
     }
 
     const response: SystemMetrics = {
