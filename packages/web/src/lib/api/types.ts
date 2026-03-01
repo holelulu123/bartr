@@ -308,6 +308,8 @@ export interface ExchangeOffer {
   created_at: string;
   updated_at: string;
   seller_nickname: string;
+  seller_rating_avg: number;
+  seller_tier: string;
 }
 
 export interface CreateOfferPayload {

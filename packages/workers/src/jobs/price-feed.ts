@@ -6,19 +6,7 @@ const CRYPTO_IDS: Record<string, string> = {
   USDT: 'tether',
   USDC: 'usd-coin',
   SOL: 'solana',
-  BNB: 'binancecoin',
   XRP: 'ripple',
-  ADA: 'cardano',
-  DOGE: 'dogecoin',
-  LTC: 'litecoin',
-  DOT: 'polkadot',
-  AVAX: 'avalanche-2',
-  MATIC: 'matic-network',
-  LINK: 'chainlink',
-  ATOM: 'cosmos',
-  UNI: 'uniswap',
-  APT: 'aptos',
-  ARB: 'arbitrum',
 };
 
 const FIAT_IDS = [
@@ -45,31 +33,16 @@ const BINANCE_SYMBOLS: Record<string, string> = {
   BTC: 'BTCUSDT',
   ETH: 'ETHUSDT',
   SOL: 'SOLUSDT',
-  BNB: 'BNBUSDT',
   XRP: 'XRPUSDT',
-  ADA: 'ADAUSDT',
-  DOGE: 'DOGEUSDT',
-  LTC: 'LTCUSDT',
-  DOT: 'DOTUSDT',
-  AVAX: 'AVAXUSDT',
-  MATIC: 'MATICUSDT',
-  LINK: 'LINKUSDT',
-  ATOM: 'ATOMUSDT',
-  UNI: 'UNIUSDT',
-  APT: 'APTUSDT',
-  ARB: 'ARBUSDT',
 };
 
 // Kraken pair mapping (major coins only)
-const KRAKEN_PAIRS: Record<string, string> = {
-  BTC: 'XBTUSD',
-  ETH: 'ETHUSD',
-  SOL: 'SOLUSD',
-  ADA: 'ADAUSD',
-  DOGE: 'DOGEUSD',
-  LTC: 'LTCUSD',
-  DOT: 'DOTUSD',
-  LINK: 'LINKUSD',
+// queryPair is sent in the API request; responseKeys are what Kraken may return
+const KRAKEN_PAIRS: Record<string, { queryPair: string; responseKeys: string[] }> = {
+  BTC: { queryPair: 'XBTUSD', responseKeys: ['XBTUSD', 'XXBTZUSD'] },
+  ETH: { queryPair: 'ETHUSD', responseKeys: ['ETHUSD', 'XETHZUSD'] },
+  SOL: { queryPair: 'SOLUSD', responseKeys: ['SOLUSD'] },
+  XRP: { queryPair: 'XRPUSD', responseKeys: ['XRPUSD', 'XXRPZUSD'] },
 };
 
 let consecutiveFailures = 0;
@@ -181,7 +154,7 @@ async function fetchFromBinance(): Promise<PriceMap | null> {
 
 async function fetchFromKraken(): Promise<PriceMap | null> {
   try {
-    const pairs = Object.values(KRAKEN_PAIRS).join(',');
+    const pairs = Object.values(KRAKEN_PAIRS).map((p) => p.queryPair).join(',');
     const url = `https://api.kraken.com/0/public/Ticker?pair=${pairs}`;
     const res = await fetch(url);
     if (!res.ok) {
@@ -198,14 +171,14 @@ async function fetchFromKraken(): Promise<PriceMap | null> {
     const result: PriceMap = {};
     const krakenResult = data.result as Record<string, { c: string[] }>;
 
-    for (const [crypto, krakenPair] of Object.entries(KRAKEN_PAIRS)) {
-      // Try exact key match first, then fuzzy (Kraken returns e.g. XXBTZUSD for XBTUSD)
-      let tickerData = krakenResult[krakenPair];
-      if (!tickerData) {
-        const altKey = Object.keys(krakenResult).find(
-          (k) => k.includes(krakenPair) || krakenPair.includes(k),
-        );
-        if (altKey) tickerData = krakenResult[altKey];
+    for (const [crypto, { responseKeys }] of Object.entries(KRAKEN_PAIRS)) {
+      // Try each known response key for this pair
+      let tickerData: { c: string[] } | undefined;
+      for (const key of responseKeys) {
+        if (krakenResult[key]) {
+          tickerData = krakenResult[key];
+          break;
+        }
       }
       if (tickerData?.c?.[0]) {
         result[crypto] = { USD: parseFloat(tickerData.c[0]) };

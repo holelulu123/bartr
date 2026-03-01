@@ -73,8 +73,8 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       if (!payment_methods || !Array.isArray(payment_methods) || payment_methods.length === 0) {
         return reply.status(400).send({ error: 'At least one settlement method is required' });
       }
-      if (payment_methods.length > 7) {
-        return reply.status(400).send({ error: 'Too many settlement methods (max 7)' });
+      if (payment_methods.length > 10) {
+        return reply.status(400).send({ error: 'Too many settlement methods (max 10)' });
       }
       for (const pm of payment_methods) {
         if (!VALID_SETTLEMENT_METHODS.includes(pm)) {
@@ -89,8 +89,8 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       if (max_amount === undefined || max_amount === null || max_amount <= 0) {
         return reply.status(400).send({ error: 'max_amount is required and must be > 0' });
       }
-      if (min_amount >= max_amount) {
-        return reply.status(400).send({ error: 'min_amount must be less than max_amount' });
+      if (min_amount > max_amount) {
+        return reply.status(400).send({ error: 'min_amount must be less than or equal to max_amount' });
       }
 
       // Validate price_source
@@ -204,9 +204,12 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
 
       const listValues = [...values, limitNum, offset];
       const result = await fastify.pg.query(
-        `SELECT eo.*, u.nickname as seller_nickname
+        `SELECT eo.*, u.nickname as seller_nickname,
+                COALESCE(rs.rating_avg, 0) as seller_rating_avg,
+                COALESCE(rs.tier, 'new') as seller_tier
          FROM exchange_offers eo
          JOIN users u ON u.id = eo.user_id
+         LEFT JOIN reputation_scores rs ON rs.user_id = eo.user_id
          ${where}
          ORDER BY eo.created_at DESC
          LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
@@ -228,9 +231,12 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
 
       const result = await fastify.pg.query(
-        `SELECT eo.*, u.nickname as seller_nickname
+        `SELECT eo.*, u.nickname as seller_nickname,
+                COALESCE(rs.rating_avg, 0) as seller_rating_avg,
+                COALESCE(rs.tier, 'new') as seller_tier
          FROM exchange_offers eo
          JOIN users u ON u.id = eo.user_id
+         LEFT JOIN reputation_scores rs ON rs.user_id = eo.user_id
          WHERE eo.id = $1`,
         [id],
       );

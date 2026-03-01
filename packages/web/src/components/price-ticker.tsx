@@ -39,9 +39,7 @@ export function PriceTicker({ crypto, fiat, className, source }: PriceTickerProp
     return <span className={className}>--</span>;
   }
 
-  const formatted = price >= 1
-    ? price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+  const formatted = price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return <span className={className}>{formatted} {fiat}</span>;
 }

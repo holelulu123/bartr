@@ -26,6 +26,7 @@ type FormData = z.infer<typeof schema>;
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 60_000; // 1 minute
+const ATTEMPT_WINDOW_MS = 60_000; // reset failed attempts after 1 minute of inactivity
 
 function loadLockState(): { attempts: number; lockedUntil: number | null } {
   if (typeof window === 'undefined') return { attempts: 0, lockedUntil: null };
@@ -38,6 +39,11 @@ function loadLockState(): { attempts: number; lockedUntil: number | null } {
       sessionStorage.removeItem('login_lock');
       return { attempts: 0, lockedUntil: null };
     }
+    // Clear stale attempts (no lockout, but attempts older than window)
+    if (!parsed.lockedUntil && parsed.lastAttemptAt && Date.now() - parsed.lastAttemptAt >= ATTEMPT_WINDOW_MS) {
+      sessionStorage.removeItem('login_lock');
+      return { attempts: 0, lockedUntil: null };
+    }
     return { attempts: parsed.attempts ?? 0, lockedUntil: parsed.lockedUntil ?? null };
   } catch {
     return { attempts: 0, lockedUntil: null };
@@ -46,7 +52,7 @@ function loadLockState(): { attempts: number; lockedUntil: number | null } {
 
 function saveLockState(attempts: number, lockedUntil: number | null) {
   try {
-    sessionStorage.setItem('login_lock', JSON.stringify({ attempts, lockedUntil }));
+    sessionStorage.setItem('login_lock', JSON.stringify({ attempts, lockedUntil, lastAttemptAt: Date.now() }));
   } catch { /* noop */ }
 }
 

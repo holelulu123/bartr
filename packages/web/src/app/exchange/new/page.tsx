@@ -45,9 +45,7 @@ type FormValues = z.infer<typeof schema>;
 
 function formatPrice(price: number | undefined): string {
   if (price === undefined) return '--';
-  return price >= 1
-    ? price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+  return price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function CreateOfferForm() {
@@ -200,8 +198,8 @@ function CreateOfferForm() {
       setServerError('Max amount is required and must be greater than 0.');
       return;
     }
-    if (minAmount >= maxAmount) {
-      setServerError('Min amount must be less than max amount.');
+    if (minAmount > maxAmount) {
+      setServerError('Min amount must be less than or equal to max amount.');
       return;
     }
 
@@ -222,8 +220,12 @@ function CreateOfferForm() {
       });
 
       router.push(`/exchange/${offer.id}`);
-    } catch (err) {
-      setServerError('Failed to create offer. Please try again.');
+    } catch (err: unknown) {
+      const apiBody = err && typeof err === 'object' && 'body' in err ? (err as { body: unknown }).body : null;
+      const apiMsg = apiBody && typeof apiBody === 'object' && apiBody !== null && 'error' in apiBody
+        ? String((apiBody as { error: string }).error)
+        : null;
+      setServerError(apiMsg || 'Failed to create offer. Please try again.');
       console.error(err);
     }
   }
@@ -234,6 +236,18 @@ function CreateOfferForm() {
   const otherSideMin = limitsView === 'fiat' ? cryptoMin : fiatMin;
   const otherSideMax = limitsView === 'fiat' ? cryptoMax : fiatMax;
   const otherSideSymbol = limitsView === 'fiat' ? cryptoCurrency : fiatCurrency;
+
+  // Interactive validation for min/max fields
+  const activeMin = limitsView === 'fiat' ? fiatMin : cryptoMin;
+  const activeMax = limitsView === 'fiat' ? fiatMax : cryptoMax;
+  const minNum = parseFloat(activeMin);
+  const maxNum = parseFloat(activeMax);
+  const minError = activeMin !== '' && (isNaN(minNum) || minNum < 0) ? 'Must be a valid number' : null;
+  const maxError = activeMax !== '' && (isNaN(maxNum) || maxNum <= 0) ? 'Must be a number greater than 0' : null;
+  const rangeError = !minError && !maxError && activeMin !== '' && activeMax !== '' && !isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum
+    ? 'Max must be greater than or equal to min'
+    : null;
+  const hasLimitErrors = !!minError || !!maxError || !!rangeError;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
@@ -432,7 +446,9 @@ function CreateOfferForm() {
                     placeholder="e.g. 50"
                     value={fiatMin}
                     onChange={(e) => updateLinkedAmounts('fiat', 'min', e.target.value)}
+                    className={cn(minError && 'border-destructive')}
                   />
+                  {minError && <p className="text-xs text-destructive">{minError}</p>}
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="fiat_max" className="text-sm text-muted-foreground inline-flex items-center gap-1">
@@ -445,7 +461,10 @@ function CreateOfferForm() {
                     placeholder="e.g. 10000"
                     value={fiatMax}
                     onChange={(e) => updateLinkedAmounts('fiat', 'max', e.target.value)}
+                    className={cn((maxError || rangeError) && 'border-destructive')}
                   />
+                  {maxError && <p className="text-xs text-destructive">{maxError}</p>}
+                  {rangeError && <p className="text-xs text-destructive">{rangeError}</p>}
                 </div>
               </>
             ) : (
@@ -461,7 +480,9 @@ function CreateOfferForm() {
                     placeholder="e.g. 0.001"
                     value={cryptoMin}
                     onChange={(e) => updateLinkedAmounts('crypto', 'min', e.target.value)}
+                    className={cn(minError && 'border-destructive')}
                   />
+                  {minError && <p className="text-xs text-destructive">{minError}</p>}
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="crypto_max" className="text-sm text-muted-foreground inline-flex items-center gap-1">
@@ -474,7 +495,10 @@ function CreateOfferForm() {
                     placeholder="e.g. 0.5"
                     value={cryptoMax}
                     onChange={(e) => updateLinkedAmounts('crypto', 'max', e.target.value)}
+                    className={cn((maxError || rangeError) && 'border-destructive')}
                   />
+                  {maxError && <p className="text-xs text-destructive">{maxError}</p>}
+                  {rangeError && <p className="text-xs text-destructive">{rangeError}</p>}
                 </div>
               </>
             )}
@@ -579,7 +603,7 @@ function CreateOfferForm() {
 
         {/* Submit */}
         <div className="flex gap-3 pt-1">
-          <Button type="submit" disabled={isProcessing} className="flex-1">
+          <Button type="submit" disabled={isProcessing || hasLimitErrors} className="flex-1">
             {isProcessing ? 'Creating...' : 'Create offer'}
           </Button>
           <Button type="button" variant="outline" asChild>
