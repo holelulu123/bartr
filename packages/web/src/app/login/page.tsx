@@ -80,7 +80,7 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) router.replace('/listings');
+    if (!isLoading && isAuthenticated) router.replace('/auth/verify-email');
   }, [isAuthenticated, isLoading, router]);
 
   // Countdown timer when locked out
@@ -121,7 +121,7 @@ export default function LoginPage() {
       } catch {
         // Non-fatal — user can still browse, messaging just won't decrypt
       }
-      router.replace('/listings');
+      router.replace('/auth/verify-email');
     } catch {
       const next = attempts + 1;
       setAttempts(next);

@@ -68,8 +68,10 @@ export default function EmailRegisterPage() {
   const watchedPassword = watch('password', '');
   const watchedConfirm = watch('confirmPassword', '');
 
+  // If user is already authenticated AND verified, redirect away from register page.
+  // Unverified users should stay (they just registered and need to verify).
   useEffect(() => {
-    if (!isLoading && isAuthenticated) router.replace('/listings');
+    if (!isLoading && isAuthenticated) router.replace('/auth/verify-email');
   }, [isAuthenticated, isLoading, router]);
 
   if (isLoading) return null;
