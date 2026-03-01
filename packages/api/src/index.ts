@@ -17,6 +17,7 @@ import moderationRoutes from './routes/moderation.js';
 import ratingRoutes from './routes/ratings.js';
 import exchangeRoutes from './routes/exchange.js';
 import priceRoutes from './routes/prices.js';
+import { startMetricsCollector } from './lib/metrics-collector.js';
 
 const app = Fastify({ logger: true });
 
@@ -40,6 +41,7 @@ await app.register(priceRoutes);
 
 try {
   await app.listen({ port: env.port, host: env.host });
+  startMetricsCollector(app.redis);
 } catch (err) {
   app.log.fatal(err);
   process.exit(1);

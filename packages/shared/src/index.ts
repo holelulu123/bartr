@@ -63,3 +63,31 @@ export interface HealthResponse {
     trades_today: number;
   };
 }
+
+export interface SystemMetrics {
+  cpu_cores: number;
+  cpu_percent_per_core: number[];
+  ram_used_bytes: number;
+  ram_total_bytes: number;
+  ram_percent: number;
+  disk_used_bytes: number;
+  disk_total_bytes: number;
+  disk_percent: number;
+  disk_read_bytes_sec: number;
+  disk_write_bytes_sec: number;
+  net_rx_bytes_sec: number;
+  net_tx_bytes_sec: number;
+  load_avg: [number, number, number];
+  uptime_seconds: number;
+}
+
+export interface MetricSample {
+  timestamp: number;
+  value: number;
+}
+
+export interface ResendQuota {
+  sent: number;
+  limit: number;
+  resets_at: string;
+}

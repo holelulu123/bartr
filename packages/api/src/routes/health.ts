@@ -1,14 +1,26 @@
+import os from 'node:os';
+import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import type { HealthResponse } from '@bartr/shared';
+import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota } from '@bartr/shared';
 
 const startedAt = Date.now();
 const PRICE_STALE_MS = 10 * 60_000; // 10 minutes
 
+const VALID_METRICS = new Set([
+  'ram', 'disk', 'disk_read', 'disk_write', 'net_rx', 'net_tx',
+]);
+
+function isValidMetric(m: string): boolean {
+  if (VALID_METRICS.has(m)) return true;
+  // cpu:N where N is a non-negative integer
+  return /^cpu:\d+$/.test(m);
+}
+
 export default async function healthRoutes(fastify: FastifyInstance) {
+  // ── GET /health — existing rich health check ────────────────────────────
   fastify.get('/health', async (_request, reply) => {
     const now = new Date();
 
-    // ── Service checks (parallel) ──────────────────────────────────────────
     const [dbResult, redisResult, minioResult] = await Promise.all([
       pingService(() => fastify.pg.query('SELECT 1')),
       pingService(() => fastify.redis.ping()),
@@ -19,7 +31,6 @@ export default async function healthRoutes(fastify: FastifyInstance) {
       ),
     ]);
 
-    // ── Price feed freshness ───────────────────────────────────────────────
     let lastUpdate: string | null = null;
     let stale = true;
     try {
@@ -30,7 +41,6 @@ export default async function healthRoutes(fastify: FastifyInstance) {
       }
     } catch { /* ignore */ }
 
-    // ── Stats ──────────────────────────────────────────────────────────────
     let users = 0;
     let activeOffers = 0;
     let tradesToday = 0;
@@ -45,7 +55,6 @@ export default async function healthRoutes(fastify: FastifyInstance) {
       tradesToday = tRes.rows[0].c;
     } catch { /* ignore */ }
 
-    // ── Response ───────────────────────────────────────────────────────────
     const allOk = dbResult.ok && redisResult.ok;
     const minioOk = minioResult.ok;
 
@@ -66,6 +75,130 @@ export default async function healthRoutes(fastify: FastifyInstance) {
     const statusCode = response.status === 'ok' ? 200 : response.status === 'degraded' ? 200 : 503;
     return reply.status(statusCode).send(response);
   });
+
+  // ── GET /health/system — live snapshot ──────────────────────────────────
+  fastify.get('/health/system', async (_request, reply) => {
+    const cpus = os.cpus();
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+
+    let diskUsed = 0;
+    let diskTotal = 0;
+    try {
+      const stat = fs.statfsSync('/');
+      diskTotal = stat.blocks * stat.bsize;
+      diskUsed = (stat.blocks - stat.bfree) * stat.bsize;
+    } catch { /* ignore */ }
+
+    // Get latest I/O and net rates from Redis (last stored sample)
+    let diskReadRate = 0;
+    let diskWriteRate = 0;
+    let netRxRate = 0;
+    let netTxRate = 0;
+    try {
+      const [dr, dw, nr, nt] = await Promise.all([
+        fastify.redis.zrange('metrics:disk_read', -1, -1),
+        fastify.redis.zrange('metrics:disk_write', -1, -1),
+        fastify.redis.zrange('metrics:net_rx', -1, -1),
+        fastify.redis.zrange('metrics:net_tx', -1, -1),
+      ]);
+      if (dr[0]) diskReadRate = parseFloat(dr[0].split('|')[1]);
+      if (dw[0]) diskWriteRate = parseFloat(dw[0].split('|')[1]);
+      if (nr[0]) netRxRate = parseFloat(nr[0].split('|')[1]);
+      if (nt[0]) netTxRate = parseFloat(nt[0].split('|')[1]);
+    } catch { /* ignore */ }
+
+    // CPU per-core from latest Redis sample
+    const cpuPerCore: number[] = [];
+    try {
+      const pipeline = fastify.redis.pipeline();
+      for (let i = 0; i < cpus.length; i++) {
+        pipeline.zrange(`metrics:cpu:${i}`, -1, -1);
+      }
+      const results = await pipeline.exec();
+      if (results) {
+        for (const [err, val] of results) {
+          const arr = val as string[];
+          if (!err && arr && arr[0]) {
+            cpuPerCore.push(parseFloat(arr[0].split('|')[1]));
+          } else {
+            cpuPerCore.push(0);
+          }
+        }
+      }
+    } catch {
+      for (let i = 0; i < cpus.length; i++) cpuPerCore.push(0);
+    }
+
+    const response: SystemMetrics = {
+      cpu_cores: cpus.length,
+      cpu_percent_per_core: cpuPerCore,
+      ram_used_bytes: usedMem,
+      ram_total_bytes: totalMem,
+      ram_percent: Math.round((usedMem / totalMem) * 10000) / 100,
+      disk_used_bytes: diskUsed,
+      disk_total_bytes: diskTotal,
+      disk_percent: diskTotal > 0 ? Math.round((diskUsed / diskTotal) * 10000) / 100 : 0,
+      disk_read_bytes_sec: diskReadRate,
+      disk_write_bytes_sec: diskWriteRate,
+      net_rx_bytes_sec: netRxRate,
+      net_tx_bytes_sec: netTxRate,
+      load_avg: os.loadavg() as [number, number, number],
+      uptime_seconds: Math.floor((Date.now() - startedAt) / 1000),
+    };
+
+    return reply.send(response);
+  });
+
+  // ── GET /health/history — time-series from Redis ZSETs ──────────────────
+  fastify.get('/health/history', async (request, reply) => {
+    const { metric, hours } = request.query as { metric?: string; hours?: string };
+
+    if (!metric || !isValidMetric(metric)) {
+      return reply.status(400).send({ error: 'Invalid metric. Use cpu:N, ram, disk, disk_read, disk_write, net_rx, net_tx' });
+    }
+
+    const h = Math.min(Math.max(parseFloat(hours || '6'), 0.1), 336); // max 14 days
+    const since = Date.now() - h * 60 * 60 * 1000;
+    const key = `metrics:${metric}`;
+
+    const raw = await fastify.redis.zrangebyscore(key, since.toString(), '+inf');
+
+    const samples: MetricSample[] = raw.map((entry) => {
+      const [ts, val] = entry.split('|');
+      return { timestamp: parseInt(ts, 10), value: parseFloat(val) };
+    });
+
+    // Downsample if too many points (keep max ~500 for chart rendering)
+    const maxPoints = 500;
+    const result = samples.length > maxPoints ? downsample(samples, maxPoints) : samples;
+
+    return reply.send(result);
+  });
+
+  // ── GET /health/resend — Resend email quota ─────────────────────────────
+  fastify.get('/health/resend', async (_request, reply) => {
+    const limit = 3000;
+    let sent = 0;
+
+    try {
+      const val = await fastify.redis.get('resend:monthly_count');
+      if (val) sent = parseInt(val, 10);
+    } catch { /* ignore */ }
+
+    // Resets on the 1st of next month, UTC
+    const now = new Date();
+    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+    const response: ResendQuota = {
+      sent,
+      limit,
+      resets_at: nextMonth.toISOString(),
+    };
+
+    return reply.send(response);
+  });
 }
 
 async function pingService(fn: () => Promise<unknown>): Promise<{ ok: boolean; latency_ms: number }> {
@@ -76,4 +209,15 @@ async function pingService(fn: () => Promise<unknown>): Promise<{ ok: boolean; l
   } catch {
     return { ok: false, latency_ms: Math.round(performance.now() - start) };
   }
+}
+
+function downsample(samples: MetricSample[], maxPoints: number): MetricSample[] {
+  const step = Math.ceil(samples.length / maxPoints);
+  const result: MetricSample[] = [];
+  for (let i = 0; i < samples.length; i += step) {
+    const chunk = samples.slice(i, i + step);
+    const avg = chunk.reduce((sum, s) => sum + s.value, 0) / chunk.length;
+    result.push({ timestamp: chunk[0].timestamp, value: Math.round(avg * 100) / 100 });
+  }
+  return result;
 }
