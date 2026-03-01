@@ -185,7 +185,7 @@ describe('E2E Integration — Listings CRUD', () => {
   }
 
   beforeAll(async () => {
-    app = await buildApp({ skipRateLimit: true, skipMinio: true });
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
     await cleanup();
 
@@ -248,7 +248,7 @@ describe('E2E Integration — Listings CRUD', () => {
 
   it('User A updates the listing', async () => {
     const res = await app.inject({
-      method: 'PATCH',
+      method: 'PUT',
       url: `/listings/${createdListingId}`,
       headers: authHeaders(userA.access_token),
       payload: {
@@ -263,7 +263,7 @@ describe('E2E Integration — Listings CRUD', () => {
 
   it('rejects update from non-owner User B', async () => {
     const res = await app.inject({
-      method: 'PATCH',
+      method: 'PUT',
       url: `/listings/${createdListingId}`,
       headers: authHeaders(userB.access_token),
       payload: { title: 'Hacked Title' },
@@ -316,7 +316,7 @@ describe('E2E Integration — Messaging (two-user flow)', () => {
   }
 
   beforeAll(async () => {
-    app = await buildApp({ skipRateLimit: true, skipMinio: true });
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
     await cleanup();
 
@@ -456,7 +456,7 @@ describe('E2E Integration — Trades', () => {
   }
 
   beforeAll(async () => {
-    app = await buildApp({ skipRateLimit: true, skipMinio: true });
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
     await cleanup();
 
@@ -528,15 +528,24 @@ describe('E2E Integration — Trades', () => {
     expect(resA.json().status).toBe('accepted');
   });
 
-  it('trade can be completed', async () => {
-    const res = await app.inject({
+  it('trade can be completed (both parties confirm)', async () => {
+    // Seller confirms
+    const res1 = await app.inject({
       method: 'POST',
       url: `/trades/${tradeId}/complete`,
       headers: authHeaders(userA.access_token),
     });
+    expect(res1.statusCode).toBe(200);
+    expect(res1.json().status).toBe('accepted'); // still accepted until both confirm
 
-    expect(res.statusCode).toBe(200);
-    expect(res.json().status).toBe('completed');
+    // Buyer confirms
+    const res2 = await app.inject({
+      method: 'POST',
+      url: `/trades/${tradeId}/complete`,
+      headers: authHeaders(userB.access_token),
+    });
+    expect(res2.statusCode).toBe(200);
+    expect(res2.json().status).toBe('completed');
   });
 });
 
@@ -554,7 +563,7 @@ describe('E2E Integration — User Profiles', () => {
   }
 
   beforeAll(async () => {
-    app = await buildApp({ skipRateLimit: true, skipMinio: true });
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
     await cleanup();
 
@@ -620,7 +629,7 @@ describe('E2E Integration — Edge Cases', () => {
   }
 
   beforeAll(async () => {
-    app = await buildApp({ skipRateLimit: true, skipMinio: true });
+    app = await buildApp({ skipRateLimit: true });
     await app.ready();
     await cleanup();
 
