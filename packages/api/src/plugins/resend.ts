@@ -44,7 +44,15 @@ export default fp(async (fastify) => {
         from: env.resendFromEmail,
         to,
         subject: 'bartr — Verify your email',
-        html: `<p>Your verification code is: <strong>${code}</strong></p><p>This code expires in 15 minutes.</p>`,
+        html: `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+  <h2 style="margin: 0 0 8px; font-size: 20px; color: #111;">Verify your email</h2>
+  <p style="margin: 0 0 24px; color: #555; font-size: 14px;">Enter this code on the verification page to confirm your email address.</p>
+  <div style="background: #f4f4f5; border-radius: 8px; padding: 20px; text-align: center; margin: 0 0 24px;">
+    <span style="font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #111;">${code}</span>
+  </div>
+  <p style="margin: 0; color: #888; font-size: 13px;">This code expires in <strong>5 minutes</strong>. If you didn't create a bartr account, you can ignore this email.</p>
+</div>`.trim(),
       });
 
       // Increment monthly counter with auto-expire at month end

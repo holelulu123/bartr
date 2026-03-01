@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Mail } from 'lucide-react';
+import { Loader2, Mail, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { auth } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -23,7 +23,14 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+const CODE_EXPIRY_S = 5 * 60; // 5 minutes
 const RESEND_COOLDOWN_S = 60;
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -33,8 +40,10 @@ export default function VerifyEmailPage() {
   const { toast } = useToast();
   const [serverError, setServerError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [codeExpiry, setCodeExpiry] = useState(CODE_EXPIRY_S);
   const [resending, setResending] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const expiryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const {
     register,
@@ -42,33 +51,46 @@ export default function VerifyEmailPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
-  // Countdown timer for resend cooldown
+  // Code expiry countdown (starts on mount)
   useEffect(() => {
-    if (resendCooldown <= 0) return;
-    timerRef.current = setInterval(() => {
-      setResendCooldown((prev) => {
+    expiryTimerRef.current = setInterval(() => {
+      setCodeExpiry((prev) => {
         if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
+          if (expiryTimerRef.current) clearInterval(expiryTimerRef.current);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (expiryTimerRef.current) clearInterval(expiryTimerRef.current);
+    };
+  }, []);
+
+  // Resend cooldown countdown
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    resendTimerRef.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (resendTimerRef.current) clearInterval(resendTimerRef.current);
     };
   }, [resendCooldown > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // If loading, show nothing
   if (isLoading) return null;
 
-  // If not authenticated, redirect to login
   if (!isAuthenticated) {
     router.replace('/login');
     return null;
   }
 
-  // If already verified, redirect to destination
   if (user?.email_verified) {
     router.replace(next);
     return null;
@@ -90,10 +112,13 @@ export default function VerifyEmailPage() {
   async function handleResend() {
     if (resendCooldown > 0 || resending) return;
     setResending(true);
+    setServerError('');
     try {
       await auth.resendVerification();
       toast({ title: 'Verification code sent', description: 'Check your email for the new code.' });
       setResendCooldown(RESEND_COOLDOWN_S);
+      // Reset the expiry timer for the new code
+      setCodeExpiry(CODE_EXPIRY_S);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to resend code. Please try again.';
       setServerError(message);
@@ -101,6 +126,8 @@ export default function VerifyEmailPage() {
       setResending(false);
     }
   }
+
+  const codeExpired = codeExpiry <= 0;
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4">
@@ -116,6 +143,16 @@ export default function VerifyEmailPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            {/* Expiry timer */}
+            <div className={`flex items-center justify-center gap-1.5 text-sm ${codeExpired ? 'text-destructive' : 'text-muted-foreground'}`}>
+              <Clock className="h-3.5 w-3.5" />
+              {codeExpired ? (
+                <span>Code expired — click Resend below</span>
+              ) : (
+                <span>Code expires in {formatTime(codeExpiry)}</span>
+              )}
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="code">Verification code</Label>
               <Input
@@ -139,7 +176,7 @@ export default function VerifyEmailPage() {
               <p className="text-sm text-destructive" role="alert">{serverError}</p>
             )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button type="submit" className="w-full" disabled={isSubmitting || codeExpired}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

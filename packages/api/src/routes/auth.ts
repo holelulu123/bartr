@@ -140,7 +140,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     // Send verification email (fire-and-forget)
     const code = generateVerificationCode();
     const codeHash = hashCode(code);
-    const expiresAt = new Date(Date.now() + 15 * 60_000); // 15 minutes
+    const expiresAt = new Date(Date.now() + 5 * 60_000); // 15 minutes
     await fastify.pg.query(
       `INSERT INTO email_verification_codes (user_id, code_hash, expires_at)
        VALUES ($1, $2, $3)
@@ -272,7 +272,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const email = decrypt(userRow.rows[0].email_encrypted);
       const code = generateVerificationCode();
       const codeH = hashCode(code);
-      const expiresAt = new Date(Date.now() + 15 * 60_000);
+      const expiresAt = new Date(Date.now() + 5 * 60_000);
 
       await fastify.pg.query(
         `INSERT INTO email_verification_codes (user_id, code_hash, expires_at)

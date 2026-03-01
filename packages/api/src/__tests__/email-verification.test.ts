@@ -45,7 +45,7 @@ describe('Email verification', () => {
   }
 
   async function insertCode(userId: string, code: string, expiresAt?: Date) {
-    const expires = expiresAt ?? new Date(Date.now() + 15 * 60_000);
+    const expires = expiresAt ?? new Date(Date.now() + 5 * 60_000);
     await app.pg.query(
       `INSERT INTO email_verification_codes (user_id, code_hash, expires_at)
        VALUES ($1, $2, $3)
