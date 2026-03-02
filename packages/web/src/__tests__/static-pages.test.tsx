@@ -142,24 +142,21 @@ describe('Donate page', () => {
     expect(screen.getByRole('heading', { name: /support bartr/i })).toBeInTheDocument();
   });
 
-  it('shows BTC address only', async () => {
+  it('defaults to Bitcoin selected', async () => {
     const { default: DonatePage } = await import('@/app/donate/page');
     render(<DonatePage />);
-    expect(screen.getByText(/bitcoin \(btc\)/i)).toBeInTheDocument();
-    expect(screen.queryByText(/lightning network/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/monero \(xmr\)/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /bitcoin \(btc\)/i })).toBeInTheDocument();
   });
 
-  it('shows copy address button', async () => {
+  it('shows fallback when address not configured', async () => {
     const { default: DonatePage } = await import('@/app/donate/page');
     render(<DonatePage />);
-    expect(screen.getByRole('button', { name: /copy address/i })).toBeInTheDocument();
+    expect(screen.getByText(/address not configured/i)).toBeInTheDocument();
   });
 
-  it('shows expense breakdown', async () => {
+  it('shows donation description', async () => {
     const { default: DonatePage } = await import('@/app/donate/page');
     render(<DonatePage />);
-    expect(screen.getByText(/where your donation goes/i)).toBeInTheDocument();
-    expect(screen.getByText(/vps hosting/i)).toBeInTheDocument();
+    expect(screen.getByText(/no fees, no kyc/i)).toBeInTheDocument();
   });
 });
