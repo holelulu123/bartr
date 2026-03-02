@@ -184,13 +184,11 @@ describe('EmailRegisterPage — validation', () => {
     await waitFor(() => expect(screen.getByText(/at least 8/i)).toBeInTheDocument());
   });
 
-  it('shows error when passwords do not match', async () => {
+  it('shows unmet passwords match indicator when passwords differ', async () => {
     render(<EmailRegisterPage />);
-    await userEvent.type(screen.getByLabelText(/^email$/i), 'a@b.com');
     await userEvent.type(screen.getByLabelText(/^password$/i), 'Pass123!x');
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'Diff123!x');
-    await userEvent.click(screen.getByRole('button', { name: /create account/i }));
-    await waitFor(() => expect(screen.getAllByText(/do not match/i).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getByText(/✗ Passwords match/)).toBeInTheDocument());
   });
 });
 

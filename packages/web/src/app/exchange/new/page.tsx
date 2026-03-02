@@ -102,6 +102,15 @@ function CreateOfferForm() {
   });
 
   const watchedMargin = watch('margin_percent');
+  const watchedFixedPrice = watch('fixed_price');
+
+  // Live validation for margin and fixed price (inputs are type="text" so raw strings come through)
+  const marginError = watchedMargin !== undefined && watchedMargin !== '' && (!/^-?\d*\.?\d*$/.test(watchedMargin))
+    ? 'Margin must be a number (e.g. 2.5 or -1)'
+    : null;
+  const fixedPriceError = watchedFixedPrice !== undefined && watchedFixedPrice !== '' && (!/^\d*\.?\d*$/.test(watchedFixedPrice) || (watchedFixedPrice.trim() !== '' && parseFloat(watchedFixedPrice) <= 0))
+    ? 'Price must be a positive number'
+    : null;
 
   // Compute current exchange price for selected source/pair
   const selectedPrice = getExchangePrice(exchangePrices, priceSource, cryptoCurrency, fiatCurrency);
@@ -247,6 +256,7 @@ function CreateOfferForm() {
   const rangeError = !minError && !maxError && activeMin !== '' && activeMax !== '' && !isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum
     ? 'Max must be greater than or equal to min'
     : null;
+  const hasPriceErrors = (rateType === 'market' && !!marginError) || (rateType === 'fixed' && !!fixedPriceError);
   const hasLimitErrors = !!minError || !!maxError || !!rangeError;
 
   return (
@@ -384,14 +394,16 @@ function CreateOfferForm() {
               <Label htmlFor="margin_percent">Margin %</Label>
               <Input
                 id="margin_percent"
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 placeholder="e.g. 2.5"
                 {...register('margin_percent')}
+                className={cn(marginError && 'border-destructive')}
               />
-              <p className="text-xs text-muted-foreground">
-                Positive = above market, negative = below
-              </p>
+              {marginError
+                ? <p className="text-xs text-destructive">{marginError}</p>
+                : <p className="text-xs text-muted-foreground">Positive = above market, negative = below</p>
+              }
             </div>
             <div className="space-y-1.5">
               <Label>Effective price</Label>
@@ -408,15 +420,41 @@ function CreateOfferForm() {
             </div>
           </div>
         ) : (
-          <div className="space-y-1.5">
-            <Label htmlFor="fixed_price">Fixed price ({fiatCurrency})</Label>
-            <Input
-              id="fixed_price"
-              type="number"
-              step="0.01"
-              placeholder={`Price per 1 ${cryptoCurrency}`}
-              {...register('fixed_price')}
-            />
+          <div className="grid grid-cols-[1fr_80px] gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="fixed_price">Fixed price ({fiatCurrency})</Label>
+              <Input
+                id="fixed_price"
+                type="text"
+                inputMode="decimal"
+                placeholder={`Price per 1 ${cryptoCurrency}`}
+                {...register('fixed_price')}
+                className={cn(fixedPriceError && 'border-destructive')}
+              />
+              {fixedPriceError && <p className="text-xs text-destructive">{fixedPriceError}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Margin</Label>
+              <div className="h-10 flex items-center justify-center">
+                {(() => {
+                  const fixedNum = parseFloat(watchedFixedPrice || '');
+                  const pct = selectedPrice && !isNaN(fixedNum) && fixedNum > 0
+                    ? ((fixedNum / selectedPrice - 1) * 100)
+                    : 0;
+                  const sign = pct >= 0 ? '+' : '';
+                  return (
+                    <span className={cn(
+                      'rounded px-2 py-1 text-sm font-medium whitespace-nowrap',
+                      pct >= 0
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                        : 'bg-red-500/15 text-red-600 dark:text-red-400',
+                    )}>
+                      {sign}{pct.toFixed(2)}%
+                    </span>
+                  );
+                })()}
+              </div>
+            </div>
           </div>
         )}
 
@@ -603,7 +641,7 @@ function CreateOfferForm() {
 
         {/* Submit */}
         <div className="flex gap-3 pt-1">
-          <Button type="submit" disabled={isProcessing || hasLimitErrors} className="flex-1">
+          <Button type="submit" disabled={isProcessing || hasLimitErrors || hasPriceErrors} className="flex-1">
             {isProcessing ? 'Creating...' : 'Create offer'}
           </Button>
           <Button type="button" variant="outline" asChild>

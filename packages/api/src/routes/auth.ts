@@ -20,6 +20,7 @@ function emailHmac(email: string): string {
 
 // Tight rate limit config for sensitive auth endpoints (applied per-route below)
 const AUTH_RATE_LIMIT = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+const REGISTER_RATE_LIMIT = { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } };
 const LOGIN_RATE_LIMIT = { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } };
 
 export default async function authRoutes(fastify: FastifyInstance) {
@@ -98,7 +99,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       private_key_blob: string;
       recovery_key_blob: string;
     };
-  }>('/auth/register/email', AUTH_RATE_LIMIT, async (request, reply) => {
+  }>('/auth/register/email', REGISTER_RATE_LIMIT, async (request, reply) => {
     const { email, password, public_key, private_key_blob, recovery_key_blob } = request.body;
 
     if (!email || !password) {

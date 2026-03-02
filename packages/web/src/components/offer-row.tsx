@@ -189,6 +189,29 @@ export function OfferRow({ offer }: OfferRowProps) {
             </Tooltip>
           </TooltipProvider>
         )}
+        {offer.rate_type === 'fixed' && coinPrice !== undefined && effectivePrice !== undefined && (
+          (() => {
+            const pct = ((effectivePrice / coinPrice - 1) * 100);
+            const sign = pct >= 0 ? '+' : '';
+            return (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className={cn(
+                      'mt-0.5 rounded px-1.5 py-0 text-xs font-medium cursor-help whitespace-nowrap',
+                      pct >= 0 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/15 text-red-600 dark:text-red-400',
+                    )}>
+                      {sign}{pct.toFixed(1)}%
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Fixed price is {Math.abs(pct).toFixed(1)}% {pct >= 0 ? 'above' : 'below'} current market price
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          })()
+        )}
       </div>
 
       {/* Settlement methods */}
