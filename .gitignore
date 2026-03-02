@@ -11,3 +11,4 @@ coverage/
 pgdata/
 .pnpm-store/
 .claude/
+!.claude/skills/
