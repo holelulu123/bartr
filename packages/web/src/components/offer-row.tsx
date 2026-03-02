@@ -1,13 +1,23 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, Star, MessageSquare } from 'lucide-react';
+import { ArrowUp, ArrowDown, Star, MessageSquare, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { getCountryFlag } from '@/lib/countries';
 import { useAuth } from '@/contexts/auth-context';
 import { usePrices } from '@/hooks/use-prices';
+import { useDeleteOffer } from '@/hooks/use-exchange';
 import { cn } from '@/lib/utils';
 import type { ExchangeOffer } from '@/lib/api';
 import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
@@ -65,6 +75,9 @@ export function OfferRow({ offer }: OfferRowProps) {
   const isBuy = offer.offer_type === 'buy';
   const { user } = useAuth();
   const { data: priceData } = usePrices();
+  const deleteMutation = useDeleteOffer();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const isOwn = user?.nickname === offer.seller_nickname;
 
   // Get market price to compute crypto equivalent of fiat limits
   let coinPrice: number | undefined;
@@ -237,7 +250,17 @@ export function OfferRow({ offer }: OfferRowProps) {
             View
           </Link>
         </Button>
-        {user?.nickname !== offer.seller_nickname && (
+        {isOwn ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setShowDeleteDialog(true)}
+            aria-label="Delete offer"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        ) : (
           <Button asChild size="sm" variant="ghost" className="px-2 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10">
             <Link href={`/messages?contact=${offer.seller_nickname}`}>
               <MessageSquare className="h-4 w-4" />
@@ -245,6 +268,33 @@ export function OfferRow({ offer }: OfferRowProps) {
           </Button>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete offer?</DialogTitle>
+            <DialogDescription>
+              This will permanently remove your {offer.offer_type} offer for {offer.crypto_currency}/{offer.fiat_currency}. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={async () => {
+                await deleteMutation.mutateAsync(offer.id);
+                setShowDeleteDialog(false);
+              }}
+            >
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

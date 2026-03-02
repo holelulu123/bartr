@@ -77,7 +77,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const user = await fastify.pg.query(
-        'SELECT id, nickname, role, created_at, last_active, email_verified FROM users WHERE id = $1',
+        'SELECT id, nickname, role, created_at, last_active, email_verified, max_exchange_offers FROM users WHERE id = $1',
         [request.user!.sub],
       );
       if (user.rows.length === 0) {

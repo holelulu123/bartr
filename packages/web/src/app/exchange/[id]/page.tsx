@@ -1,9 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUp, ArrowDown, MessageSquare, Star } from 'lucide-react';
-import { useOffer } from '@/hooks/use-exchange';
+import { ArrowLeft, ArrowUp, ArrowDown, MessageSquare, Star, Pause, Play, Trash2 } from 'lucide-react';
+import { useOffer, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
 import { useUser } from '@/hooks/use-users';
 import { useAuth } from '@/contexts/auth-context';
 import { usePrices } from '@/hooks/use-prices';
@@ -13,6 +14,14 @@ import { ReputationBadge } from '@/components/reputation-badge';
 import { getCountryFlag, getCountryName } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
 import type { SettlementMethod } from '@bartr/shared';
@@ -78,6 +87,10 @@ export default function OfferDetailPage() {
   const { data: offer, isLoading, isError } = useOffer(id);
   const { data: sellerProfile } = useUser(offer?.seller_nickname ?? '');
   const { data: priceData } = usePrices();
+  const updateMutation = useUpdateOffer(id);
+  const deleteMutation = useDeleteOffer();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPauseDialog, setShowPauseDialog] = useState(false);
 
   if (isLoading) return <OfferDetailSkeleton />;
 
@@ -262,14 +275,92 @@ export default function OfferDetailPage() {
       )}
 
       {isOwner && (
-        <div className="text-sm text-muted-foreground text-center">
-          This is your offer. You can manage it from{' '}
-          <Link href="/dashboard/offers" className="text-primary hover:underline">
-            My Offers
-          </Link>
-          .
+        <div className="flex gap-3">
+          {offer.status !== 'removed' && (
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setShowPauseDialog(true)}
+            >
+              {offer.status === 'active' ? (
+                <><Pause className="h-4 w-4 mr-2" />Pause offer</>
+              ) : (
+                <><Play className="h-4 w-4 mr-2" />Resume offer</>
+              )}
+            </Button>
+          )}
+          <Button
+            variant="destructive"
+            className="flex-1"
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete offer
+          </Button>
         </div>
       )}
+
+      {/* Pause/Resume confirmation dialog */}
+      <Dialog open={showPauseDialog} onOpenChange={setShowPauseDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {offer.status === 'active' ? 'Pause offer?' : 'Resume offer?'}
+            </DialogTitle>
+            <DialogDescription>
+              {offer.status === 'active'
+                ? `This will pause your ${offer.offer_type} offer for ${offer.crypto_currency}/${offer.fiat_currency}. It will no longer be visible to other users.`
+                : `This will resume your ${offer.offer_type} offer for ${offer.crypto_currency}/${offer.fiat_currency}. It will become visible to other users again.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPauseDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant={offer.status === 'active' ? 'destructive' : 'default'}
+              disabled={updateMutation.isPending}
+              onClick={async () => {
+                const newStatus = offer.status === 'active' ? 'paused' : 'active';
+                await updateMutation.mutateAsync({ status: newStatus });
+                setShowPauseDialog(false);
+              }}
+            >
+              {updateMutation.isPending
+                ? (offer.status === 'active' ? 'Pausing…' : 'Resuming…')
+                : (offer.status === 'active' ? 'Pause' : 'Resume')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete offer?</DialogTitle>
+            <DialogDescription>
+              This will permanently remove your {offer.offer_type} offer for {offer.crypto_currency}/{offer.fiat_currency}. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={async () => {
+                await deleteMutation.mutateAsync(offer.id);
+                setShowDeleteDialog(false);
+                router.push('/exchange');
+              }}
+            >
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

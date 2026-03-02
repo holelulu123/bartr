@@ -61,15 +61,15 @@ export default async function userRoutes(fastify: FastifyInstance) {
   );
 
   // Update own profile (protected)
-  fastify.put<{ Body: { nickname?: string; bio?: string } }>(
+  fastify.put<{ Body: { nickname?: string; bio?: string; max_exchange_offers?: number | null } }>(
     '/users/me',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const userId = request.user!.sub;
-      const { nickname, bio } = request.body;
+      const { nickname, bio, max_exchange_offers } = request.body;
 
       const updates: string[] = [];
-      const values: (string | null)[] = [];
+      const values: (string | number | null)[] = [];
       let paramIdx = 1;
 
       if (nickname !== undefined) {
@@ -96,13 +96,34 @@ export default async function userRoutes(fastify: FastifyInstance) {
         values.push(bio);
       }
 
+      if (max_exchange_offers !== undefined) {
+        if (max_exchange_offers !== null) {
+          if (!Number.isInteger(max_exchange_offers) || max_exchange_offers < 1 || max_exchange_offers > 100) {
+            return reply.status(400).send({ error: 'max_exchange_offers must be between 1 and 100' });
+          }
+          // Don't allow setting a limit below current active offer count
+          const countRes = await fastify.pg.query(
+            "SELECT COUNT(*) FROM exchange_offers WHERE user_id = $1 AND status = 'active'",
+            [userId],
+          );
+          const activeCount = parseInt(countRes.rows[0].count, 10);
+          if (max_exchange_offers < activeCount) {
+            return reply.status(400).send({
+              error: `You currently have ${activeCount} active offer${activeCount === 1 ? '' : 's'}. Remove or pause some before setting a limit of ${max_exchange_offers}.`,
+            });
+          }
+        }
+        updates.push(`max_exchange_offers = $${paramIdx++}`);
+        values.push(max_exchange_offers);
+      }
+
       if (updates.length === 0) {
         return reply.status(400).send({ error: 'No fields to update' });
       }
 
       values.push(userId);
       const result = await fastify.pg.query(
-        `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIdx} RETURNING id, nickname, bio, avatar_key`,
+        `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIdx} RETURNING id, nickname, bio, avatar_key, max_exchange_offers`,
         values,
       );
 

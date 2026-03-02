@@ -113,6 +113,25 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Terms too long (max 2000 characters)' });
       }
 
+      // Enforce per-user max exchange offers limit
+      const userRow = await fastify.pg.query(
+        'SELECT max_exchange_offers FROM users WHERE id = $1',
+        [userId],
+      );
+      const maxOffers = userRow.rows[0]?.max_exchange_offers;
+      if (maxOffers !== null && maxOffers !== undefined) {
+        const countRes = await fastify.pg.query(
+          "SELECT COUNT(*) FROM exchange_offers WHERE user_id = $1 AND status = 'active'",
+          [userId],
+        );
+        const activeCount = parseInt(countRes.rows[0].count, 10);
+        if (activeCount >= maxOffers) {
+          return reply.status(400).send({
+            error: `You have reached your limit of ${maxOffers} active exchange offer${maxOffers === 1 ? '' : 's'}. Remove or pause an existing offer first.`,
+          });
+        }
+      }
+
       const result = await fastify.pg.query(
         `INSERT INTO exchange_offers (
           user_id, offer_type, crypto_currency, fiat_currency,

@@ -27,6 +27,7 @@ export interface CurrentUser {
   role?: string;
   email_verified: boolean;
   email_verification_required: boolean;
+  max_exchange_offers: number | null;
 }
 
 export interface KeyBlobs {
@@ -53,6 +54,7 @@ export interface UserProfile {
 export interface UpdateProfilePayload {
   nickname?: string;
   bio?: string;
+  max_exchange_offers?: number | null;
 }
 
 // Listings

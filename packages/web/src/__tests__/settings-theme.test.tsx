@@ -22,7 +22,13 @@ vi.mock('next/link', () => ({
 let mockIsAuthenticated = true;
 let mockIsLoading = false;
 vi.mock('@/contexts/auth-context', () => ({
-  useAuth: () => ({ isAuthenticated: mockIsAuthenticated, isLoading: mockIsLoading, user: { nickname: 'tester' } }),
+  useAuth: () => ({ isAuthenticated: mockIsAuthenticated, isLoading: mockIsLoading, user: { nickname: 'tester', max_exchange_offers: null } }),
+}));
+
+// ── Users hook mock ──────────────────────────────────────────────────────
+
+vi.mock('@/hooks/use-users', () => ({
+  useUpdateProfile: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 // ── Theme mock ───────────────────────────────────────────────────────────────
