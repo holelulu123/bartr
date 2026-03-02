@@ -39,8 +39,14 @@ export default function HomePage() {
   return (
     <div className="flex flex-col">
       {/* Hero */}
-      <section className="relative px-4 py-24 sm:py-32 text-center">
-        <div className="mx-auto max-w-3xl">
+      <section className="relative px-4 py-24 sm:py-32 text-center overflow-hidden">
+        {/* Background illustration */}
+        <div
+          className="absolute inset-0 bg-no-repeat bg-left bg-contain opacity-0 dark:opacity-40 pointer-events-none transition-opacity"
+          style={{ backgroundImage: 'url(/hero-gemini.png)' }}
+          aria-hidden="true"
+        />
+        <div className="mx-auto max-w-3xl relative">
           <Badge variant="outline" className="mb-6 text-orange-400 border-orange-400/40">
             Free &middot; Community-run &middot; Privacy-first
           </Badge>
