@@ -39,28 +39,48 @@ The internet needs a privacy-respecting trading platform. LocalBitcoins shut dow
 ```bash
 git clone <repo>
 cd bartr
+cp .env.example .env
 pnpm install
-docker-compose -f docker-compose.dev.yml up -d
+docker compose up -d
 ```
+
+This starts all 7 services (nginx, nextjs, api, workers, postgres, redis, minio) in dev mode with hot reload and all ports exposed.
+
+| Service | Port | Notes |
+|---------|------|-------|
+| nginx | 80 | Reverse proxy |
+| nextjs | 3000 | `next dev` (hot reload) |
+| api | 4000 | `tsx watch` (auto-reload) |
+| postgres | 5433 | Mapped from internal 5432 |
+| redis | 6379 | |
+| minio | 9000, 9001 | S3 API + console |
+
+### Production
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+The prod override builds app services from Dockerfiles (no source mounts, no hot reload) and exposes only internal ports — nginx is the single entry point.
 
 ### Running Tests
 
-Backend tests require Docker services running (postgres on port 5433, redis on 6379). Frontend tests run in jsdom with no Docker needed.
+Backend tests require Docker services running (postgres on port 5433, redis on 6379, minio on 9000). Frontend tests run in jsdom with no Docker needed.
 
 ```bash
-# Backend
+# Everything (starts Docker if needed)
+bash scripts/test.sh
+
+# Backend only
 pnpm --filter @bartr/api test
 
-# Frontend
+# Frontend only
 pnpm --filter @bartr/web test
-
-# Both
-pnpm test
 ```
 
 ### Environment Variables
 
-Copy `.env.example` to `.env` and fill in:
+Copy `.env.example` to `.env` for local development:
 
 ```bash
 cp .env.example .env
@@ -69,7 +89,6 @@ cp .env.example .env
 Key variables for production:
 - `JWT_SECRET` — random 256-bit secret (never use the dev default)
 - `ENCRYPTION_KEY` — 64-char hex string (32 bytes) for email field encryption
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — from Google Cloud Console
 - `DATABASE_URL`, `REDIS_URL` — production connection strings
 
 ## Dependencies

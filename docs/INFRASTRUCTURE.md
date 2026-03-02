@@ -493,3 +493,291 @@ Monitoring is built into the API process — no Grafana, Prometheus, or exporter
 | Redis memory | > 500 MB | > 1 GB |
 | Error rate (5xx) | > 1% | > 5% |
 | Image processing queue depth | > 100 | > 500 |
+
+---
+
+## 11. Architecture Diagrams
+
+### Dev Mode
+
+```
+┌─── Your Laptop ───────────────────────────────────────────────────────┐
+│                                                                       │
+│   Browser                                                             │
+│     │                                                                 │
+│     ├── http://localhost ──────────► :80                               │
+│     ├── http://localhost:3000 ─────► :3000  (direct, skip nginx)      │
+│     ├── http://localhost:4000 ─────► :4000  (direct, skip nginx)      │
+│     ├── http://localhost:9001 ─────► :9001  (MinIO console)           │
+│     └── psql localhost:5433 ───────► :5433  (DB access)               │
+│                                                                       │
+│   Source code: ~/projects/marketplace/                                 │
+│     │                                                                 │
+│     │  mounted as volume (.:/app) into api, nextjs, workers           │
+│     │  ↓ edit a file → container auto-reloads                         │
+│                                                                       │
+└───────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─── Docker Network ────────────────────────────────────────────────────┐
+│                                                                       │
+│  ┌──────────┐      ┌────────────────┐     ┌────────────────┐         │
+│  │  nginx   │      │    nextjs      │     │     api        │         │
+│  │  :80 ────┼──/*──► :3000          │     │  :4000         │         │
+│  │          ├─/api─►──────────────────────►│                │         │
+│  │          │      │ next dev       │     │ tsx watch      │         │
+│  │          │      │ (hot reload)   │     │ (auto-reload)  │         │
+│  └──────────┘      └────────────────┘     └──┬──────┬──────┘         │
+│                                               │      │               │
+│                                    ┌──────────┘      └─────────┐     │
+│                                    ▼                           ▼     │
+│  ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐        │
+│  │   workers    │    │    postgres      │    │    redis     │        │
+│  │              │    │    :5432         │    │    :6379     │        │
+│  │ tsx watch    │    │                  │    │              │        │
+│  │ (auto-reload)│───►│  pgdata volume  │    │  in-memory   │        │
+│  └──────────────┘    └──────────────────┘    └──────────────┘        │
+│                                                                       │
+│  ┌──────────────┐                                                     │
+│  │    minio     │                                                     │
+│  │  :9000 (API) │ ◄── api uploads/serves images                      │
+│  │  :9001 (UI)  │                                                     │
+│  │              │                                                     │
+│  │ minio-data   │                                                     │
+│  │   volume     │                                                     │
+│  └──────────────┘                                                     │
+│                                                                       │
+│  Exposed to host:  80, 3000, 4000, 5433, 6379, 9000, 9001            │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+### Production
+
+```
+┌─── Internet ──────────────────────────────────────────────────────────┐
+│                                                                       │
+│   Users                                                               │
+│     │                                                                 │
+│     └── https://bartr.vip ──────────► :80 (→ :443 with TLS later)    │
+│                                                                       │
+│         That's the ONLY door in.                                      │
+│         No other ports exposed.                                       │
+│                                                                       │
+└───────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─── Docker Network (Hetzner VPS) ──────────────────────────────────────┐
+│                                                                       │
+│  ┌──────────┐      ┌────────────────┐     ┌────────────────┐         │
+│  │  nginx   │      │    nextjs      │     │     api        │         │
+│  │  :80 ────┼──/*──► :3000          │     │  :4000         │         │
+│  │  (only   ├─/api─►──────────────────────►│                │         │
+│  │  exposed │      │ node server.js │     │ node           │         │
+│  │  port)   │      │ (compiled,     │     │ dist/index.js  │         │
+│  │          │      │  standalone)   │     │ (compiled JS)  │         │
+│  └──────────┘      └────────────────┘     └──┬──────┬──────┘         │
+│                                               │      │               │
+│       no source code mounted                  │      │               │
+│       no hot reload                ┌──────────┘      └─────────┐     │
+│       no debug ports               ▼                           ▼     │
+│                                                                       │
+│  ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐        │
+│  │   workers    │    │    postgres      │    │    redis     │        │
+│  │              │    │    :5432         │    │    :6379     │        │
+│  │ node         │    │                  │    │              │        │
+│  │ dist/index.js│───►│  pgdata volume  │    │  in-memory   │        │
+│  └──────────────┘    └──────────────────┘    └──────────────┘        │
+│                                                                       │
+│  ┌──────────────┐                                                     │
+│  │    minio     │                                                     │
+│  │  :9000       │ ◄── api only (internal)                             │
+│  │              │                                                     │
+│  │ minio-data   │     NOT exposed to internet                         │
+│  │   volume     │                                                     │
+│  └──────────────┘                                                     │
+│                                                                       │
+│  Exposed to internet:  80 ONLY (nginx)                                │
+│  Everything else: internal Docker network only                        │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+### Dev vs Prod — Key Differences
+
+```
+             DEV                          PROD
+        ┌──────────┐                 ┌──────────┐
+        │  7 doors  │                │  1 door   │
+        │  open to  │                │  open to  │
+        │  host     │                │  internet │
+        └──────────┘                 └──────────┘
+             │                            │
+    80, 3000, 4000,                      80
+    5433, 6379,                      (nginx only)
+    9000, 9001
+
+        Source code                   Compiled JS
+        mounted in                    baked into
+        ↕ live sync                   image (frozen)
+
+        tsx watch /                   node dist/ /
+        next dev                      node server.js
+        (slow, debuggable)            (fast, minimal)
+```
+
+---
+
+## 12. Service Types
+
+There are two types of services in the stack:
+
+### Infrastructure services (official images — pulled, not built)
+
+| Service | Image | Persistent Data | Version Pinned |
+|---------|-------|----------------|---------------|
+| postgres | `postgres:16-alpine` | `pgdata` volume | Yes (16) |
+| redis | `redis:7-alpine` | In-memory (ephemeral) | Yes (7) |
+| minio | `minio/minio` | `minio-data` volume | Latest |
+| nginx | `nginx:alpine` | None (stateless) | Latest |
+
+These are **never built**. Docker pulls them from Docker Hub. They only change when you bump the version tag in the compose file (e.g. `postgres:16-alpine` → `postgres:17-alpine`).
+
+### App services (custom Dockerfiles — built from your code)
+
+| Service | Dockerfile | What runs | Dev mode |
+|---------|-----------|-----------|----------|
+| api | `packages/api/Dockerfile` | Fastify REST API | tsx watch (live reload) |
+| nextjs | `packages/web/Dockerfile` | Next.js frontend | next dev (hot reload) |
+| workers | `packages/workers/Dockerfile` | Background jobs | tsx watch (live reload) |
+
+These are **built from your code**. Every time you change code and deploy, you rebuild these.
+
+---
+
+## 13. Deployment & Update Procedures
+
+### Code update (most common — API or frontend change)
+
+```bash
+ssh user@server
+cd /app
+git pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build api nextjs
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api nextjs
+```
+
+What happens:
+- `build api nextjs` — rebuilds only the api and nextjs images from Dockerfiles
+- `up -d api nextjs` — recreates only those 2 containers with the new images
+- postgres, redis, minio, nginx — **untouched**, keep running, data preserved
+
+Downtime: **~5-15 seconds** (during container restart).
+
+### Workers update
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build workers
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d workers
+```
+
+Same idea — only rebuilds and restarts workers. Everything else untouched.
+
+### Database version upgrade (e.g. PostgreSQL 16 → 17)
+
+```bash
+# 1. Change image tag in docker-compose.yml:  postgres:16-alpine → postgres:17-alpine
+# 2. Pull and restart only postgres
+docker compose pull postgres
+docker compose up -d postgres
+```
+
+What happens:
+- Docker pulls the new postgres image
+- Stops old container, starts new one with same `pgdata` volume
+- Data is preserved (PostgreSQL minor upgrades are volume-compatible)
+- All other containers — **untouched**
+
+> **Major version upgrades** (e.g. 16 → 17) may require `pg_upgrade`. Always back up first with `pg_dump`.
+
+### Redis version upgrade
+
+```bash
+# 1. Change image tag:  redis:7-alpine → redis:8-alpine
+docker compose pull redis
+docker compose up -d redis
+```
+
+Redis data is ephemeral (cache + rate limits). Safe to restart without backup.
+
+### Nginx config change
+
+```bash
+# Edit nginx/nginx.conf, then:
+docker compose restart nginx
+```
+
+No rebuild needed — config is mounted as a volume. Just restart to reload.
+
+### MinIO version upgrade
+
+```bash
+docker compose pull minio
+docker compose up -d minio
+```
+
+Image data is in the `minio-data` volume — preserved across upgrades.
+
+### Full stack update (rebuild everything)
+
+```bash
+git pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Rebuilds all app images (api, nextjs, workers), pulls any updated infra images, and restarts everything. Data volumes preserved.
+
+### Database schema migration (new tables, columns, etc.)
+
+```bash
+# Migrations run automatically on API startup (migration runner in api/src/lib/migrate.ts)
+# Just deploy the API with the new migration file:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build api
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api
+```
+
+The API runs pending migrations on boot before accepting requests.
+
+---
+
+## 14. What Survives What
+
+| Event | DB data | Images | Redis cache | App code | Config |
+|-------|---------|--------|-------------|----------|--------|
+| Container restart | Survives | Survives | Survives | Same | Same |
+| Container rebuild | Survives | Survives | **Lost** | **New** | Same |
+| Server reboot | Survives | Survives | **Lost** | Same | Same |
+| `docker compose down` | Survives | Survives | **Lost** | — | Same |
+| `docker compose down -v` | **LOST** | **LOST** | **Lost** | — | Same |
+
+> **Never run `docker compose down -v` in production** — the `-v` flag deletes all volumes (database + images).
+
+Redis data loss is always safe — it only stores cache, rate-limit counters, and metrics (all regenerated automatically).
+
+---
+
+## 15. Update Decision Table
+
+| What changed | Build? | Pull? | Restart | Data safe? |
+|---|---|---|---|---|
+| API code | `build api` | — | `up -d api` | Yes |
+| Frontend code | `build nextjs` | — | `up -d nextjs` | Yes |
+| Workers code | `build workers` | — | `up -d workers` | Yes |
+| API + frontend code | `build api nextjs` | — | `up -d api nextjs` | Yes |
+| DB migration (new .sql file) | `build api` | — | `up -d api` | Yes (runs on boot) |
+| Nginx config | — | — | `restart nginx` | Yes |
+| PostgreSQL version | — | `pull postgres` | `up -d postgres` | Yes* |
+| Redis version | — | `pull redis` | `up -d redis` | Yes |
+| MinIO version | — | `pull minio` | `up -d minio` | Yes |
+| Environment variables (.env) | — | — | `up -d` (all) | Yes |
+| Everything | `--build` | auto | `up -d --build` | Yes |
+
+\* Major PostgreSQL version upgrades may require `pg_upgrade`. Always `pg_dump` first.

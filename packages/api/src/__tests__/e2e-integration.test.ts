@@ -10,7 +10,7 @@ import { signAccessToken, signRefreshToken, verifyToken } from '../lib/jwt.js';
  *
  * Full user flows against a real database. No mocks.
  * Requires: postgres on localhost:5433, redis on localhost:6379
- * Run with: docker compose -f docker-compose.dev.yml up -d postgres redis
+ * Run with: docker compose up -d postgres redis
  */
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

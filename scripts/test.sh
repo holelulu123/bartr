@@ -13,7 +13,7 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 PNPM="${PNPM:-pnpm}"
-COMPOSE_FILE="docker-compose.test.yml"
+COMPOSE_FILE="docker-compose.yml"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -46,7 +46,7 @@ ensure_docker() {
   fi
 
   log "Starting test containers..."
-  docker compose -f "$COMPOSE_FILE" up -d --wait
+  docker compose -f "$COMPOSE_FILE" up -d --wait postgres redis minio
   log "Containers ready"
 }
 

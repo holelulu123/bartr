@@ -1,3 +1,6 @@
+# Default compose file — dev mode with hot reload and all ports exposed.
+# Production: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
 services:
   nginx:
     image: nginx:alpine
@@ -10,24 +13,27 @@ services:
       - api
 
   nextjs:
-    build:
-      context: .
-      dockerfile: packages/web/Dockerfile
-    expose:
-      - "3000"
+    image: node:20-alpine
+    working_dir: /app/packages/web
+    command: sh -c "npx --yes next dev"
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
     env_file: .env
     depends_on:
       - api
 
   api:
-    build:
-      context: .
-      dockerfile: packages/api/Dockerfile
-    expose:
-      - "4000"
-    env_file: .env
+    image: node:20-alpine
+    working_dir: /app/packages/api
+    command: sh -c "npx --yes tsx watch src/index.ts"
+    ports:
+      - "4000:4000"
     volumes:
+      - .:/app
       - /proc:/host/proc:ro
+    env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,9 +41,11 @@ services:
         condition: service_healthy
 
   workers:
-    build:
-      context: .
-      dockerfile: packages/workers/Dockerfile
+    image: node:20-alpine
+    working_dir: /app/packages/workers
+    command: sh -c "npx --yes tsx watch src/index.ts"
+    volumes:
+      - .:/app
     env_file: .env
     depends_on:
       postgres:
@@ -47,8 +55,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    expose:
-      - "6379"
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -57,8 +65,8 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    expose:
-      - "5432"
+    ports:
+      - "5433:5432"
     env_file: .env
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -71,9 +79,9 @@ services:
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
-    expose:
-      - "9000"
-      - "9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
     env_file: .env
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}

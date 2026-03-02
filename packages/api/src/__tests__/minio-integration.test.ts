@@ -9,7 +9,7 @@ import { signAccessToken } from '../lib/jwt.js';
  * MinIO Integration Tests (Phase 13.8)
  *
  * These tests require MinIO running on localhost:9000 (default dev config).
- * Run with: docker compose -f docker-compose.dev.yml up -d minio postgres redis
+ * Run with: docker compose up -d minio postgres redis
  */
 
 describe('MinIO Integration — Listing Images', () => {
