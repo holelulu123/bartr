@@ -10,6 +10,7 @@ export function Footer() {
         </p>
         <nav className="flex gap-4">
           <Link href="/about" className="hover:text-foreground transition-colors">About</Link>
+          <Link href="/tips" className="hover:text-foreground transition-colors">Tips</Link>
           <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
           <Link href="/donate" className="hover:text-foreground transition-colors">Donate</Link>
         </nav>
