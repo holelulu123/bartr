@@ -134,8 +134,9 @@ describe('CreateListingPage — form rendering', () => {
     expect(screen.getByRole('button', { name: /Ethereum/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /USDT/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /USDC/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Cash/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cash \(in person\)/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Bank transfer/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /PayPal/i })).toBeInTheDocument();
   });
 
   it('renders image upload zone', () => {

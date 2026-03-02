@@ -33,11 +33,17 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       if (!payment_methods || !Array.isArray(payment_methods) || payment_methods.length === 0) {
         return reply.status(400).send({ error: 'At least one payment method is required' });
       }
-      if (payment_methods.length > 5) {
-        return reply.status(400).send({ error: 'Maximum 5 payment methods' });
+      if (payment_methods.length > 10) {
+        return reply.status(400).send({ error: 'Maximum 10 payment methods' });
       }
 
-      const validMethods = ['btc', 'eth', 'usdt', 'usdc', 'cash', 'bank_transfer'];
+      const validMethods = [
+        'btc', 'eth', 'usdt', 'usdc', 'sol', 'xrp', 'trx', 'ton',
+        'cash', 'bank_transfer', 'paypal', 'wise', 'revolut',
+        'zelle', 'venmo', 'sepa', 'interac', 'pix',
+        'upi', 'mpesa', 'skrill', 'neteller', 'western_union',
+        'moneygram', 'gift_card', 'other',
+      ];
       for (const method of payment_methods) {
         if (!validMethods.includes(method)) {
           return reply.status(400).send({ error: `Invalid payment method: ${method}` });
@@ -302,7 +308,13 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         if (body.payment_methods.length > 5) {
           return reply.status(400).send({ error: 'Maximum 5 payment methods' });
         }
-        const validMethods = ['btc', 'eth', 'usdt', 'usdc', 'cash', 'bank_transfer'];
+        const validMethods = [
+        'btc', 'eth', 'usdt', 'usdc', 'sol', 'xrp', 'trx', 'ton',
+        'cash', 'bank_transfer', 'paypal', 'wise', 'revolut',
+        'zelle', 'venmo', 'sepa', 'interac', 'pix',
+        'upi', 'mpesa', 'skrill', 'neteller', 'western_union',
+        'moneygram', 'gift_card', 'other',
+      ];
         for (const method of body.payment_methods) {
           if (!validMethods.includes(method)) {
             return reply.status(400).send({ error: `Invalid payment method: ${method}` });

@@ -27,8 +27,18 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'eth', label: 'ETH' },
   { value: 'usdt', label: 'USDT' },
   { value: 'usdc', label: 'USDC' },
-  { value: 'cash', label: 'Cash' },
+  { value: 'sol', label: 'SOL' },
+  { value: 'xrp', label: 'XRP' },
+  { value: 'trx', label: 'TRX' },
+  { value: 'ton', label: 'TON' },
+  { value: 'cash', label: 'Cash (in person)' },
   { value: 'bank_transfer', label: 'Bank transfer' },
+  { value: 'paypal', label: 'PayPal' },
+  { value: 'wise', label: 'Wise' },
+  { value: 'revolut', label: 'Revolut' },
+  { value: 'venmo', label: 'Venmo' },
+  { value: 'gift_card', label: 'Gift card' },
+  { value: 'other', label: 'Other' },
 ];
 
 const CATEGORY_ICONS: Record<string, ElementType> = {

@@ -4,16 +4,25 @@ export type ListingStatus = 'active' | 'paused' | 'sold' | 'removed';
 
 export type TradeStatus = 'offered' | 'accepted' | 'completed' | 'declined' | 'cancelled';
 
-export type PaymentMethod = 'btc' | 'eth' | 'usdt' | 'usdc' | 'cash' | 'bank_transfer';
-
-export type SettlementMethod =
+export type PaymentMethod =
+  | 'btc' | 'eth' | 'usdt' | 'usdc' | 'sol' | 'xrp' | 'trx' | 'ton'
   | 'cash' | 'bank_transfer' | 'paypal' | 'wise' | 'revolut'
   | 'zelle' | 'venmo' | 'sepa' | 'interac' | 'pix'
   | 'upi' | 'mpesa' | 'skrill' | 'neteller' | 'western_union'
   | 'moneygram' | 'gift_card' | 'other';
 
-export const SETTLEMENT_METHOD_LABELS: Record<SettlementMethod, string> = {
-  cash: 'Cash',
+export type SettlementMethod = PaymentMethod;
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  btc: 'Bitcoin',
+  eth: 'Ethereum',
+  usdt: 'USDT',
+  usdc: 'USDC',
+  sol: 'Solana',
+  xrp: 'XRP',
+  trx: 'TRON',
+  ton: 'TON',
+  cash: 'Cash (in person)',
   bank_transfer: 'Bank transfer',
   paypal: 'PayPal',
   wise: 'Wise',
@@ -32,6 +41,9 @@ export const SETTLEMENT_METHOD_LABELS: Record<SettlementMethod, string> = {
   gift_card: 'Gift card',
   other: 'Other',
 };
+
+/** @deprecated Use PAYMENT_METHOD_LABELS instead */
+export const SETTLEMENT_METHOD_LABELS = PAYMENT_METHOD_LABELS;
 
 export type ReputationTier = 'new' | 'verified' | 'trusted' | 'elite';
 
