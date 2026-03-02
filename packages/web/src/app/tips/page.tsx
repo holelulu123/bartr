@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Safety Tips — Bartr',
@@ -33,7 +32,7 @@ export default function TipsPage() {
           <ul className="list-disc pl-5 space-y-2">
             <Tip>Never share your password, recovery key, or private keys with anyone.</Tip>
             <Tip>Use the in-app encrypted messaging. Be wary of anyone who asks to move the conversation to another platform.</Tip>
-            <Tip>If a deal sounds too good to be true, it probably is. Trust your instincts.</Tip>
+            <Tip>If a deal sounds too good to be true, it&apos;s probably a scam. Trust your instincts.</Tip>
             <Tip>Check the seller or buyer&apos;s reputation and trade history before committing to a deal.</Tip>
             <Tip>Start with smaller trades to build trust before doing large ones.</Tip>
           </ul>
@@ -79,15 +78,6 @@ export default function TipsPage() {
             <Tip>Learn from the experience and share what happened (without personal details) to help others.</Tip>
           </ul>
         </Section>
-
-        <div className="mt-12 pt-6 border-t border-neutral-800 text-center">
-          <p className="text-neutral-500 text-sm">
-            Have a tip to add?{' '}
-            <Link href="/about" className="text-neutral-400 hover:text-white transition underline">
-              Contact us
-            </Link>
-          </p>
-        </div>
       </div>
     </div>
   );
