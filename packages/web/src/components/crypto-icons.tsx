@@ -114,6 +114,29 @@ export function BankIcon({ className }: IconProps) {
   );
 }
 
+// TRON — red circle with geometric logo
+export function TrxIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={cn('h-4 w-4', className)}>
+      <circle cx="12" cy="12" r="11" fill="#EF0027" />
+      <path d="M7.5 8l9.5-1.5L12 19.5 7.5 8z" fill="white" />
+      <path d="M7.5 8l9.5-1.5-5 4L7.5 8z" fill="white" fillOpacity="0.6" />
+    </svg>
+  );
+}
+
+// TON — sky blue circle with diamond
+export function TonIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={cn('h-4 w-4', className)}>
+      <circle cx="12" cy="12" r="11" fill="#0098EA" />
+      <path d="M8 8.5h8L12 18 8 8.5z" fill="white" />
+      <path d="M8 8.5h8L12 18 8 8.5z" fill="white" />
+      <line x1="12" y1="8.5" x2="12" y2="18" stroke="#0098EA" strokeWidth="0.8" />
+    </svg>
+  );
+}
+
 // Generic crypto fallback — grey circle with hex
 export function GenericCoinIcon({ className, label }: IconProps & { label?: string }) {
   return (
@@ -138,6 +161,8 @@ export const CRYPTO_ICONS: Record<string, React.FC<IconProps>> = {
   USDC: UsdcIcon,
   SOL: SolIcon,
   XRP: XrpIcon,
+  TRX: TrxIcon,
+  TON: TonIcon,
 };
 
 export function CoinIcon({ symbol, className }: { symbol: string; className?: string }) {
