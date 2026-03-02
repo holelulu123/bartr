@@ -50,6 +50,15 @@ vi.mock('@/hooks/use-listings', () => ({
   useListings: (...args: unknown[]) => mockUseListings(...args),
 }));
 
+const mockUseOffers = vi.fn().mockReturnValue({ data: { offers: [] }, isLoading: false });
+vi.mock('@/hooks/use-exchange', () => ({
+  useOffers: (...args: unknown[]) => mockUseOffers(...args),
+}));
+
+vi.mock('@/components/offer-row', () => ({
+  OfferRow: ({ offer }: { offer: { id: string } }) => <div data-testid={`offer-${offer.id}`} />,
+}));
+
 const sampleProfile = {
   id: 'u1',
   nickname: 'alice',

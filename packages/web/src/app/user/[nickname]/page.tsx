@@ -2,10 +2,12 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Star, Calendar, Clock, Package } from 'lucide-react';
+import { Star, Calendar, Clock, Package, ArrowUpDown } from 'lucide-react';
 import { useUser, useUserRatings } from '@/hooks/use-users';
 import { useListings } from '@/hooks/use-listings';
+import { useOffers } from '@/hooks/use-exchange';
 import { useAuth } from '@/contexts/auth-context';
+import { OfferRow } from '@/components/offer-row';
 import { ReputationBadge } from '@/components/reputation-badge';
 import { Badge } from '@/components/ui/badge';
 // Clock is used inside ActiveStatus component
@@ -122,12 +124,15 @@ export default function UserProfilePage() {
   const { data: listingsData } = useListings(
     profile?.id ? { user_id: profile.id, status: 'active', limit: 6 } : {},
   );
+  const { data: offersData } = useOffers(
+    profile?.id ? { user_id: profile.id, limit: 6 } : {},
+  );
 
   const isOwnProfile = me?.nickname === nickname;
 
   if (isLoading) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-8 space-y-6">
+      <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
         <Skeleton className="h-32 w-full rounded-xl" />
         <Skeleton className="h-48 w-full rounded-xl" />
       </div>
@@ -136,7 +141,7 @@ export default function UserProfilePage() {
 
   if (isError || !profile) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-16 text-center">
+      <div className="container mx-auto max-w-5xl px-4 py-16 text-center">
         <p className="text-muted-foreground text-lg">User not found.</p>
         <Link href="/listings" className="mt-4 inline-block text-sm text-primary hover:underline">
           Browse listings
@@ -148,7 +153,7 @@ export default function UserProfilePage() {
   const stars = Math.round(profile.reputation.rating_avg);
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-8 space-y-6">
+    <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
 
       {/* Profile header */}
       <Card>
@@ -229,6 +234,23 @@ export default function UserProfilePage() {
                   </div>
                 </div>
               </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Exchange offers */}
+      {offersData && offersData.offers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ArrowUpDown className="h-4 w-4" />
+              Exchange offers
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {offersData.offers.map((offer) => (
+              <OfferRow key={offer.id} offer={offer} />
             ))}
           </CardContent>
         </Card>

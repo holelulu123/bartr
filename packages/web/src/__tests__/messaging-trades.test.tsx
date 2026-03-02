@@ -74,6 +74,11 @@ vi.mock('@/hooks/use-messages', () => ({
 
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => mockUseQueryClient(),
+  useQuery: () => ({ data: undefined, isLoading: false }),
+}));
+
+vi.mock('@/hooks/use-users', () => ({
+  useUser: () => ({ data: { reputation: { rating_avg: 4.2, tier: 'verified', composite_score: 75 } } }),
 }));
 
 // trades hooks mock
@@ -210,7 +215,7 @@ describe('MessagesPage — inbox', () => {
       isLoading: false,
     });
     render(<MessagesPage />);
-    expect(screen.getByText(/ago/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+[mhd]/)).toBeInTheDocument();
   });
 });
 

@@ -6,6 +6,8 @@ export const listingKeys = {
   all: ['listings'] as const,
   lists: () => [...listingKeys.all, 'list'] as const,
   list: (filters: ListingsFilter) => [...listingKeys.lists(), filters] as const,
+  infiniteLists: () => [...listingKeys.all, 'infinite'] as const,
+  infiniteList: (filters: Omit<ListingsFilter, 'page'>) => [...listingKeys.infiniteLists(), filters] as const,
   details: () => [...listingKeys.all, 'detail'] as const,
   detail: (id: string) => [...listingKeys.details(), id] as const,
   categories: () => ['categories'] as const,
@@ -20,7 +22,7 @@ export function useListings(filters: ListingsFilter = {}) {
 
 export function useInfiniteListings(filters: Omit<ListingsFilter, 'page'> = {}) {
   return useInfiniteQuery({
-    queryKey: listingKeys.list(filters),
+    queryKey: listingKeys.infiniteList(filters),
     queryFn: ({ pageParam = 1 }) => listingsApi.getListings({ ...filters, page: pageParam as number }),
     getNextPageParam: (last) =>
       last.pagination.page < last.pagination.pages ? last.pagination.page + 1 : undefined,

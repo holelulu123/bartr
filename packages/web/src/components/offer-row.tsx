@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, Star } from 'lucide-react';
+import { ArrowUp, ArrowDown, Star, MessageSquare } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { getCountryFlag } from '@/lib/countries';
+import { useAuth } from '@/contexts/auth-context';
 import { usePrices } from '@/hooks/use-prices';
 import { cn } from '@/lib/utils';
 import type { ExchangeOffer } from '@/lib/api';
@@ -62,6 +63,7 @@ function MiniIdenticon({ seed, size = 28 }: { seed: string; size?: number }) {
 
 export function OfferRow({ offer }: OfferRowProps) {
   const isBuy = offer.offer_type === 'buy';
+  const { user } = useAuth();
   const { data: priceData } = usePrices();
 
   // Get market price to compute crypto equivalent of fiat limits
@@ -93,8 +95,8 @@ export function OfferRow({ offer }: OfferRowProps) {
   return (
     <div className={cn(
       'grid items-center gap-4 rounded-lg border px-4 py-3 border-l-[3px]',
-      'grid-cols-[70px_200px_1fr_180px_130px_60px]',
-      'max-md:grid-cols-[70px_1fr_180px_60px]',
+      'grid-cols-[70px_200px_1fr_180px_130px_100px]',
+      'max-md:grid-cols-[70px_1fr_180px_100px]',
       isBuy
         ? 'border-l-emerald-500 bg-emerald-500/[0.03] border-border'
         : 'border-l-red-400 bg-red-400/[0.03] border-border',
@@ -229,12 +231,19 @@ export function OfferRow({ offer }: OfferRowProps) {
       </div>
 
       {/* Action */}
-      <div>
+      <div className="flex items-center gap-1.5">
         <Button asChild size="sm" variant="outline">
           <Link href={`/exchange/${offer.id}`}>
             View
           </Link>
         </Button>
+        {user?.nickname !== offer.seller_nickname && (
+          <Button asChild size="sm" variant="ghost" className="px-2 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10">
+            <Link href={`/messages?contact=${offer.seller_nickname}`}>
+              <MessageSquare className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -253,7 +253,7 @@ export default function OfferDetailPage() {
       {isAuthenticated && !isOwner && (
         <div className="flex gap-3">
           <Button asChild className="flex-1">
-            <Link href={`/messages?contact=${offer.seller_nickname}&offer=${offer.id}`}>
+            <Link href={`/messages?contact=${offer.seller_nickname}`}>
               <MessageSquare className="h-4 w-4 mr-2" />
               Chat
             </Link>
