@@ -65,6 +65,7 @@ export default function EmailRegisterPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
+  const watchedEmail = watch('email', '');
   const watchedPassword = watch('password', '');
   const watchedConfirm = watch('confirmPassword', '');
 
@@ -141,6 +142,13 @@ export default function EmailRegisterPage() {
                 autoComplete="email"
                 {...register('email')}
               />
+              {!errors.email && (
+                watchedEmail.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(watchedEmail) ? (
+                  <p className="text-xs text-green-600">Valid email format</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Enter a valid email address</p>
+                )
+              )}
               {errors.email && (
                 <p className="text-xs text-destructive">{errors.email.message}</p>
               )}
@@ -154,35 +162,6 @@ export default function EmailRegisterPage() {
                 autoComplete="new-password"
                 {...register('password')}
               />
-              {(() => {
-                const strength = watchedPassword.length > 0
-                  ? getPasswordStrength(watchedPassword)
-                  : { score: 0, label: '', color: '' };
-                return (
-                  <div className="space-y-1">
-                    <div className="flex gap-1">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className={`h-1.5 flex-1 rounded-full transition-colors ${
-                            i < strength.score ? strength.color : 'bg-muted'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    {watchedPassword.length > 0 && (
-                      <p className={`text-xs ${
-                        strength.score <= 2 ? 'text-red-500' :
-                        strength.score <= 3 ? 'text-orange-500' :
-                        strength.score <= 4 ? 'text-yellow-600' :
-                        'text-green-600'
-                      }`}>
-                        {strength.label}
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
               {errors.password && (
                 <p className="text-xs text-destructive">{errors.password.message}</p>
               )}
@@ -196,17 +175,53 @@ export default function EmailRegisterPage() {
                 autoComplete="new-password"
                 {...register('confirmPassword')}
               />
-              {watchedConfirm.length > 0 && (
-                watchedPassword === watchedConfirm ? (
-                  <p className="text-xs text-green-600">Passwords match</p>
-                ) : (
-                  <p className="text-xs text-red-500">Passwords do not match</p>
-                )
-              )}
-              {errors.confirmPassword && (
-                <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
-              )}
             </div>
+
+            {(() => {
+              const strength = watchedPassword.length > 0
+                ? getPasswordStrength(watchedPassword)
+                : { score: 0, label: '', color: '' };
+              const passwordsMatch = watchedPassword.length > 0 && watchedConfirm.length > 0 && watchedPassword === watchedConfirm;
+              return (
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <div className="flex gap-1">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-1.5 flex-1 rounded-full transition-colors ${
+                            i < strength.score ? strength.color : 'bg-muted'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className={`text-xs ${
+                      watchedPassword.length === 0 ? 'invisible' :
+                      strength.score <= 2 ? 'text-red-500' :
+                      strength.score <= 3 ? 'text-orange-500' :
+                      strength.score <= 4 ? 'text-yellow-600' :
+                      'text-green-600'
+                    }`}>
+                      {watchedPassword.length > 0 ? strength.label : '\u00A0'}
+                    </p>
+                  </div>
+                  <ul className="space-y-0.5 text-sm">
+                    {[
+                      { test: watchedPassword.length >= 8, label: '8+ characters' },
+                      { test: /[a-z]/.test(watchedPassword), label: 'Lowercase letter (a-z)' },
+                      { test: /[A-Z]/.test(watchedPassword), label: 'Uppercase letter (A-Z)' },
+                      { test: /[0-9]/.test(watchedPassword), label: 'Number (0-9)' },
+                      { test: /[^a-zA-Z0-9]/.test(watchedPassword), label: 'Special character (!@#$%)' },
+                      { test: passwordsMatch, label: 'Passwords match' },
+                    ].map(({ test, label }) => (
+                      <li key={label} className={test ? 'text-green-600' : 'text-red-500'}>
+                        {test ? '✓' : '✗'} {label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
 
             {serverError && (
               <p className="text-sm text-destructive" role="alert">{serverError}</p>
