@@ -28,7 +28,10 @@ import type { SettlementMethod } from '@bartr/shared';
 
 function fmt(val: number | string | null | undefined, decimals = 2): string {
   if (val === null || val === undefined) return '0';
-  return Number(val).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const n = Number(val);
+  const formatted = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  if (decimals <= 2) return formatted.replace(/\.00$/, '');
+  return formatted;
 }
 
 /** Deterministic identicon — compact version for inline use */

@@ -38,7 +38,11 @@ const CRYPTO_COLORS: Record<string, string> = {
 
 function fmt(val: number | string | null | undefined, decimals = 2): string {
   if (val === null || val === undefined) return '0';
-  return Number(val).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const n = Number(val);
+  const formatted = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  // Strip trailing zeros after decimal for fiat (decimals <= 2), keep full precision for crypto
+  if (decimals <= 2) return formatted.replace(/\.00$/, '');
+  return formatted;
 }
 
 /** Deterministic identicon — compact inline version */
@@ -167,7 +171,7 @@ export function OfferRow({ offer }: OfferRowProps) {
 
       {/* Amount */}
       <div className="min-w-0">
-        <p className="text-[15px] font-bold leading-tight">
+        <p className="text-[15px] font-bold leading-tight whitespace-nowrap">
           {isFixed
             ? `${fmt(minFiat)} ${offer.fiat_currency}`
             : offer.min_amount || offer.max_amount
@@ -175,7 +179,7 @@ export function OfferRow({ offer }: OfferRowProps) {
               : 'Any amount'}
         </p>
         {effectivePrice !== undefined && (offer.min_amount || offer.max_amount) && (
-          <p className="text-xs text-muted-foreground leading-tight mt-0.5">
+          <p className="text-xs text-muted-foreground leading-tight mt-0.5 whitespace-nowrap">
             {isFixed
               ? `${fmt(minCrypto!, 6)} ${offer.crypto_currency}`
               : `${fmt(minCrypto!, 6)} – ${fmt(maxCrypto!, 6)} ${offer.crypto_currency}`}
