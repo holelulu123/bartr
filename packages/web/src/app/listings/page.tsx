@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, Monitor, Laptop, Shirt, Home, Wrench, Package } from 'lucide-react';
 import { useInfiniteListings, useCategories } from '@/hooks/use-listings';
 import { ListingCard, ListingCardSkeleton } from '@/components/listing-card';
-import { PaymentIcon, getPaymentLabel } from '@/components/payment-icon';
+import { getPaymentLabel } from '@/components/payment-icon';
 import { COUNTRIES, getCountryFlag, getCountryName } from '@/lib/countries';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -192,7 +192,7 @@ export default function ListingsPage() {
             <SelectItem value="all">Any payment</SelectItem>
             {PAYMENT_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
-                <PaymentIcon method={opt.value} longLabel />
+                {opt.label}
               </SelectItem>
             ))}
           </SelectContent>

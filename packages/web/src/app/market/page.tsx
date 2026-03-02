@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Search, SlidersHorizontal, Monitor, Laptop, Shirt, Home, Wrench, Package, Plus } from 'lucide-react';
 import { useInfiniteListings, useCategories } from '@/hooks/use-listings';
 import { ListingCard, ListingCardSkeleton } from '@/components/listing-card';
-import { PaymentIcon, getPaymentLabel } from '@/components/payment-icon';
+import { getPaymentLabel } from '@/components/payment-icon';
 import { COUNTRIES, getCountryFlag, getCountryName } from '@/lib/countries';
 import { useAuth } from '@/contexts/auth-context';
 import { Input } from '@/components/ui/input';
@@ -192,7 +192,7 @@ export default function MarketPage() {
             <SelectItem value="all">Any payment</SelectItem>
             {PAYMENT_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
-                <PaymentIcon method={opt.value} longLabel />
+                {opt.label}
               </SelectItem>
             ))}
           </SelectContent>
