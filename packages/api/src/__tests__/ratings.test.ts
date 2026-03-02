@@ -63,6 +63,9 @@ describe('Rating & Reputation routes', () => {
         title: 'Item for reputation test',
         description: 'A test listing for reputation calculation testing',
         payment_methods: ['btc'],
+        price_indication: '100',
+        currency: 'USD',
+        country_code: 'US',
       },
     });
     const listingId = listRes.json().id;
@@ -135,6 +138,9 @@ describe('Rating & Reputation routes', () => {
           title: 'Incomplete trade item test',
           description: 'A test listing for testing rating on incomplete trades',
           payment_methods: ['btc'],
+          price_indication: '100',
+          currency: 'USD',
+          country_code: 'US',
         },
       });
       const offerRes = await app.inject({

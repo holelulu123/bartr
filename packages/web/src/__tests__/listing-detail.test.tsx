@@ -128,10 +128,10 @@ describe('ListingDetailPage — content', () => {
     expect(screen.getByRole('heading', { name: 'Vintage Camera' })).toBeInTheDocument();
   });
 
-  it('renders price and currency', () => {
+  it('renders price and currency with flag', () => {
     render(<ListingDetailPage />);
     expect(screen.getByText('200')).toBeInTheDocument();
-    expect(screen.getByText('USD')).toBeInTheDocument();
+    expect(screen.getByText(/USD/)).toBeInTheDocument();
   });
 
   it('renders description', () => {

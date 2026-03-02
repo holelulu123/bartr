@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { getFiatFlag } from '@bartr/shared';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -222,7 +223,7 @@ export default function UserProfilePage() {
                 <div className="mt-1 flex items-center gap-2">
                   {listing.price_indication && (
                     <span className="text-xs text-muted-foreground">
-                      {listing.price_indication} {listing.currency?.toUpperCase()}
+                      {listing.price_indication} {listing.currency ? `${getFiatFlag(listing.currency)} ${listing.currency}` : ''}
                     </span>
                   )}
                   <div className="flex gap-1 flex-wrap">

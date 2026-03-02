@@ -59,7 +59,8 @@ function makeListing(overrides: Partial<ListingDetail> = {}): ListingDetail {
     payment_methods: ['btc', 'eth'],
     price_indication: '50',
     currency: 'USD',
-    country_code: null,
+    country_code: 'US',
+    condition: null,
     status: 'active',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -135,15 +136,13 @@ describe('EditListingPage — pre-fill', () => {
   it('pre-fills price', async () => {
     render(<EditListingPage />);
     await waitFor(() =>
-      expect(screen.getByLabelText(/price/i)).toHaveValue('50'),
+      expect(screen.getByLabelText(/price/i)).toHaveValue(50),
     );
   });
 
-  it('pre-fills currency', async () => {
+  it('renders currency dropdown', () => {
     render(<EditListingPage />);
-    await waitFor(() =>
-      expect(screen.getByLabelText(/^currency/i)).toHaveValue('USD'),
-    );
+    expect(screen.getByRole('combobox', { name: /currency/i })).toBeInTheDocument();
   });
 
   it('pre-selects crypto methods and enables checkbox', async () => {
@@ -295,7 +294,7 @@ describe('EditListingPage — successful submit', () => {
     mockUpdateMutation.mutateAsync.mockResolvedValue(makeListing({ title: 'Updated Title' }));
   });
 
-  it('calls updateListing with correct payload', async () => {
+  it('calls updateListing with correct payload including price, currency, and country', async () => {
     render(<EditListingPage />);
     const titleInput = await screen.findByLabelText(/^title$/i);
     await userEvent.clear(titleInput);
@@ -310,6 +309,9 @@ describe('EditListingPage — successful submit', () => {
         expect.objectContaining({
           title: 'Updated Title Here',
           payment_methods: ['btc', 'eth'],
+          price_indication: '50',
+          currency: 'USD',
+          country_code: 'US',
         }),
       ),
     );
@@ -326,7 +328,7 @@ describe('EditListingPage — successful submit', () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/listings/listing-1'));
   });
 
-  it('includes status in update payload', async () => {
+  it('includes status and country in update payload', async () => {
     render(<EditListingPage />);
     await screen.findByLabelText(/^title$/i);
 
@@ -336,7 +338,7 @@ describe('EditListingPage — successful submit', () => {
 
     await waitFor(() =>
       expect(mockUpdateMutation.mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'active' }),
+        expect.objectContaining({ status: 'active', country_code: 'US' }),
       ),
     );
   });

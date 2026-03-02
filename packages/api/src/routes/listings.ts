@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
 import { processImage } from '../lib/image.js';
 import crypto from 'node:crypto';
+import { VALID_FIAT_CODES } from '@bartr/shared';
 
 export default async function listingRoutes(fastify: FastifyInstance) {
   await fastify.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
@@ -46,21 +47,22 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         }
       }
 
-      if (price_indication !== undefined && price_indication !== null) {
-        if (typeof price_indication !== 'string' || price_indication.length > 100) {
-          return reply.status(400).send({ error: 'price_indication must be 100 characters or less' });
-        }
+      if (!price_indication || typeof price_indication !== 'string') {
+        return reply.status(400).send({ error: 'price_indication is required' });
       }
-      if (currency !== undefined && currency !== null) {
-        if (typeof currency !== 'string' || currency.length > 10) {
-          return reply.status(400).send({ error: 'currency must be 10 characters or less' });
-        }
+      const priceNum = parseFloat(price_indication);
+      if (!isFinite(priceNum) || priceNum <= 0) {
+        return reply.status(400).send({ error: 'price_indication must be a positive number' });
+      }
+      if (!currency || typeof currency !== 'string') {
+        return reply.status(400).send({ error: 'currency is required' });
+      }
+      if (!VALID_FIAT_CODES.has(currency)) {
+        return reply.status(400).send({ error: `Invalid currency code: ${currency}` });
       }
 
-      if (country_code !== undefined && country_code !== null) {
-        if (typeof country_code !== 'string' || !/^[A-Z]{2}$/.test(country_code)) {
-          return reply.status(400).send({ error: 'country_code must be a 2-letter ISO code' });
-        }
+      if (!country_code || typeof country_code !== 'string' || !/^[A-Z]{2}$/.test(country_code)) {
+        return reply.status(400).send({ error: 'country_code is required and must be a 2-letter ISO code' });
       }
 
       if (condition !== undefined && condition !== null) {
@@ -89,9 +91,9 @@ export default async function listingRoutes(fastify: FastifyInstance) {
           description,
           category_id || null,
           JSON.stringify(methods),
-          price_indication || null,
-          currency || null,
-          country_code || null,
+          price_indication,
+          currency,
+          country_code,
           condition || null,
         ],
       );
@@ -324,16 +326,23 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       }
 
       if (body.price_indication !== undefined) {
-        if (body.price_indication !== null && body.price_indication.length > 100) {
-          return reply.status(400).send({ error: 'price_indication must be 100 characters or less' });
+        if (!body.price_indication || typeof body.price_indication !== 'string') {
+          return reply.status(400).send({ error: 'price_indication is required' });
+        }
+        const priceNum = parseFloat(body.price_indication);
+        if (!isFinite(priceNum) || priceNum <= 0) {
+          return reply.status(400).send({ error: 'price_indication must be a positive number' });
         }
         updates.push(`price_indication = $${paramIdx++}`);
         values.push(body.price_indication);
       }
 
       if (body.currency !== undefined) {
-        if (body.currency !== null && body.currency.length > 10) {
-          return reply.status(400).send({ error: 'currency must be 10 characters or less' });
+        if (!body.currency || typeof body.currency !== 'string') {
+          return reply.status(400).send({ error: 'currency is required' });
+        }
+        if (!VALID_FIAT_CODES.has(body.currency)) {
+          return reply.status(400).send({ error: `Invalid currency code: ${body.currency}` });
         }
         updates.push(`currency = $${paramIdx++}`);
         values.push(body.currency);

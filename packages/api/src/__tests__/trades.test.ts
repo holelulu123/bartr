@@ -58,6 +58,9 @@ describe('Trade routes', () => {
         title: 'Test item for trading',
         description: 'A test listing created for trade flow testing purposes',
         payment_methods: ['btc'],
+        price_indication: '100',
+        currency: 'USD',
+        country_code: 'US',
       },
     });
     return res.json();

@@ -213,6 +213,9 @@ describe('Email verification', () => {
           title: 'Should Be Blocked',
           description: 'This listing should not be created by unverified user',
           payment_methods: ['btc'],
+          price_indication: '100',
+          currency: 'USD',
+          country_code: 'US',
         },
       });
 
@@ -232,6 +235,9 @@ describe('Email verification', () => {
           title: 'Verified User Listing',
           description: 'This listing should be created successfully by verified user',
           payment_methods: ['btc'],
+          price_indication: '100',
+          currency: 'USD',
+          country_code: 'US',
         },
       });
 

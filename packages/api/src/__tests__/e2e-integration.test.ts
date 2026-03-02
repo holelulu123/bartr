@@ -200,6 +200,43 @@ describe('E2E Integration — Listings CRUD', () => {
 
   let createdListingId: string;
 
+  it('rejects missing price_indication', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/listings',
+      headers: authHeaders(userA.access_token),
+      payload: {
+        title: 'Missing Price Listing',
+        description: 'This listing is missing price indication field.',
+        payment_methods: ['btc'],
+        currency: 'USD',
+        country_code: 'US',
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain('price_indication');
+  });
+
+  it('rejects invalid currency code', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/listings',
+      headers: authHeaders(userA.access_token),
+      payload: {
+        title: 'Invalid Currency Listing',
+        description: 'This listing has an invalid currency code.',
+        payment_methods: ['btc'],
+        price_indication: '100',
+        currency: 'FAKE',
+        country_code: 'US',
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain('Invalid currency');
+  });
+
   it('User A creates a listing', async () => {
     const res = await app.inject({
       method: 'POST',
@@ -211,6 +248,7 @@ describe('E2E Integration — Listings CRUD', () => {
         payment_methods: ['btc', 'eth'],
         price_indication: '500',
         currency: 'USD',
+        country_code: 'US',
       },
     });
 
@@ -291,6 +329,9 @@ describe('E2E Integration — Listings CRUD', () => {
         title: 'Fiat Test Listing',
         description: 'Should be rejected because cash is not a valid crypto method.',
         payment_methods: ['cash'],
+        price_indication: '100',
+        currency: 'USD',
+        country_code: 'US',
       },
     });
 
@@ -348,6 +389,9 @@ describe('E2E Integration — Messaging (two-user flow)', () => {
         title: 'E2E Messaging Test Listing',
         description: 'Listing for messaging integration test.',
         payment_methods: ['btc'],
+        price_indication: '200',
+        currency: 'USD',
+        country_code: 'US',
       },
     });
     listingId = listRes.json().id;
@@ -488,6 +532,9 @@ describe('E2E Integration — Trades', () => {
         title: 'E2E Trade Test Listing',
         description: 'Listing for trade integration test flow.',
         payment_methods: ['btc'],
+        price_indication: '300',
+        currency: 'USD',
+        country_code: 'US',
       },
     });
     listingId = listRes.json().id;
@@ -684,6 +731,9 @@ describe('E2E Integration — Edge Cases', () => {
         title: 'Edge Case Listing',
         description: 'Listing for testing duplicate thread prevention.',
         payment_methods: ['btc'],
+        price_indication: '50',
+        currency: 'USD',
+        country_code: 'US',
       },
     });
     const listingId = listRes.json().id;

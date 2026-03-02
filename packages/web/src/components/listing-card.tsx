@@ -8,7 +8,7 @@ import { getCountryFlag } from '@/lib/countries';
 import { cn } from '@/lib/utils';
 import type { ListingSummary } from '@/lib/api';
 import type { PaymentMethod, ListingCondition } from '@bartr/shared';
-import { LISTING_CONDITION_LABELS } from '@bartr/shared';
+import { LISTING_CONDITION_LABELS, getFiatFlag } from '@bartr/shared';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -72,7 +72,7 @@ export function ListingCard({ listing, className }: ListingCardProps) {
             {listing.price_indication}
             {listing.currency && (
               <span className="text-xs font-normal text-muted-foreground ml-1">
-                {listing.currency}
+                {getFiatFlag(listing.currency)} {listing.currency}
               </span>
             )}
           </p>

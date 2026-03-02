@@ -151,8 +151,10 @@ describe('UserProfilePage — listings section', () => {
             id: 'l1',
             title: 'GPU for sale',
             price_indication: '400',
-            currency: 'usd',
+            currency: 'USD',
             payment_methods: ['btc', 'eth'],
+            country_code: 'US',
+            condition: null,
             status: 'active',
             created_at: new Date().toISOString(),
             seller_nickname: 'alice',
@@ -167,7 +169,7 @@ describe('UserProfilePage — listings section', () => {
 
     render(<UserProfilePage />);
     expect(screen.getByText('GPU for sale')).toBeInTheDocument();
-    expect(screen.getByText('400 USD')).toBeInTheDocument();
+    expect(screen.getByText(/400.*USD/)).toBeInTheDocument();
   });
 
   it('does not render listings section when empty', () => {

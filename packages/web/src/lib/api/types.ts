@@ -105,9 +105,9 @@ export interface CreateListingPayload {
   description: string;
   category_id?: number;
   payment_methods?: CryptoPaymentMethod[];
-  price_indication?: string;
-  currency?: string;
-  country_code?: string;
+  price_indication: string;
+  currency: string;
+  country_code: string;
   condition?: ListingCondition;
 }
 
@@ -116,8 +116,8 @@ export interface UpdateListingPayload {
   description?: string;
   category_id?: number;
   payment_methods?: CryptoPaymentMethod[];
-  price_indication?: string;
-  currency?: string;
+  price_indication: string;
+  currency: string;
   country_code?: string | null;
   condition?: ListingCondition | null;
   status?: ListingStatus;

@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { CryptoPaymentMethod, ListingCondition } from '@bartr/shared';
-import { LISTING_CONDITION_LABELS, CRYPTO_PAYMENT_METHODS, CRYPTO_PAYMENT_METHOD_LABELS } from '@bartr/shared';
+import { LISTING_CONDITION_LABELS, CRYPTO_PAYMENT_METHODS, CRYPTO_PAYMENT_METHOD_LABELS, FIAT_CURRENCIES, getFiatFlag } from '@bartr/shared';
 import type { ElementType } from 'react';
 
 const CRYPTO_OPTIONS: { value: CryptoPaymentMethod; label: string }[] =
@@ -64,8 +64,11 @@ const schema = z.object({
     .min(10, 'Description must be at least 10 characters')
     .max(5000, 'Description too long'),
   category_id: z.string().optional(),
-  price_indication: z.string().max(50, 'Price too long').optional(),
-  currency: z.string().max(10, 'Currency too long').optional(),
+  price_indication: z
+    .string()
+    .min(1, 'Price is required')
+    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, 'Must be a positive number'),
+  currency: z.string().min(1, 'Currency is required'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -88,6 +91,7 @@ function CreateListingForm() {
   const [selectedCondition, setSelectedCondition] = useState<string>('');
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [countrySearch, setCountrySearch] = useState('');
+  const [currencySearch, setCurrencySearch] = useState('');
   const [images, setImages] = useState<ImagePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -100,16 +104,30 @@ function CreateListingForm() {
     );
   }, [countrySearch]);
 
+  const filteredCurrencies = useMemo(() => {
+    if (!currencySearch) return FIAT_CURRENCIES;
+    const lower = currencySearch.toLowerCase();
+    return FIAT_CURRENCIES.filter(
+      (c) => c.name.toLowerCase().includes(lower) || c.code.toLowerCase().includes(lower),
+    );
+  }, [currencySearch]);
+
   const createListing = useCreateListing();
 
   const {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      currency: 'USD',
+    },
   });
+
+  const selectedCurrency = watch('currency');
 
   // ── Crypto toggles ─────────────────────────────────────────────────────
 
@@ -167,6 +185,11 @@ function CreateListingForm() {
   async function onSubmit(values: FormValues) {
     setServerError(null);
 
+    if (!selectedCountry) {
+      setServerError('Please select a country.');
+      return;
+    }
+
     if (acceptsCrypto && selectedCryptos.length === 0) {
       setServerError('Select at least one cryptocurrency.');
       return;
@@ -191,10 +214,10 @@ function CreateListingForm() {
         title: values.title,
         description: values.description,
         payment_methods: acceptsCrypto ? selectedCryptos : [],
+        price_indication: values.price_indication,
+        currency: values.currency,
+        country_code: selectedCountry,
         ...(values.category_id && { category_id: Number(values.category_id) }),
-        ...(values.price_indication && { price_indication: values.price_indication }),
-        ...(values.currency && { currency: values.currency }),
-        ...(selectedCountry && { country_code: selectedCountry }),
         ...(selectedCondition && { condition: selectedCondition as ListingCondition }),
       });
 
@@ -315,11 +338,15 @@ function CreateListingForm() {
         {/* Price */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="price_indication">Price (optional)</Label>
+            <Label htmlFor="price_indication">Price</Label>
             <Input
               id="price_indication"
-              placeholder="e.g. 0.005"
+              type="number"
+              step="any"
+              min="0"
+              placeholder="e.g. 100"
               {...register('price_indication')}
+              aria-required="true"
               aria-describedby={errors.price_indication ? 'price-error' : undefined}
             />
             {errors.price_indication && (
@@ -329,13 +356,34 @@ function CreateListingForm() {
             )}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="currency">Currency (optional)</Label>
-            <Input
-              id="currency"
-              placeholder="e.g. BTC, USD"
-              {...register('currency')}
-              aria-describedby={errors.currency ? 'currency-error' : undefined}
-            />
+            <Label htmlFor="currency">Currency</Label>
+            <Select
+              value={selectedCurrency}
+              onValueChange={(val) => {
+                setCurrencySearch('');
+                setValue('currency', val);
+              }}
+            >
+              <SelectTrigger id="currency" aria-label="Currency" aria-required="true">
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                <div className="px-2 py-1.5">
+                  <Input
+                    placeholder="Search currencies…"
+                    value={currencySearch}
+                    onChange={(e) => setCurrencySearch(e.target.value)}
+                    className="h-8"
+                    aria-label="Search currencies"
+                  />
+                </div>
+                {filteredCurrencies.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    {c.flag} {c.code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {errors.currency && (
               <p id="currency-error" className="text-sm text-destructive">
                 {errors.currency.message}
@@ -346,15 +394,15 @@ function CreateListingForm() {
 
         {/* Country */}
         <div className="space-y-1.5">
-          <Label htmlFor="country">Country (optional)</Label>
+          <Label htmlFor="country">Country</Label>
           <Select
-            value={selectedCountry || 'none'}
+            value={selectedCountry || undefined}
             onValueChange={(val) => {
               setCountrySearch('');
-              setSelectedCountry(val === 'none' ? '' : val);
+              setSelectedCountry(val);
             }}
           >
-            <SelectTrigger id="country" aria-label="Country">
+            <SelectTrigger id="country" aria-label="Country" aria-required="true">
               <SelectValue placeholder="Select a country" />
             </SelectTrigger>
             <SelectContent>
@@ -367,7 +415,6 @@ function CreateListingForm() {
                   aria-label="Search countries"
                 />
               </div>
-              <SelectItem value="none">No country</SelectItem>
               {filteredCountries.map((c) => (
                 <SelectItem key={c.code} value={c.code}>
                   {c.flag} {c.name}

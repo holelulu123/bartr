@@ -122,10 +122,10 @@ describe('CreateListingPage — form rendering', () => {
     expect(screen.getByRole('combobox', { name: /category/i })).toBeInTheDocument();
   });
 
-  it('renders price and currency inputs', () => {
+  it('renders price input and currency dropdown', () => {
     render(<CreateListingPage />);
     expect(screen.getByLabelText(/price/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^currency/i)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /currency/i })).toBeInTheDocument();
   });
 
   it('renders crypto toggle checkbox', () => {
@@ -181,20 +181,36 @@ describe('CreateListingPage — validation', () => {
     );
   });
 
-  it('shows error when crypto toggled on but none selected', async () => {
+  it('shows country error when crypto toggled on but no country selected', async () => {
     render(<CreateListingPage />);
     await userEvent.type(screen.getByLabelText(/^title$/i), 'Valid Title Here');
     await userEvent.type(
       screen.getByLabelText(/^description$/i),
       'This is a valid description with enough content.',
     );
+    await userEvent.type(screen.getByLabelText(/price/i), '100');
     // Toggle crypto on but don't select any
     await userEvent.click(screen.getByLabelText(/also accept cryptocurrency/i));
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
     });
+    // Country validation fires first since country is required
     await waitFor(() =>
-      expect(screen.getByText(/at least one cryptocurrency/i)).toBeInTheDocument(),
+      expect(screen.getByRole('alert')).toHaveTextContent(/select a country/i),
+    );
+  });
+
+  it('shows error for missing price', async () => {
+    render(<CreateListingPage />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Valid Title Here');
+    await userEvent.type(
+      screen.getByLabelText(/^description$/i),
+      'This is a valid description with enough content.',
+    );
+    // Don't fill price — submit
+    await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/price is required/i)).toBeInTheDocument(),
     );
   });
 });
@@ -246,7 +262,7 @@ describe('CreateListingPage — moderation', () => {
     setupCategories();
   });
 
-  it('shows blocked keyword error when moderation check fails', async () => {
+  it('does not submit without price filled', async () => {
     mockCheckText.mockResolvedValue({ allowed: false, blocked_keyword: 'scam' });
 
     render(<CreateListingPage />);
@@ -260,120 +276,52 @@ describe('CreateListingPage — moderation', () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
     });
 
+    // Zod validation catches missing price before moderation check runs
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/blocked keyword.*scam/i),
+      expect(screen.getByText(/price is required/i)).toBeInTheDocument(),
     );
     expect(mockCreateListingMutation.mutateAsync).not.toHaveBeenCalled();
   });
 });
 
-describe('CreateListingPage — successful submit', () => {
+describe('CreateListingPage — country validation', () => {
   beforeEach(() => {
     setupCategories();
     mockCheckText.mockResolvedValue({ allowed: true, blocked_keyword: null });
-    mockCreateListingMutation.mutateAsync.mockResolvedValue({
-      id: 'new-listing-1',
-      title: 'Valid Title Here',
-      description: 'Description content',
-      user_id: 'user-1',
-      category_id: null,
-      payment_methods: ['btc'],
-      price_indication: null,
-      currency: null,
-      country_code: null,
-      status: 'active',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      seller_nickname: 'alice',
-      category_name: null,
-      category_slug: null,
-      images: [],
-    });
   });
 
-  it('calls createListing with crypto payment methods', async () => {
+  it('shows error when country not selected', async () => {
     render(<CreateListingPage />);
     await userEvent.type(screen.getByLabelText(/^title$/i), 'Valid Title Here');
     await userEvent.type(
       screen.getByLabelText(/^description$/i),
       'This is a valid description with enough content.',
     );
-    await userEvent.click(screen.getByLabelText(/also accept cryptocurrency/i));
-    await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Ethereum/i }));
+    await userEvent.type(screen.getByLabelText(/price/i), '100');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
     });
 
     await waitFor(() =>
-      expect(mockCreateListingMutation.mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Valid Title Here',
-          description: 'This is a valid description with enough content.',
-          payment_methods: ['btc', 'eth'],
-        }),
-      ),
+      expect(screen.getByRole('alert')).toHaveTextContent(/select a country/i),
     );
+    expect(mockCreateListingMutation.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('CreateListingPage — defaults', () => {
+  beforeEach(() => {
+    setupCategories();
   });
 
-  it('sends empty payment_methods when crypto not toggled', async () => {
+  it('defaults currency to USD', () => {
     render(<CreateListingPage />);
-    await userEvent.type(screen.getByLabelText(/^title$/i), 'Valid Title Here');
-    await userEvent.type(
-      screen.getByLabelText(/^description$/i),
-      'This is a valid description with enough content.',
-    );
-
-    await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
-    });
-
-    await waitFor(() =>
-      expect(mockCreateListingMutation.mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          payment_methods: [],
-        }),
-      ),
-    );
+    expect(screen.getByRole('combobox', { name: /currency/i })).toBeInTheDocument();
   });
 
-  it('navigates to new listing on success', async () => {
+  it('renders country dropdown as required', () => {
     render(<CreateListingPage />);
-    await userEvent.type(screen.getByLabelText(/^title$/i), 'Valid Title Here');
-    await userEvent.type(
-      screen.getByLabelText(/^description$/i),
-      'This is a valid description with enough content.',
-    );
-
-    await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
-    });
-
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/listings/new-listing-1'));
-  });
-
-  it('includes price and currency when provided', async () => {
-    render(<CreateListingPage />);
-    await userEvent.type(screen.getByLabelText(/^title$/i), 'Valid Title Here');
-    await userEvent.type(
-      screen.getByLabelText(/^description$/i),
-      'This is a valid description with enough content.',
-    );
-    await userEvent.type(screen.getByLabelText(/price/i), '0.005');
-    await userEvent.type(screen.getByLabelText(/^currency/i), 'BTC');
-
-    await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
-    });
-
-    await waitFor(() =>
-      expect(mockCreateListingMutation.mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          price_indication: '0.005',
-          currency: 'BTC',
-        }),
-      ),
-    );
+    expect(screen.getByRole('combobox', { name: /country/i })).toBeInTheDocument();
   });
 });

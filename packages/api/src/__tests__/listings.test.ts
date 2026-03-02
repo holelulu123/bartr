@@ -85,8 +85,9 @@ describe('Listing routes', () => {
     title: 'Selling a GPU',
     description: 'NVIDIA RTX 4090, barely used, great condition for mining or gaming',
     payment_methods: ['btc', 'eth'],
-    price_indication: '0.5 BTC',
-    currency: 'BTC',
+    price_indication: '1500',
+    currency: 'USD',
+    country_code: 'US',
   };
 
   describe('POST /listings', () => {
@@ -170,6 +171,68 @@ describe('Listing routes', () => {
 
       expect(res.statusCode).toBe(400);
       expect(res.json().error).toContain('Invalid payment method');
+    });
+
+    it('rejects missing price_indication', async () => {
+      const user = await createTestUser('create6');
+      const token = await getToken(user);
+
+      const { price_indication, ...noPrice } = validListing;
+      const res = await app.inject({
+        method: 'POST',
+        url: '/listings',
+        headers: { authorization: `Bearer ${token}` },
+        payload: noPrice,
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('price_indication');
+    });
+
+    it('rejects non-numeric price_indication', async () => {
+      const user = await createTestUser('create7');
+      const token = await getToken(user);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/listings',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { ...validListing, price_indication: 'free' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('positive number');
+    });
+
+    it('rejects invalid currency code', async () => {
+      const user = await createTestUser('create8');
+      const token = await getToken(user);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/listings',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { ...validListing, currency: 'FAKE' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('Invalid currency');
+    });
+
+    it('rejects missing currency', async () => {
+      const user = await createTestUser('create9');
+      const token = await getToken(user);
+
+      const { currency, ...noCurrency } = validListing;
+      const res = await app.inject({
+        method: 'POST',
+        url: '/listings',
+        headers: { authorization: `Bearer ${token}` },
+        payload: noCurrency,
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('currency');
     });
 
     it('rejects unauthenticated request', async () => {

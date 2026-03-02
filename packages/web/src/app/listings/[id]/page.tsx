@@ -23,7 +23,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { PAYMENT_METHOD_LABELS, LISTING_CONDITION_LABELS } from '@bartr/shared';
+import { PAYMENT_METHOD_LABELS, LISTING_CONDITION_LABELS, getFiatFlag } from '@bartr/shared';
 import type { ListingCondition } from '@bartr/shared';
 import { CoinIcon } from '@/components/crypto-icons';
 import type { ListingDetail } from '@/lib/api';
@@ -244,7 +244,7 @@ export default function ListingDetailPage() {
                   {listing.price_indication}
                   {listing.currency && (
                     <span className="text-base font-normal text-muted-foreground ml-1.5">
-                      {listing.currency}
+                      {getFiatFlag(listing.currency)} {listing.currency}
                     </span>
                   )}
                 </p>

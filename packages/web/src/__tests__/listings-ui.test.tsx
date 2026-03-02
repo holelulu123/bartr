@@ -46,7 +46,8 @@ function makeListing(overrides: Partial<ListingSummary> = {}): ListingSummary {
     price_indication: '100',
     currency: 'USD',
     payment_methods: ['btc'],
-    country_code: null,
+    country_code: 'US',
+    condition: null,
     status: 'active',
     created_at: new Date(Date.now() - 60_000 * 5).toISOString(), // 5 min ago
     seller_nickname: 'alice',
@@ -117,10 +118,10 @@ describe('ListingCard', () => {
     expect(screen.getByText('Test Listing')).toBeInTheDocument();
   });
 
-  it('renders price and currency', () => {
+  it('renders price and currency with flag', () => {
     render(<ListingCard listing={makeListing()} />);
     expect(screen.getByText('100')).toBeInTheDocument();
-    expect(screen.getByText('USD')).toBeInTheDocument();
+    expect(screen.getByText(/USD/)).toBeInTheDocument();
   });
 
   it('renders payment method badges', () => {

@@ -80,6 +80,9 @@ describe('Moderation routes', () => {
           title: 'Suspicious item for sale here',
           description: 'This listing has suspicious content for moderation testing',
           payment_methods: ['btc'],
+          price_indication: '100',
+          currency: 'USD',
+          country_code: 'US',
         },
       });
 
