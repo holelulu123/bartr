@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, SlidersHorizontal, Monitor, Laptop, Shirt, Home, Wrench, Package, Car, Smartphone, Sofa, Dumbbell, Baby, BookOpen, Hammer, Trophy, Music, PawPrint, Watch, Gamepad2, Gift, Banknote, Bitcoin } from 'lucide-react';
 import { useInfiniteListings, useCategories } from '@/hooks/use-listings';
 import { ListingCard, ListingCardSkeleton } from '@/components/listing-card';
-import { getPaymentLabel } from '@/components/payment-icon';
 import { COUNTRIES, getCountryFlag, getCountryName } from '@/lib/countries';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,27 +16,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import type { PaymentMethod } from '@bartr/shared';
+import type { CryptoPaymentMethod } from '@bartr/shared';
+import { CRYPTO_PAYMENT_METHODS, CRYPTO_PAYMENT_METHOD_LABELS } from '@bartr/shared';
 import type { ElementType } from 'react';
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
-  { value: 'btc', label: 'BTC' },
-  { value: 'eth', label: 'ETH' },
-  { value: 'usdt', label: 'USDT' },
-  { value: 'usdc', label: 'USDC' },
-  { value: 'sol', label: 'SOL' },
-  { value: 'xrp', label: 'XRP' },
-  { value: 'trx', label: 'TRX' },
-  { value: 'ton', label: 'TON' },
-  { value: 'cash', label: 'Cash (in person)' },
-  { value: 'bank_transfer', label: 'Bank transfer' },
-  { value: 'paypal', label: 'PayPal' },
-  { value: 'wise', label: 'Wise' },
-  { value: 'revolut', label: 'Revolut' },
-  { value: 'venmo', label: 'Venmo' },
-  { value: 'gift_card', label: 'Gift card' },
-  { value: 'other', label: 'Other' },
-];
+const CRYPTO_OPTIONS: { value: CryptoPaymentMethod; label: string }[] =
+  CRYPTO_PAYMENT_METHODS.map((m) => ({ value: m, label: CRYPTO_PAYMENT_METHOD_LABELS[m] }));
 
 const CATEGORY_ICONS: Record<string, ElementType> = {
   electronics: Monitor,
@@ -69,7 +53,7 @@ export default function ListingsPage() {
 
   const q = searchParams.get('q') ?? '';
   const category = searchParams.get('category') ?? '';
-  const paymentMethod = (searchParams.get('payment') ?? '') as PaymentMethod | '';
+  const paymentMethod = (searchParams.get('payment') ?? '') as CryptoPaymentMethod | '';
   const country = searchParams.get('country') ?? '';
 
   // Local state for the controlled search input (debounced on change)
@@ -210,12 +194,12 @@ export default function ListingsPage() {
           value={paymentMethod || 'all'}
           onValueChange={handlePaymentChange}
         >
-          <SelectTrigger className="w-full sm:w-44" aria-label="Payment method">
-            <SelectValue placeholder="Payment" />
+          <SelectTrigger className="w-full sm:w-44" aria-label="Crypto filter">
+            <SelectValue placeholder="Crypto" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Any payment</SelectItem>
-            {PAYMENT_OPTIONS.map((opt) => (
+            <SelectItem value="all">Any crypto</SelectItem>
+            {CRYPTO_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>
@@ -271,7 +255,7 @@ export default function ListingsPage() {
           )}
           {paymentMethod && (
             <Badge variant="secondary">
-              Payment: {getPaymentLabel(paymentMethod as PaymentMethod, true)}
+              Crypto: {CRYPTO_PAYMENT_METHOD_LABELS[paymentMethod as CryptoPaymentMethod] ?? paymentMethod}
             </Badge>
           )}
           {country && (

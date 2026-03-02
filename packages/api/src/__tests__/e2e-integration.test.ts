@@ -208,7 +208,7 @@ describe('E2E Integration — Listings CRUD', () => {
       payload: {
         title: 'E2E Test Laptop',
         description: 'A laptop for sale, e2e integration test listing.',
-        payment_methods: ['btc', 'cash'],
+        payment_methods: ['btc', 'eth'],
         price_indication: '500',
         currency: 'USD',
       },
@@ -280,6 +280,22 @@ describe('E2E Integration — Listings CRUD', () => {
     });
 
     expect(res.statusCode).toBe(200);
+  });
+
+  it('rejects fiat payment method on create', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/listings',
+      headers: authHeaders(userA.access_token),
+      payload: {
+        title: 'Fiat Test Listing',
+        description: 'Should be rejected because cash is not a valid crypto method.',
+        payment_methods: ['cash'],
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain('Invalid payment method');
   });
 
   it('deleted listing returns 404', async () => {
@@ -667,7 +683,7 @@ describe('E2E Integration — Edge Cases', () => {
       payload: {
         title: 'Edge Case Listing',
         description: 'Listing for testing duplicate thread prevention.',
-        payment_methods: ['cash'],
+        payment_methods: ['btc'],
       },
     });
     const listingId = listRes.json().id;

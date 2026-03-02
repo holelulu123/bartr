@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { PAYMENT_METHOD_LABELS, LISTING_CONDITION_LABELS } from '@bartr/shared';
 import type { ListingCondition } from '@bartr/shared';
+import { CoinIcon } from '@/components/crypto-icons';
 import type { ListingDetail } from '@/lib/api';
 
 function timeAgo(dateStr: string): string {
@@ -272,19 +273,22 @@ export default function ListingDetailPage() {
               </div>
             )}
 
-            {/* Payment methods */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                Accepted payments
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {listing.payment_methods.map((method) => (
-                  <Badge key={method} variant="outline">
-                    {PAYMENT_METHOD_LABELS[method as keyof typeof PAYMENT_METHOD_LABELS] ?? method}
-                  </Badge>
-                ))}
+            {/* Accepted cryptocurrencies */}
+            {listing.payment_methods.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                  Accepted cryptocurrencies
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {listing.payment_methods.map((method) => (
+                    <Badge key={method} variant="outline" className="inline-flex items-center gap-1.5">
+                      <CoinIcon symbol={method.toUpperCase()} className="h-3.5 w-3.5" />
+                      {PAYMENT_METHOD_LABELS[method as keyof typeof PAYMENT_METHOD_LABELS] ?? method}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Description */}
             <div>

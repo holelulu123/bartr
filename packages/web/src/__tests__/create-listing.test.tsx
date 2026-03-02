@@ -125,18 +125,12 @@ describe('CreateListingPage — form rendering', () => {
   it('renders price and currency inputs', () => {
     render(<CreateListingPage />);
     expect(screen.getByLabelText(/price/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/currency/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^currency/i)).toBeInTheDocument();
   });
 
-  it('renders all payment method toggle buttons', () => {
+  it('renders crypto toggle checkbox', () => {
     render(<CreateListingPage />);
-    expect(screen.getByRole('button', { name: /Bitcoin/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Ethereum/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /USDT/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /USDC/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Cash \(in person\)/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Bank transfer/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /PayPal/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/also accept cryptocurrency/i)).toBeInTheDocument();
   });
 
   it('renders image upload zone', () => {
@@ -187,41 +181,63 @@ describe('CreateListingPage — validation', () => {
     );
   });
 
-  it('shows error when no payment method selected', async () => {
+  it('shows error when crypto toggled on but none selected', async () => {
     render(<CreateListingPage />);
     await userEvent.type(screen.getByLabelText(/^title$/i), 'Valid Title Here');
     await userEvent.type(
       screen.getByLabelText(/^description$/i),
       'This is a valid description with enough content.',
     );
+    // Toggle crypto on but don't select any
+    await userEvent.click(screen.getByLabelText(/also accept cryptocurrency/i));
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
     });
     await waitFor(() =>
-      expect(screen.getByText(/at least one payment method/i)).toBeInTheDocument(),
+      expect(screen.getByText(/at least one cryptocurrency/i)).toBeInTheDocument(),
     );
   });
 });
 
-describe('CreateListingPage — payment method toggles', () => {
+describe('CreateListingPage — crypto toggles', () => {
   beforeEach(() => {
     setupCategories();
   });
 
-  it('toggles payment method on click', async () => {
+  it('shows crypto buttons when checkbox is checked', async () => {
     render(<CreateListingPage />);
+    // Buttons not visible initially
+    expect(screen.queryByRole('button', { name: /Bitcoin/i })).not.toBeInTheDocument();
+    // Check the checkbox
+    await userEvent.click(screen.getByLabelText(/also accept cryptocurrency/i));
+    expect(screen.getByRole('button', { name: /Bitcoin/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ethereum/i })).toBeInTheDocument();
+  });
+
+  it('toggles crypto on click', async () => {
+    render(<CreateListingPage />);
+    await userEvent.click(screen.getByLabelText(/also accept cryptocurrency/i));
     const btcBtn = screen.getByRole('button', { name: /Bitcoin/i });
     expect(btcBtn).toHaveAttribute('aria-pressed', 'false');
     await userEvent.click(btcBtn);
     expect(btcBtn).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('untoggle payment method on second click', async () => {
+  it('untoggle crypto on second click', async () => {
     render(<CreateListingPage />);
+    await userEvent.click(screen.getByLabelText(/also accept cryptocurrency/i));
     const btcBtn = screen.getByRole('button', { name: /Bitcoin/i });
     await userEvent.click(btcBtn);
     await userEvent.click(btcBtn);
     expect(btcBtn).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('hides crypto buttons when checkbox is unchecked', async () => {
+    render(<CreateListingPage />);
+    await userEvent.click(screen.getByLabelText(/also accept cryptocurrency/i));
+    expect(screen.getByRole('button', { name: /Bitcoin/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText(/also accept cryptocurrency/i));
+    expect(screen.queryByRole('button', { name: /Bitcoin/i })).not.toBeInTheDocument();
   });
 });
 
@@ -239,7 +255,6 @@ describe('CreateListingPage — moderation', () => {
       screen.getByLabelText(/^description$/i),
       'This is a valid description that contains enough text.',
     );
-    await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
@@ -276,15 +291,16 @@ describe('CreateListingPage — successful submit', () => {
     });
   });
 
-  it('calls createListing with correct payload', async () => {
+  it('calls createListing with crypto payment methods', async () => {
     render(<CreateListingPage />);
     await userEvent.type(screen.getByLabelText(/^title$/i), 'Valid Title Here');
     await userEvent.type(
       screen.getByLabelText(/^description$/i),
       'This is a valid description with enough content.',
     );
+    await userEvent.click(screen.getByLabelText(/also accept cryptocurrency/i));
     await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Cash/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Ethereum/i }));
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
@@ -295,7 +311,28 @@ describe('CreateListingPage — successful submit', () => {
         expect.objectContaining({
           title: 'Valid Title Here',
           description: 'This is a valid description with enough content.',
-          payment_methods: ['btc', 'cash'],
+          payment_methods: ['btc', 'eth'],
+        }),
+      ),
+    );
+  });
+
+  it('sends empty payment_methods when crypto not toggled', async () => {
+    render(<CreateListingPage />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Valid Title Here');
+    await userEvent.type(
+      screen.getByLabelText(/^description$/i),
+      'This is a valid description with enough content.',
+    );
+
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
+    });
+
+    await waitFor(() =>
+      expect(mockCreateListingMutation.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payment_methods: [],
         }),
       ),
     );
@@ -308,7 +345,6 @@ describe('CreateListingPage — successful submit', () => {
       screen.getByLabelText(/^description$/i),
       'This is a valid description with enough content.',
     );
-    await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));
@@ -325,8 +361,7 @@ describe('CreateListingPage — successful submit', () => {
       'This is a valid description with enough content.',
     );
     await userEvent.type(screen.getByLabelText(/price/i), '0.005');
-    await userEvent.type(screen.getByLabelText(/currency/i), 'BTC');
-    await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
+    await userEvent.type(screen.getByLabelText(/^currency/i), 'BTC');
 
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /post listing/i }));

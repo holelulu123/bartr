@@ -10,7 +10,7 @@ import { ArrowLeft, Image as ImageIcon, X, Monitor, Laptop, Shirt, Home, Wrench,
 import { useListing, useUpdateListing, useDeleteListingImage, useCategories } from '@/hooks/use-listings';
 import { useAuth } from '@/contexts/auth-context';
 import { listings as listingsApi } from '@/lib/api';
-import { PaymentIcon } from '@/components/payment-icon';
+import { CoinIcon } from '@/components/crypto-icons';
 import { COUNTRIES } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,31 +24,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { PaymentMethod, ListingStatus, ListingCondition } from '@bartr/shared';
-import { LISTING_CONDITION_LABELS } from '@bartr/shared';
+import type { CryptoPaymentMethod, ListingStatus, ListingCondition } from '@bartr/shared';
+import { LISTING_CONDITION_LABELS, CRYPTO_PAYMENT_METHODS, CRYPTO_PAYMENT_METHOD_LABELS } from '@bartr/shared';
 import type { ListingImage } from '@/lib/api';
 import type { ElementType } from 'react';
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
-  { value: 'btc', label: 'BTC' },
-  { value: 'eth', label: 'ETH' },
-  { value: 'usdt', label: 'USDT' },
-  { value: 'usdc', label: 'USDC' },
-  { value: 'sol', label: 'SOL' },
-  { value: 'xrp', label: 'XRP' },
-  { value: 'trx', label: 'TRX' },
-  { value: 'ton', label: 'TON' },
-  { value: 'cash', label: 'Cash (in person)' },
-  { value: 'bank_transfer', label: 'Bank transfer' },
-  { value: 'paypal', label: 'PayPal' },
-  { value: 'wise', label: 'Wise' },
-  { value: 'revolut', label: 'Revolut' },
-  { value: 'zelle', label: 'Zelle' },
-  { value: 'venmo', label: 'Venmo' },
-  { value: 'sepa', label: 'SEPA' },
-  { value: 'gift_card', label: 'Gift card' },
-  { value: 'other', label: 'Other' },
-];
+const CRYPTO_OPTIONS: { value: CryptoPaymentMethod; label: string }[] =
+  CRYPTO_PAYMENT_METHODS.map((m) => ({ value: m, label: CRYPTO_PAYMENT_METHOD_LABELS[m] }));
 
 const CATEGORY_ICONS: Record<string, ElementType> = {
   electronics: Monitor,
@@ -132,7 +114,8 @@ export default function EditListingPage() {
   const updateListing = useUpdateListing(id);
   const deleteImage = useDeleteListingImage(id);
 
-  const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
+  const [acceptsCrypto, setAcceptsCrypto] = useState(false);
+  const [selectedCryptos, setSelectedCryptos] = useState<CryptoPaymentMethod[]>([]);
   const [selectedCondition, setSelectedCondition] = useState<string>('');
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [countrySearch, setCountrySearch] = useState('');
@@ -171,7 +154,11 @@ export default function EditListingPage() {
         currency: listing.currency ?? '',
         status: listing.status,
       });
-      setSelectedPayments(listing.payment_methods);
+      const cryptoMethods = listing.payment_methods.filter(
+        (m) => (CRYPTO_PAYMENT_METHODS as readonly string[]).includes(m),
+      ) as CryptoPaymentMethod[];
+      setSelectedCryptos(cryptoMethods);
+      setAcceptsCrypto(cryptoMethods.length > 0);
       setSelectedCondition(listing.condition ?? '');
       setSelectedCountry(listing.country_code ?? '');
       setExistingImages(listing.images ?? []);
@@ -188,10 +175,10 @@ export default function EditListingPage() {
     }
   }, [isLoading, listing, user, id, router]);
 
-  // ── Payment toggles ────────────────────────────────────────────────────
+  // ── Crypto toggles ─────────────────────────────────────────────────────
 
-  function togglePayment(method: PaymentMethod) {
-    setSelectedPayments((prev) =>
+  function toggleCrypto(method: CryptoPaymentMethod) {
+    setSelectedCryptos((prev) =>
       prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method],
     );
   }
@@ -256,8 +243,8 @@ export default function EditListingPage() {
   async function onSubmit(values: FormValues) {
     setServerError(null);
 
-    if (selectedPayments.length === 0) {
-      setServerError('Select at least one payment method.');
+    if (acceptsCrypto && selectedCryptos.length === 0) {
+      setServerError('Select at least one cryptocurrency.');
       return;
     }
 
@@ -265,7 +252,7 @@ export default function EditListingPage() {
       await updateListing.mutateAsync({
         title: values.title,
         description: values.description,
-        payment_methods: selectedPayments,
+        payment_methods: acceptsCrypto ? selectedCryptos : [],
         status: values.status as ListingStatus,
         country_code: selectedCountry || null,
         condition: (selectedCondition as ListingCondition) || null,
@@ -472,29 +459,49 @@ export default function EditListingPage() {
           </Select>
         </div>
 
-        {/* Payment methods */}
+        {/* Cryptocurrency */}
         <div className="space-y-2">
-          <Label>Accepted payment methods</Label>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Payment methods">
-            {PAYMENT_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => togglePayment(opt.value)}
-                aria-pressed={selectedPayments.includes(opt.value)}
-                className={cn(
-                  'px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
-                  selectedPayments.includes(opt.value)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-transparent border-border text-foreground hover:border-primary/50',
-                )}
-              >
-                <PaymentIcon method={opt.value} longLabel />
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="accepts-crypto"
+              checked={acceptsCrypto}
+              onChange={(e) => {
+                setAcceptsCrypto(e.target.checked);
+                if (!e.target.checked) setSelectedCryptos([]);
+              }}
+              className="h-4 w-4 rounded border-border"
+            />
+            <Label htmlFor="accepts-crypto" className="cursor-pointer">
+              Also accept cryptocurrency?
+            </Label>
           </div>
-          {selectedPayments.length === 0 && serverError === 'Select at least one payment method.' && (
-            <p className="text-sm text-destructive">Select at least one payment method.</p>
+          <p className="text-xs text-muted-foreground">
+            Fiat payment is implied by your price &amp; currency fields above. Toggle this to also accept crypto.
+          </p>
+          {acceptsCrypto && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Cryptocurrencies">
+              {CRYPTO_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggleCrypto(opt.value)}
+                  aria-pressed={selectedCryptos.includes(opt.value)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
+                    selectedCryptos.includes(opt.value)
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-transparent border-border text-foreground hover:border-primary/50',
+                  )}
+                >
+                  <CoinIcon symbol={opt.value.toUpperCase()} className="h-4 w-4" />
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {acceptsCrypto && selectedCryptos.length === 0 && serverError === 'Select at least one cryptocurrency.' && (
+            <p className="text-sm text-destructive">Select at least one cryptocurrency.</p>
           )}
         </div>
 
@@ -586,7 +593,7 @@ export default function EditListingPage() {
         </div>
 
         {/* Server error */}
-        {serverError && serverError !== 'Select at least one payment method.' && (
+        {serverError && serverError !== 'Select at least one cryptocurrency.' && (
           <p className="text-sm text-destructive" role="alert">
             {serverError}
           </p>

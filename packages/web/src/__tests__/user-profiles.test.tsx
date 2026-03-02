@@ -152,7 +152,7 @@ describe('UserProfilePage — listings section', () => {
             title: 'GPU for sale',
             price_indication: '400',
             currency: 'usd',
-            payment_methods: ['btc', 'cash'],
+            payment_methods: ['btc', 'eth'],
             status: 'active',
             created_at: new Date().toISOString(),
             seller_nickname: 'alice',

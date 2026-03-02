@@ -1,4 +1,4 @@
-import type { ListingStatus, ListingCondition, TradeStatus, PaymentMethod, SettlementMethod, ReputationTier, ModerationStatus, OfferType, RateType, OfferStatus, CoinType, PriceSource } from '@bartr/shared';
+import type { ListingStatus, ListingCondition, TradeStatus, PaymentMethod, CryptoPaymentMethod, SettlementMethod, ReputationTier, ModerationStatus, OfferType, RateType, OfferStatus, CoinType, PriceSource } from '@bartr/shared';
 
 // Common
 export interface Pagination {
@@ -104,7 +104,7 @@ export interface CreateListingPayload {
   title: string;
   description: string;
   category_id?: number;
-  payment_methods: PaymentMethod[];
+  payment_methods?: CryptoPaymentMethod[];
   price_indication?: string;
   currency?: string;
   country_code?: string;
@@ -115,7 +115,7 @@ export interface UpdateListingPayload {
   title?: string;
   description?: string;
   category_id?: number;
-  payment_methods?: PaymentMethod[];
+  payment_methods?: CryptoPaymentMethod[];
   price_indication?: string;
   currency?: string;
   country_code?: string | null;
@@ -131,7 +131,7 @@ export interface ListingsResponse {
 export interface ListingsFilter {
   q?: string;
   category?: string;
-  payment_method?: PaymentMethod;
+  payment_method?: CryptoPaymentMethod;
   country_code?: string;
   status?: ListingStatus;
   user_id?: string;

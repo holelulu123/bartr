@@ -132,7 +132,7 @@ describe('ListingCard', () => {
   it('caps payment badges at 3 and shows overflow count', () => {
     render(
       <ListingCard
-        listing={makeListing({ payment_methods: ['btc', 'eth', 'usdt', 'cash', 'bank_transfer'] })}
+        listing={makeListing({ payment_methods: ['btc', 'eth', 'usdt', 'sol', 'xrp'] })}
       />,
     );
     expect(screen.getByText('BTC')).toBeInTheDocument();
@@ -258,11 +258,11 @@ describe('/listings browse page', () => {
     expect(screen.getByRole('textbox', { name: /search listings/i })).toBeInTheDocument();
   });
 
-  it('renders category and payment dropdowns', () => {
+  it('renders category and crypto filter dropdowns', () => {
     setupMocks();
     render(<ListingsPage />);
     expect(screen.getByRole('combobox', { name: /category/i })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: /payment method/i })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /crypto filter/i })).toBeInTheDocument();
   });
 
   it('shows active filter pills when URL has filters', () => {

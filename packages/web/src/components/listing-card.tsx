@@ -85,15 +85,19 @@ export function ListingCard({ listing, className }: ListingCardProps) {
               {LISTING_CONDITION_LABELS[listing.condition as ListingCondition] ?? listing.condition}
             </Badge>
           )}
-          {listing.payment_methods.slice(0, 3).map((method) => (
-            <Badge key={method} variant="outline" className="text-xs px-1.5 py-0">
-              <PaymentIcon method={method as PaymentMethod} iconClassName="h-3 w-3" />
-            </Badge>
-          ))}
-          {listing.payment_methods.length > 3 && (
-            <Badge variant="outline" className="text-xs px-1.5 py-0">
-              +{listing.payment_methods.length - 3}
-            </Badge>
+          {listing.payment_methods.length > 0 && (
+            <>
+              {listing.payment_methods.slice(0, 3).map((method) => (
+                <Badge key={method} variant="outline" className="text-xs px-1.5 py-0">
+                  <PaymentIcon method={method as PaymentMethod} iconClassName="h-3 w-3" />
+                </Badge>
+              ))}
+              {listing.payment_methods.length > 3 && (
+                <Badge variant="outline" className="text-xs px-1.5 py-0">
+                  +{listing.payment_methods.length - 3}
+                </Badge>
+              )}
+            </>
           )}
         </div>
 

@@ -64,7 +64,7 @@ function makeListing(overrides: Partial<ListingDetail> = {}): ListingDetail {
     title: 'Vintage Camera',
     description: 'A beautiful vintage film camera in excellent condition.',
     category_id: 1,
-    payment_methods: ['btc', 'cash'],
+    payment_methods: ['btc', 'eth'],
     price_indication: '200',
     currency: 'USD',
     status: 'active',
@@ -139,10 +139,16 @@ describe('ListingDetailPage — content', () => {
     expect(screen.getByText(/beautiful vintage film camera/i)).toBeInTheDocument();
   });
 
-  it('renders payment method badges', () => {
+  it('renders cryptocurrency badges', () => {
     render(<ListingDetailPage />);
     expect(screen.getByText('Bitcoin')).toBeInTheDocument();
-    expect(screen.getByText('Cash (in person)')).toBeInTheDocument();
+    expect(screen.getByText('Ethereum')).toBeInTheDocument();
+  });
+
+  it('hides cryptocurrencies section when payment_methods is empty', () => {
+    setupListing(makeListing({ payment_methods: [] }));
+    render(<ListingDetailPage />);
+    expect(screen.queryByText(/accepted cryptocurrencies/i)).not.toBeInTheDocument();
   });
 
   it('renders category badge', () => {

@@ -56,7 +56,7 @@ function makeListing(overrides: Partial<ListingDetail> = {}): ListingDetail {
     title: 'Original Title',
     description: 'Original description that is long enough.',
     category_id: 1,
-    payment_methods: ['btc', 'cash'],
+    payment_methods: ['btc', 'eth'],
     price_indication: '50',
     currency: 'USD',
     country_code: null,
@@ -142,15 +142,16 @@ describe('EditListingPage — pre-fill', () => {
   it('pre-fills currency', async () => {
     render(<EditListingPage />);
     await waitFor(() =>
-      expect(screen.getByLabelText(/currency/i)).toHaveValue('USD'),
+      expect(screen.getByLabelText(/^currency/i)).toHaveValue('USD'),
     );
   });
 
-  it('pre-selects payment methods', async () => {
+  it('pre-selects crypto methods and enables checkbox', async () => {
     render(<EditListingPage />);
     await waitFor(() => {
+      expect(screen.getByLabelText(/also accept cryptocurrency/i)).toBeChecked();
       expect(screen.getByRole('button', { name: /Bitcoin/i })).toHaveAttribute('aria-pressed', 'true');
-      expect(screen.getByRole('button', { name: /Cash/i })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByRole('button', { name: /Ethereum/i })).toHaveAttribute('aria-pressed', 'true');
       expect(screen.getByRole('button', { name: /USDT/i })).toHaveAttribute('aria-pressed', 'false');
     });
   });
@@ -273,17 +274,17 @@ describe('EditListingPage — validation', () => {
     );
   });
 
-  it('shows error when no payment method selected', async () => {
+  it('shows error when crypto toggled on but none selected', async () => {
     render(<EditListingPage />);
-    // Deselect all pre-selected methods
+    // Wait for pre-fill, then deselect all crypto
     await waitFor(() => screen.getByRole('button', { name: /Bitcoin/i }));
     await userEvent.click(screen.getByRole('button', { name: /Bitcoin/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Cash/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Ethereum/i }));
     await act(async () => {
       await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
     });
     await waitFor(() =>
-      expect(screen.getByText(/at least one payment method/i)).toBeInTheDocument(),
+      expect(screen.getByText(/at least one cryptocurrency/i)).toBeInTheDocument(),
     );
   });
 });
@@ -308,7 +309,7 @@ describe('EditListingPage — successful submit', () => {
       expect(mockUpdateMutation.mutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           title: 'Updated Title Here',
-          payment_methods: ['btc', 'cash'],
+          payment_methods: ['btc', 'eth'],
         }),
       ),
     );

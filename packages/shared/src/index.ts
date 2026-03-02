@@ -14,6 +14,21 @@ export const LISTING_CONDITION_LABELS: Record<ListingCondition, string> = {
 
 export type TradeStatus = 'offered' | 'accepted' | 'completed' | 'declined' | 'cancelled';
 
+export type CryptoPaymentMethod = 'btc' | 'eth' | 'usdt' | 'usdc' | 'sol' | 'xrp' | 'trx' | 'ton';
+
+export const CRYPTO_PAYMENT_METHODS: CryptoPaymentMethod[] = ['btc', 'eth', 'usdt', 'usdc', 'sol', 'xrp', 'trx', 'ton'];
+
+export const CRYPTO_PAYMENT_METHOD_LABELS: Record<CryptoPaymentMethod, string> = {
+  btc: 'Bitcoin',
+  eth: 'Ethereum',
+  usdt: 'USDT',
+  usdc: 'USDC',
+  sol: 'Solana',
+  xrp: 'XRP',
+  trx: 'TRON',
+  ton: 'TON',
+};
+
 export type PaymentMethod =
   | 'btc' | 'eth' | 'usdt' | 'usdc' | 'sol' | 'xrp' | 'trx' | 'ton'
   | 'cash' | 'bank_transfer' | 'paypal' | 'wise' | 'revolut'

@@ -10,7 +10,7 @@ import { ArrowLeft, Image as ImageIcon, X, Monitor, Laptop, Shirt, Home, Wrench,
 import { ProtectedRoute } from '@/components/protected-route';
 import { useCreateListing, useCategories } from '@/hooks/use-listings';
 import { moderation as moderationApi, listings as listingsApi } from '@/lib/api';
-import { PaymentIcon } from '@/components/payment-icon';
+import { CoinIcon } from '@/components/crypto-icons';
 import { COUNTRIES } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,32 +24,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { PaymentMethod, ListingCondition } from '@bartr/shared';
-import { LISTING_CONDITION_LABELS } from '@bartr/shared';
+import type { CryptoPaymentMethod, ListingCondition } from '@bartr/shared';
+import { LISTING_CONDITION_LABELS, CRYPTO_PAYMENT_METHODS, CRYPTO_PAYMENT_METHOD_LABELS } from '@bartr/shared';
 import type { ElementType } from 'react';
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
-  // Crypto
-  { value: 'btc', label: 'BTC' },
-  { value: 'eth', label: 'ETH' },
-  { value: 'usdt', label: 'USDT' },
-  { value: 'usdc', label: 'USDC' },
-  { value: 'sol', label: 'SOL' },
-  { value: 'xrp', label: 'XRP' },
-  { value: 'trx', label: 'TRX' },
-  { value: 'ton', label: 'TON' },
-  // Traditional
-  { value: 'cash', label: 'Cash (in person)' },
-  { value: 'bank_transfer', label: 'Bank transfer' },
-  { value: 'paypal', label: 'PayPal' },
-  { value: 'wise', label: 'Wise' },
-  { value: 'revolut', label: 'Revolut' },
-  { value: 'zelle', label: 'Zelle' },
-  { value: 'venmo', label: 'Venmo' },
-  { value: 'sepa', label: 'SEPA' },
-  { value: 'gift_card', label: 'Gift card' },
-  { value: 'other', label: 'Other' },
-];
+const CRYPTO_OPTIONS: { value: CryptoPaymentMethod; label: string }[] =
+  CRYPTO_PAYMENT_METHODS.map((m) => ({ value: m, label: CRYPTO_PAYMENT_METHOD_LABELS[m] }));
 
 const CATEGORY_ICONS: Record<string, ElementType> = {
   electronics: Monitor,
@@ -103,7 +83,8 @@ function CreateListingForm() {
   const router = useRouter();
   const { data: categoriesData } = useCategories();
 
-  const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
+  const [acceptsCrypto, setAcceptsCrypto] = useState(false);
+  const [selectedCryptos, setSelectedCryptos] = useState<CryptoPaymentMethod[]>([]);
   const [selectedCondition, setSelectedCondition] = useState<string>('');
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [countrySearch, setCountrySearch] = useState('');
@@ -130,10 +111,10 @@ function CreateListingForm() {
     resolver: zodResolver(schema),
   });
 
-  // ── Payment method toggles ─────────────────────────────────────────────
+  // ── Crypto toggles ─────────────────────────────────────────────────────
 
-  function togglePayment(method: PaymentMethod) {
-    setSelectedPayments((prev) =>
+  function toggleCrypto(method: CryptoPaymentMethod) {
+    setSelectedCryptos((prev) =>
       prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method],
     );
   }
@@ -186,8 +167,8 @@ function CreateListingForm() {
   async function onSubmit(values: FormValues) {
     setServerError(null);
 
-    if (selectedPayments.length === 0) {
-      setServerError('Select at least one payment method.');
+    if (acceptsCrypto && selectedCryptos.length === 0) {
+      setServerError('Select at least one cryptocurrency.');
       return;
     }
 
@@ -209,7 +190,7 @@ function CreateListingForm() {
       const listing = await createListing.mutateAsync({
         title: values.title,
         description: values.description,
-        payment_methods: selectedPayments,
+        payment_methods: acceptsCrypto ? selectedCryptos : [],
         ...(values.category_id && { category_id: Number(values.category_id) }),
         ...(values.price_indication && { price_indication: values.price_indication }),
         ...(values.currency && { currency: values.currency }),
@@ -396,29 +377,49 @@ function CreateListingForm() {
           </Select>
         </div>
 
-        {/* Payment methods */}
+        {/* Cryptocurrency */}
         <div className="space-y-2">
-          <Label>Accepted payment methods</Label>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Payment methods">
-            {PAYMENT_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => togglePayment(opt.value)}
-                aria-pressed={selectedPayments.includes(opt.value)}
-                className={cn(
-                  'px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
-                  selectedPayments.includes(opt.value)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-transparent border-border text-foreground hover:border-primary/50',
-                )}
-              >
-                <PaymentIcon method={opt.value} longLabel />
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="accepts-crypto"
+              checked={acceptsCrypto}
+              onChange={(e) => {
+                setAcceptsCrypto(e.target.checked);
+                if (!e.target.checked) setSelectedCryptos([]);
+              }}
+              className="h-4 w-4 rounded border-border"
+            />
+            <Label htmlFor="accepts-crypto" className="cursor-pointer">
+              Also accept cryptocurrency?
+            </Label>
           </div>
-          {selectedPayments.length === 0 && serverError === 'Select at least one payment method.' && (
-            <p className="text-sm text-destructive">Select at least one payment method.</p>
+          <p className="text-xs text-muted-foreground">
+            Fiat payment is implied by your price &amp; currency fields above. Toggle this to also accept crypto.
+          </p>
+          {acceptsCrypto && (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Cryptocurrencies">
+              {CRYPTO_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggleCrypto(opt.value)}
+                  aria-pressed={selectedCryptos.includes(opt.value)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
+                    selectedCryptos.includes(opt.value)
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-transparent border-border text-foreground hover:border-primary/50',
+                  )}
+                >
+                  <CoinIcon symbol={opt.value.toUpperCase()} className="h-4 w-4" />
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {acceptsCrypto && selectedCryptos.length === 0 && serverError === 'Select at least one cryptocurrency.' && (
+            <p className="text-sm text-destructive">Select at least one cryptocurrency.</p>
           )}
         </div>
 
@@ -485,7 +486,7 @@ function CreateListingForm() {
         </div>
 
         {/* Server error */}
-        {serverError && serverError !== 'Select at least one payment method.' && (
+        {serverError && serverError !== 'Select at least one cryptocurrency.' && (
           <p className="text-sm text-destructive" role="alert">
             {serverError}
           </p>

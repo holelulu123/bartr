@@ -31,21 +31,16 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       if (!description || description.length < 10 || description.length > 5000) {
         return reply.status(400).send({ error: 'Description must be 10-5000 characters' });
       }
-      if (!payment_methods || !Array.isArray(payment_methods) || payment_methods.length === 0) {
-        return reply.status(400).send({ error: 'At least one payment method is required' });
+      const methods = payment_methods ?? [];
+      if (!Array.isArray(methods)) {
+        return reply.status(400).send({ error: 'payment_methods must be an array' });
       }
-      if (payment_methods.length > 10) {
-        return reply.status(400).send({ error: 'Maximum 10 payment methods' });
+      if (methods.length > 8) {
+        return reply.status(400).send({ error: 'Maximum 8 payment methods' });
       }
 
-      const validMethods = [
-        'btc', 'eth', 'usdt', 'usdc', 'sol', 'xrp', 'trx', 'ton',
-        'cash', 'bank_transfer', 'paypal', 'wise', 'revolut',
-        'zelle', 'venmo', 'sepa', 'interac', 'pix',
-        'upi', 'mpesa', 'skrill', 'neteller', 'western_union',
-        'moneygram', 'gift_card', 'other',
-      ];
-      for (const method of payment_methods) {
+      const validMethods = ['btc', 'eth', 'usdt', 'usdc', 'sol', 'xrp', 'trx', 'ton'];
+      for (const method of methods) {
         if (!validMethods.includes(method)) {
           return reply.status(400).send({ error: `Invalid payment method: ${method}` });
         }
@@ -93,7 +88,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
           title,
           description,
           category_id || null,
-          JSON.stringify(payment_methods),
+          JSON.stringify(methods),
           price_indication || null,
           currency || null,
           country_code || null,
@@ -312,19 +307,13 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       }
 
       if (body.payment_methods !== undefined) {
-        if (!Array.isArray(body.payment_methods) || body.payment_methods.length === 0) {
-          return reply.status(400).send({ error: 'At least one payment method is required' });
+        if (!Array.isArray(body.payment_methods)) {
+          return reply.status(400).send({ error: 'payment_methods must be an array' });
         }
-        if (body.payment_methods.length > 5) {
-          return reply.status(400).send({ error: 'Maximum 5 payment methods' });
+        if (body.payment_methods.length > 8) {
+          return reply.status(400).send({ error: 'Maximum 8 payment methods' });
         }
-        const validMethods = [
-        'btc', 'eth', 'usdt', 'usdc', 'sol', 'xrp', 'trx', 'ton',
-        'cash', 'bank_transfer', 'paypal', 'wise', 'revolut',
-        'zelle', 'venmo', 'sepa', 'interac', 'pix',
-        'upi', 'mpesa', 'skrill', 'neteller', 'western_union',
-        'moneygram', 'gift_card', 'other',
-      ];
+        const validMethods = ['btc', 'eth', 'usdt', 'usdc', 'sol', 'xrp', 'trx', 'ton'];
         for (const method of body.payment_methods) {
           if (!validMethods.includes(method)) {
             return reply.status(400).send({ error: `Invalid payment method: ${method}` });
