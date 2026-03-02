@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Moon, Sun, User, Package, BarChart2, Settings, LogOut } from 'lucide-react';
+import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Info, Moon, Sun, User, Package, BarChart2, Settings, LogOut } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
@@ -27,6 +27,7 @@ const navLinks = [
   { href: '/market', label: 'Marketplace', icon: Store },
   { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/donate', label: 'Donate', icon: Heart },
+  { href: '/about', label: 'About', icon: Info },
 ];
 
 export function Navbar() {
