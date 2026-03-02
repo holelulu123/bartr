@@ -2,6 +2,16 @@ export const APP_NAME = 'Bartr';
 
 export type ListingStatus = 'active' | 'paused' | 'sold' | 'removed';
 
+export type ListingCondition = 'brand_new' | 'like_new' | 'good' | 'fair' | 'for_parts';
+
+export const LISTING_CONDITION_LABELS: Record<ListingCondition, string> = {
+  brand_new: 'Brand New',
+  like_new: 'Like New',
+  good: 'Good',
+  fair: 'Fair',
+  for_parts: 'For Parts',
+};
+
 export type TradeStatus = 'offered' | 'accepted' | 'completed' | 'declined' | 'cancelled';
 
 export type PaymentMethod =

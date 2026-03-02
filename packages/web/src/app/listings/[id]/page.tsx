@@ -23,16 +23,9 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { PAYMENT_METHOD_LABELS, LISTING_CONDITION_LABELS } from '@bartr/shared';
+import type { ListingCondition } from '@bartr/shared';
 import type { ListingDetail } from '@/lib/api';
-
-const PAYMENT_LABELS: Record<string, string> = {
-  btc: 'BTC',
-  eth: 'ETH',
-  usdt: 'USDT',
-  usdc: 'USDC',
-  cash: 'Cash',
-  bank_transfer: 'Bank Transfer',
-};
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -267,6 +260,18 @@ export default function ListingDetailPage() {
               </div>
             )}
 
+            {/* Condition */}
+            {listing.condition && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                  Condition
+                </p>
+                <Badge variant="secondary">
+                  {LISTING_CONDITION_LABELS[listing.condition as ListingCondition] ?? listing.condition}
+                </Badge>
+              </div>
+            )}
+
             {/* Payment methods */}
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
@@ -275,7 +280,7 @@ export default function ListingDetailPage() {
               <div className="flex flex-wrap gap-2">
                 {listing.payment_methods.map((method) => (
                   <Badge key={method} variant="outline">
-                    {PAYMENT_LABELS[method] ?? method}
+                    {PAYMENT_METHOD_LABELS[method as keyof typeof PAYMENT_METHOD_LABELS] ?? method}
                   </Badge>
                 ))}
               </div>

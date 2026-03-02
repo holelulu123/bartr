@@ -7,7 +7,8 @@ import { PaymentIcon } from '@/components/payment-icon';
 import { getCountryFlag } from '@/lib/countries';
 import { cn } from '@/lib/utils';
 import type { ListingSummary } from '@/lib/api';
-import type { PaymentMethod } from '@bartr/shared';
+import type { PaymentMethod, ListingCondition } from '@bartr/shared';
+import { LISTING_CONDITION_LABELS } from '@bartr/shared';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -77,8 +78,13 @@ export function ListingCard({ listing, className }: ListingCardProps) {
           </p>
         )}
 
-        {/* Payment methods */}
+        {/* Condition + Payment methods */}
         <div className="flex flex-wrap gap-1">
+          {listing.condition && (
+            <Badge variant="secondary" className="text-xs px-1.5 py-0">
+              {LISTING_CONDITION_LABELS[listing.condition as ListingCondition] ?? listing.condition}
+            </Badge>
+          )}
           {listing.payment_methods.slice(0, 3).map((method) => (
             <Badge key={method} variant="outline" className="text-xs px-1.5 py-0">
               <PaymentIcon method={method as PaymentMethod} iconClassName="h-3 w-3" />

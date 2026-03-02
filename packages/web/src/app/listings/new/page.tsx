@@ -24,7 +24,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { PaymentMethod } from '@bartr/shared';
+import type { PaymentMethod, ListingCondition } from '@bartr/shared';
+import { LISTING_CONDITION_LABELS } from '@bartr/shared';
 import type { ElementType } from 'react';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
@@ -88,6 +89,7 @@ function CreateListingForm() {
   const { data: categoriesData } = useCategories();
 
   const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
+  const [selectedCondition, setSelectedCondition] = useState<string>('');
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [countrySearch, setCountrySearch] = useState('');
   const [images, setImages] = useState<ImagePreview[]>([]);
@@ -197,6 +199,7 @@ function CreateListingForm() {
         ...(values.price_indication && { price_indication: values.price_indication }),
         ...(values.currency && { currency: values.currency }),
         ...(selectedCountry && { country_code: selectedCountry }),
+        ...(selectedCondition && { condition: selectedCondition as ListingCondition }),
       });
 
       // Upload images sequentially
@@ -288,6 +291,27 @@ function CreateListingForm() {
                   </SelectItem>
                 );
               })}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Condition */}
+        <div className="space-y-1.5">
+          <Label htmlFor="condition">Condition (optional)</Label>
+          <Select
+            value={selectedCondition || 'none'}
+            onValueChange={(val) => setSelectedCondition(val === 'none' ? '' : val)}
+          >
+            <SelectTrigger id="condition" aria-label="Condition">
+              <SelectValue placeholder="Select condition" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not specified</SelectItem>
+              {(Object.entries(LISTING_CONDITION_LABELS) as [ListingCondition, string][]).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

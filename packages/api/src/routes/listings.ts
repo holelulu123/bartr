@@ -15,13 +15,14 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       price_indication?: string;
       currency?: string;
       country_code?: string;
+      condition?: string;
     };
   }>(
     '/listings',
     { preHandler: [fastify.authenticate, fastify.requireEmailVerified] },
     async (request, reply) => {
       const userId = request.user!.sub;
-      const { title, description, category_id, payment_methods, price_indication, currency, country_code } =
+      const { title, description, category_id, payment_methods, price_indication, currency, country_code, condition } =
         request.body;
 
       if (!title || title.length < 3 || title.length > 200) {
@@ -67,6 +68,13 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         }
       }
 
+      if (condition !== undefined && condition !== null) {
+        const validConditions = ['brand_new', 'like_new', 'good', 'fair', 'for_parts'];
+        if (!validConditions.includes(condition)) {
+          return reply.status(400).send({ error: 'Invalid condition' });
+        }
+      }
+
       if (category_id) {
         const cat = await fastify.pg.query('SELECT id FROM categories WHERE id = $1', [
           category_id,
@@ -77,9 +85,9 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       }
 
       const result = await fastify.pg.query(
-        `INSERT INTO listings (user_id, title, description, category_id, payment_methods, price_indication, currency, country_code)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id, user_id, title, description, category_id, payment_methods, price_indication, currency, country_code, status, created_at, updated_at`,
+        `INSERT INTO listings (user_id, title, description, category_id, payment_methods, price_indication, currency, country_code, condition)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING id, user_id, title, description, category_id, payment_methods, price_indication, currency, country_code, condition, status, created_at, updated_at`,
         [
           userId,
           title,
@@ -89,6 +97,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
           price_indication || null,
           currency || null,
           country_code || null,
+          condition || null,
         ],
       );
 
@@ -212,7 +221,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
     const listValues = [...filterValues, limitNum, offset];
     const listResult = await fastify.pg.query(
       `SELECT l.id, l.title, l.price_indication, l.currency, l.payment_methods,
-              l.country_code, l.status, l.created_at, u.nickname as seller_nickname,
+              l.country_code, l.condition, l.status, l.created_at, u.nickname as seller_nickname,
               c.name as category_name, c.slug as category_slug,
               (SELECT li.storage_key FROM listing_images li WHERE li.listing_id = l.id ORDER BY li.order_index LIMIT 1) as thumbnail
        FROM listings l
@@ -246,6 +255,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       price_indication?: string;
       currency?: string;
       country_code?: string | null;
+      condition?: string | null;
       status?: string;
     };
   }>(
@@ -346,6 +356,17 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         }
         updates.push(`country_code = $${paramIdx++}`);
         values.push(body.country_code);
+      }
+
+      if (body.condition !== undefined) {
+        if (body.condition !== null) {
+          const validConditions = ['brand_new', 'like_new', 'good', 'fair', 'for_parts'];
+          if (!validConditions.includes(body.condition)) {
+            return reply.status(400).send({ error: 'Invalid condition' });
+          }
+        }
+        updates.push(`condition = $${paramIdx++}`);
+        values.push(body.condition);
       }
 
       if (body.status !== undefined) {

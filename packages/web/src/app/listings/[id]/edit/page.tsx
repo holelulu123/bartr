@@ -24,7 +24,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { PaymentMethod, ListingStatus } from '@bartr/shared';
+import type { PaymentMethod, ListingStatus, ListingCondition } from '@bartr/shared';
+import { LISTING_CONDITION_LABELS } from '@bartr/shared';
 import type { ListingImage } from '@/lib/api';
 import type { ElementType } from 'react';
 
@@ -33,8 +34,20 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'eth', label: 'ETH' },
   { value: 'usdt', label: 'USDT' },
   { value: 'usdc', label: 'USDC' },
-  { value: 'cash', label: 'Cash' },
+  { value: 'sol', label: 'SOL' },
+  { value: 'xrp', label: 'XRP' },
+  { value: 'trx', label: 'TRX' },
+  { value: 'ton', label: 'TON' },
+  { value: 'cash', label: 'Cash (in person)' },
   { value: 'bank_transfer', label: 'Bank transfer' },
+  { value: 'paypal', label: 'PayPal' },
+  { value: 'wise', label: 'Wise' },
+  { value: 'revolut', label: 'Revolut' },
+  { value: 'zelle', label: 'Zelle' },
+  { value: 'venmo', label: 'Venmo' },
+  { value: 'sepa', label: 'SEPA' },
+  { value: 'gift_card', label: 'Gift card' },
+  { value: 'other', label: 'Other' },
 ];
 
 const CATEGORY_ICONS: Record<string, ElementType> = {
@@ -105,6 +118,7 @@ export default function EditListingPage() {
   const deleteImage = useDeleteListingImage(id);
 
   const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
+  const [selectedCondition, setSelectedCondition] = useState<string>('');
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [countrySearch, setCountrySearch] = useState('');
   const [existingImages, setExistingImages] = useState<ListingImage[]>([]);
@@ -143,6 +157,7 @@ export default function EditListingPage() {
         status: listing.status,
       });
       setSelectedPayments(listing.payment_methods);
+      setSelectedCondition(listing.condition ?? '');
       setSelectedCountry(listing.country_code ?? '');
       setExistingImages(listing.images ?? []);
       setInitialised(true);
@@ -238,6 +253,7 @@ export default function EditListingPage() {
         payment_methods: selectedPayments,
         status: values.status as ListingStatus,
         country_code: selectedCountry || null,
+        condition: (selectedCondition as ListingCondition) || null,
         ...(values.category_id ? { category_id: Number(values.category_id) } : {}),
         ...(values.price_indication ? { price_indication: values.price_indication } : {}),
         ...(values.currency ? { currency: values.currency } : {}),
@@ -343,6 +359,27 @@ export default function EditListingPage() {
                   </SelectItem>
                 );
               })}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Condition */}
+        <div className="space-y-1.5">
+          <Label htmlFor="condition">Condition (optional)</Label>
+          <Select
+            value={selectedCondition || 'none'}
+            onValueChange={(val) => setSelectedCondition(val === 'none' ? '' : val)}
+          >
+            <SelectTrigger id="condition" aria-label="Condition">
+              <SelectValue placeholder="Select condition" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not specified</SelectItem>
+              {(Object.entries(LISTING_CONDITION_LABELS) as [ListingCondition, string][]).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

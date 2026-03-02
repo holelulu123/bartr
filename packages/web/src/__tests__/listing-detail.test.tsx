@@ -141,8 +141,8 @@ describe('ListingDetailPage — content', () => {
 
   it('renders payment method badges', () => {
     render(<ListingDetailPage />);
-    expect(screen.getByText('BTC')).toBeInTheDocument();
-    expect(screen.getByText('Cash')).toBeInTheDocument();
+    expect(screen.getByText('Bitcoin')).toBeInTheDocument();
+    expect(screen.getByText('Cash (in person)')).toBeInTheDocument();
   });
 
   it('renders category badge', () => {
