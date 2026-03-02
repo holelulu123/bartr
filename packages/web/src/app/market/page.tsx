@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, SlidersHorizontal, Monitor, Laptop, Shirt, Home, Wrench, Package, Plus } from 'lucide-react';
+import { Search, SlidersHorizontal, Monitor, Laptop, Shirt, Home, Wrench, Package, Plus, Car, Smartphone, Sofa, Dumbbell, Baby, BookOpen, Hammer, Trophy, Music, PawPrint, Watch, Gamepad2, Gift, Banknote, Bitcoin } from 'lucide-react';
 import { useInfiniteListings, useCategories } from '@/hooks/use-listings';
 import { ListingCard, ListingCardSkeleton } from '@/components/listing-card';
 import { getPaymentLabel } from '@/components/payment-icon';
@@ -48,6 +48,21 @@ const CATEGORY_ICONS: Record<string, ElementType> = {
   'home-garden': Home,
   services: Wrench,
   other: Package,
+  vehicles: Car,
+  'phones-tablets': Smartphone,
+  furniture: Sofa,
+  'sports-outdoors': Dumbbell,
+  'baby-kids': Baby,
+  'books-media': BookOpen,
+  tools: Hammer,
+  collectibles: Trophy,
+  'musical-instruments': Music,
+  pets: PawPrint,
+  'jewelry-watches': Watch,
+  gaming: Gamepad2,
+  'free-stuff': Gift,
+  'cash-currency': Banknote,
+  crypto: Bitcoin,
 };
 
 export default function MarketPage() {

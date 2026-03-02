@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Image as ImageIcon, X, Monitor, Laptop, Shirt, Home, Wrench, Package } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, X, Monitor, Laptop, Shirt, Home, Wrench, Package, Car, Smartphone, Sofa, Dumbbell, Baby, BookOpen, Hammer, Trophy, Music, PawPrint, Watch, Gamepad2, Gift, Banknote, Bitcoin } from 'lucide-react';
 import { useListing, useUpdateListing, useDeleteListingImage, useCategories } from '@/hooks/use-listings';
 import { useAuth } from '@/contexts/auth-context';
 import { listings as listingsApi } from '@/lib/api';
@@ -57,6 +57,21 @@ const CATEGORY_ICONS: Record<string, ElementType> = {
   'home-garden': Home,
   services: Wrench,
   other: Package,
+  vehicles: Car,
+  'phones-tablets': Smartphone,
+  furniture: Sofa,
+  'sports-outdoors': Dumbbell,
+  'baby-kids': Baby,
+  'books-media': BookOpen,
+  tools: Hammer,
+  collectibles: Trophy,
+  'musical-instruments': Music,
+  pets: PawPrint,
+  'jewelry-watches': Watch,
+  gaming: Gamepad2,
+  'free-stuff': Gift,
+  'cash-currency': Banknote,
+  crypto: Bitcoin,
 };
 
 const STATUS_OPTIONS: { value: ListingStatus; label: string }[] = [
