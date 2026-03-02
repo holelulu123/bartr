@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
 
 // ── Adjectives (≤5 chars, 456 words) ────────────────────────────────────────
-const ADJECTIVES = [
+export const ADJECTIVES = [
   'Able', 'Adept', 'Aged', 'Agile', 'Aglow',
   'Aloft', 'Aloof', 'Ample', 'Antic', 'Arid',
   'Askew', 'Avid', 'Balmy', 'Bare', 'Bleak',
@@ -97,7 +97,7 @@ const ADJECTIVES = [
 ];
 
 // ── Noun bank 1 — materials / elements / forces (≤5 chars, 353 words) ──────────
-const NOUNS1 = [
+export const NOUNS1 = [
   'Acid', 'Aeon', 'Aero', 'Alloy', 'Alum',
   'Ambit', 'Anion', 'Apex', 'Argon', 'Arson',
   'Atlas', 'Atom', 'Aura', 'Axle', 'Axon',
@@ -172,7 +172,7 @@ const NOUNS1 = [
 ];
 
 // ── Noun bank 2 — animals / creatures / objects (≤5 chars, 303 words) ──────────
-const NOUNS2 = [
+export const NOUNS2 = [
   'Adder', 'Agama', 'Agave', 'Algae', 'Aloe',
   'Ape', 'Asp', 'Auk', 'Avian', 'Bison',
   'Boar', 'Buck', 'Bug', 'Bull', 'Burro',
