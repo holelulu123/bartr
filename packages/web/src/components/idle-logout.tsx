@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
   'mousemove',
@@ -15,7 +15,7 @@ const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
 ];
 
 /**
- * Automatically logs the user out after 5 minutes of inactivity
+ * Automatically logs the user out after 15 minutes of inactivity
  * and redirects to the main page.
  */
 export function IdleLogout() {

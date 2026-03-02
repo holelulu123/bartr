@@ -37,18 +37,18 @@ afterEach(() => {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('IdleLogout', () => {
-  it('does not log out before 5 minutes', () => {
+  it('does not log out before 15 minutes', () => {
     render(<IdleLogout />);
     act(() => {
-      vi.advanceTimersByTime(4 * 60 * 1000); // 4 minutes
+      vi.advanceTimersByTime(14 * 60 * 1000); // 14 minutes
     });
     expect(mockLogout).not.toHaveBeenCalled();
   });
 
-  it('logs out and redirects after 5 minutes of inactivity', async () => {
+  it('logs out and redirects after 15 minutes of inactivity', async () => {
     render(<IdleLogout />);
     await act(async () => {
-      vi.advanceTimersByTime(5 * 60 * 1000); // 5 minutes
+      vi.advanceTimersByTime(15 * 60 * 1000); // 15 minutes
     });
     expect(mockLogout).toHaveBeenCalledOnce();
     expect(mockLocationReplace).toHaveBeenCalledWith('/');
@@ -57,21 +57,21 @@ describe('IdleLogout', () => {
   it('resets timer on user activity', async () => {
     render(<IdleLogout />);
     act(() => {
-      vi.advanceTimersByTime(4 * 60 * 1000); // 4 minutes
+      vi.advanceTimersByTime(14 * 60 * 1000); // 14 minutes
     });
     // Simulate activity
     act(() => {
       window.dispatchEvent(new Event('mousemove'));
     });
-    // Another 4 minutes — should NOT logout (timer reset)
+    // Another 14 minutes — should NOT logout (timer reset)
     act(() => {
-      vi.advanceTimersByTime(4 * 60 * 1000);
+      vi.advanceTimersByTime(14 * 60 * 1000);
     });
     expect(mockLogout).not.toHaveBeenCalled();
 
-    // But after 5 more minutes total from last activity, it should logout
+    // But after 15 more minutes total from last activity, it should logout
     await act(async () => {
-      vi.advanceTimersByTime(1 * 60 * 1000); // 1 more minute = 5 total
+      vi.advanceTimersByTime(1 * 60 * 1000); // 1 more minute = 15 total
     });
     expect(mockLogout).toHaveBeenCalledOnce();
   });
@@ -80,7 +80,7 @@ describe('IdleLogout', () => {
     mockIsAuthenticated = false;
     render(<IdleLogout />);
     act(() => {
-      vi.advanceTimersByTime(10 * 60 * 1000); // 10 minutes
+      vi.advanceTimersByTime(20 * 60 * 1000); // 20 minutes
     });
     expect(mockLogout).not.toHaveBeenCalled();
   });
