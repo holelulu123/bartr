@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import type { HealthResponse, SystemMetrics, ResendQuota } from '@bartr/shared';
 
 // ── Mock data ─────────────────────────────────────────────────────────────
@@ -104,8 +104,17 @@ vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({ isAuthenticated: false, isLoading: false }),
 }));
 
+// Mock global fetch to simulate authed session (auth check returns 200)
+const fetchMock = vi.fn();
+
+beforeEach(() => {
+  fetchMock.mockResolvedValue({ status: 200, ok: true, json: () => Promise.resolve(mockHealth) });
+  vi.stubGlobal('fetch', fetchMock);
+});
+
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────
@@ -114,13 +123,17 @@ describe('Health page', () => {
   it('renders the page heading', async () => {
     const { default: HealthPage } = await import('@/app/health/page');
     render(<HealthPage />);
-    expect(screen.getByRole('heading', { name: /system health/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /system health/i })).toBeInTheDocument();
+    });
   });
 
   it('renders service cards', async () => {
     const { default: HealthPage } = await import('@/app/health/page');
     render(<HealthPage />);
-    expect(screen.getByText('Database')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Database')).toBeInTheDocument();
+    });
     expect(screen.getByText('Redis')).toBeInTheDocument();
     expect(screen.getByText('MinIO')).toBeInTheDocument();
     expect(screen.getByText('Price Feed')).toBeInTheDocument();
@@ -129,7 +142,9 @@ describe('Health page', () => {
   it('renders stat cards with correct values', async () => {
     const { default: HealthPage } = await import('@/app/health/page');
     render(<HealthPage />);
-    expect(screen.getByText('Total Users')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Total Users')).toBeInTheDocument();
+    });
     expect(screen.getByText('42')).toBeInTheDocument();
     expect(screen.getByText('Active Offers')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
@@ -140,7 +155,9 @@ describe('Health page', () => {
   it('renders live system metrics', async () => {
     const { default: HealthPage } = await import('@/app/health/page');
     render(<HealthPage />);
-    expect(screen.getByText('CPU (avg)')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('CPU (avg)')).toBeInTheDocument();
+    });
     expect(screen.getByText('RAM')).toBeInTheDocument();
     expect(screen.getByText('Disk')).toBeInTheDocument();
     expect(screen.getByText('Disk I/O')).toBeInTheDocument();
@@ -150,7 +167,9 @@ describe('Health page', () => {
   it('renders time range buttons', async () => {
     const { default: HealthPage } = await import('@/app/health/page');
     render(<HealthPage />);
-    expect(screen.getByText('1h')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('1h')).toBeInTheDocument();
+    });
     expect(screen.getByText('6h')).toBeInTheDocument();
     expect(screen.getByText('24h')).toBeInTheDocument();
     expect(screen.getByText('7d')).toBeInTheDocument();
@@ -160,32 +179,25 @@ describe('Health page', () => {
   it('renders resend quota bar', async () => {
     const { default: HealthPage } = await import('@/app/health/page');
     render(<HealthPage />);
-    expect(screen.getByText('Resend Email Quota')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Resend Email Quota')).toBeInTheDocument();
+    });
     expect(screen.getByText(/150/)).toBeInTheDocument();
   });
 
   it('shows version and uptime in header', async () => {
     const { default: HealthPage } = await import('@/app/health/page');
     render(<HealthPage />);
-    expect(screen.getByText(/v0\.0\.1/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/v0\.0\.1/)).toBeInTheDocument();
+    });
     expect(screen.getByText(/uptime/i)).toBeInTheDocument();
   });
 });
 
-describe('Health page – loading state', () => {
-  it('shows spinner when loading', async () => {
-    vi.doMock('@/hooks/use-health', () => ({
-      healthKeys: {
-        status: ['health'],
-        system: ['health', 'system'],
-        history: (metric: string, hours: number) => ['health', 'history', metric, hours],
-        resend: ['health', 'resend'],
-      },
-      useHealthStatus: () => ({ data: undefined, isLoading: true }),
-      useSystemMetrics: () => ({ data: undefined }),
-      useMetricHistory: () => ({ data: [] }),
-      useResendQuota: () => ({ data: undefined }),
-    }));
+describe('Health page – login gate', () => {
+  it('shows login form when not authenticated', async () => {
+    fetchMock.mockResolvedValue({ status: 401, ok: false, json: () => Promise.resolve({ error: 'Authentication required' }) });
 
     vi.resetModules();
     vi.doMock('next/navigation', () => ({
@@ -217,6 +229,80 @@ describe('Health page – loading state', () => {
       health: {
         getMetricHistory: vi.fn().mockResolvedValue([]),
       },
+    }));
+    vi.doMock('@/hooks/use-health', () => ({
+      healthKeys: {
+        status: ['health'],
+        system: ['health', 'system'],
+        history: (metric: string, hours: number) => ['health', 'history', metric, hours],
+        resend: ['health', 'resend'],
+      },
+      useHealthStatus: () => ({ data: undefined, isLoading: false }),
+      useSystemMetrics: () => ({ data: undefined }),
+      useMetricHistory: () => ({ data: [] }),
+      useResendQuota: () => ({ data: undefined }),
+    }));
+    vi.doMock('@/contexts/auth-context', () => ({
+      useAuth: () => ({ isAuthenticated: false, isLoading: false }),
+    }));
+
+    const { default: HealthPage } = await import('@/app/health/page');
+    render(<HealthPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /health dashboard/i })).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/private key/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /unlock/i })).toBeInTheDocument();
+  });
+});
+
+describe('Health page – loading state', () => {
+  it('shows spinner when loading', async () => {
+    // Stall the auth check so isAuthed stays null (spinner)
+    fetchMock.mockReturnValue(new Promise(() => {}));
+
+    vi.resetModules();
+    vi.doMock('next/navigation', () => ({
+      useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+      usePathname: () => '/health',
+      useSearchParams: () => ({ get: () => null }),
+    }));
+    vi.doMock('next/dynamic', () => ({
+      default: () => {
+        const C = () => <div />;
+        C.displayName = 'Dynamic';
+        return C;
+      },
+    }));
+    vi.doMock('recharts', () => ({
+      AreaChart: () => <div />,
+      Area: () => null,
+      XAxis: () => null,
+      YAxis: () => null,
+      Tooltip: () => null,
+      ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+      LineChart: () => <div />,
+      Line: () => null,
+    }));
+    vi.doMock('@tanstack/react-query', () => ({
+      useQuery: () => ({ data: [], isLoading: false }),
+    }));
+    vi.doMock('@/lib/api', () => ({
+      health: {
+        getMetricHistory: vi.fn().mockResolvedValue([]),
+      },
+    }));
+    vi.doMock('@/hooks/use-health', () => ({
+      healthKeys: {
+        status: ['health'],
+        system: ['health', 'system'],
+        history: (metric: string, hours: number) => ['health', 'history', metric, hours],
+        resend: ['health', 'resend'],
+      },
+      useHealthStatus: () => ({ data: undefined, isLoading: true }),
+      useSystemMetrics: () => ({ data: undefined }),
+      useMetricHistory: () => ({ data: [] }),
+      useResendQuota: () => ({ data: undefined }),
     }));
     vi.doMock('@/contexts/auth-context', () => ({
       useAuth: () => ({ isAuthenticated: false, isLoading: false }),

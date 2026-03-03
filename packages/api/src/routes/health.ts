@@ -3,12 +3,9 @@ import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota } from '@bartr/shared';
 import { getLatestSample } from '../lib/metrics-collector.js';
-import argon2 from 'argon2';
-import { env } from '../config/env.js';
 
 const startedAt = Date.now();
 const PRICE_STALE_MS = 10 * 60_000; // 10 minutes
-const COOLDOWN_MS = 10_000; // 10 seconds after failed attempt
 
 const VALID_METRICS = new Set([
   'ram', 'disk', 'disk_read', 'disk_write', 'net_rx', 'net_tx',
@@ -20,88 +17,10 @@ function isValidMetric(m: string): boolean {
   return /^cpu:\d+$/.test(m);
 }
 
-// Track failed auth attempts: IP → timestamp of last failure
-const failedAttempts = new Map<string, number>();
-
-/** @internal — exposed for tests only */
-export function _resetFailedAttempts() {
-  failedAttempts.clear();
-}
-
 export default async function healthRoutes(fastify: FastifyInstance) {
-  // Basic Auth preHandler for all /health routes
-  fastify.addHook('preHandler', async (request, reply) => {
-    // Skip auth when no password hash is configured (dev/test)
-    if (!env.healthPasswordHash) return;
+  // Auth is handled by the web layer (session cookie + /api/health/login).
+  // The API is only reachable internally (behind nginx), so no auth here.
 
-    const ip = request.ip;
-
-    // Check cooldown
-    const lastFailure = failedAttempts.get(ip);
-    if (lastFailure) {
-      const elapsed = Date.now() - lastFailure;
-      if (elapsed < COOLDOWN_MS) {
-        const retryAfter = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
-        return reply
-          .status(429)
-          .header('Retry-After', String(retryAfter))
-          .send({ error: `Too many attempts, try again in ${retryAfter} seconds` });
-      }
-      failedAttempts.delete(ip);
-    }
-
-    const authHeader = request.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
-      return reply
-        .status(401)
-        .header('WWW-Authenticate', 'Basic realm="Health"')
-        .send({ error: 'Authentication required' });
-    }
-
-    let username: string;
-    let password: string;
-    try {
-      const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf8');
-      const colonIdx = decoded.indexOf(':');
-      if (colonIdx === -1) throw new Error('invalid');
-      username = decoded.slice(0, colonIdx);
-      password = decoded.slice(colonIdx + 1);
-    } catch {
-      failedAttempts.set(ip, Date.now());
-      return reply
-        .status(401)
-        .header('WWW-Authenticate', 'Basic realm="Health"')
-        .send({ error: 'Invalid credentials' });
-    }
-
-    if (username !== env.healthUsername) {
-      failedAttempts.set(ip, Date.now());
-      return reply
-        .status(401)
-        .header('WWW-Authenticate', 'Basic realm="Health"')
-        .send({ error: 'Invalid credentials' });
-    }
-
-    try {
-      const valid = await argon2.verify(env.healthPasswordHash, password);
-      if (!valid) {
-        failedAttempts.set(ip, Date.now());
-        return reply
-          .status(401)
-          .header('WWW-Authenticate', 'Basic realm="Health"')
-          .send({ error: 'Invalid credentials' });
-      }
-    } catch {
-      failedAttempts.set(ip, Date.now());
-      return reply
-        .status(401)
-        .header('WWW-Authenticate', 'Basic realm="Health"')
-        .send({ error: 'Invalid credentials' });
-    }
-
-    // Success — clear any previous failure record
-    failedAttempts.delete(ip);
-  });
   // ── GET /health — existing rich health check ────────────────────────────
   fastify.get('/health', async (_request, reply) => {
     const now = new Date();

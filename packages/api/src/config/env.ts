@@ -34,12 +34,6 @@ export const env = {
   minioBucket: process.env.MINIO_BUCKET || 'listing-images',
   resendApiKey: process.env.RESEND_API_KEY || '',
   resendFromEmail: process.env.RESEND_FROM_EMAIL || 'noreply@bartr.app',
-  get healthUsername(): string {
-    return process.env.HEALTH_USERNAME || 'admin';
-  },
-  get healthPasswordHash(): string {
-    return process.env.HEALTH_PASSWORD_HASH || '';
-  },
 } as const;
 
 // ---------------------------------------------------------------------------

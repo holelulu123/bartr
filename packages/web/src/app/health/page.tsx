@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useHealthStatus, useSystemMetrics, useMetricHistory, useResendQuota, healthKeys } from '@/hooks/use-health';
 import { health as healthApi } from '@/lib/api';
@@ -46,7 +46,6 @@ const CPU_COLORS = [
   '#22d3ee', '#eab308', '#6366f1', '#d946ef',
 ];
 
-// Separate component so core count is stable across renders (no variable hook count)
 function CpuChart({ cores, hours }: { cores: number; hours: number }) {
   const { data } = useQuery({
     queryKey: healthKeys.history('cpu:all', hours),
@@ -70,7 +69,100 @@ function CpuChart({ cores, hours }: { cores: number; hours: number }) {
   return <MultiLineChart title="CPU Usage (per core)" series={series} unit="percent" />;
 }
 
-export default function HealthPage() {
+function HealthLoginForm({ onSuccess }: { onSuccess: () => void }) {
+  const [privateKey, setPrivateKey] = useState('');
+  const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (cooldown > 0 || submitting) return;
+
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const res = await fetch('/hproxy/health/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey }),
+      });
+
+      if (res.ok) {
+        onSuccess();
+        return;
+      }
+
+      if (res.status === 429) {
+        const retryAfter = parseInt(res.headers.get('Retry-After') || '30', 10);
+        setCooldown(retryAfter);
+        setError('Too many attempts');
+        return;
+      }
+
+      setError('Invalid key');
+    } catch {
+      setError('Connection error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <form onSubmit={handleSubmit} className="w-full max-w-lg space-y-4 rounded-lg border border-neutral-800 bg-neutral-900 p-6">
+        <h1 className="text-xl font-bold tracking-tight">Health Dashboard</h1>
+        <p className="text-sm text-neutral-400">Paste your private key to unlock.</p>
+
+        <div>
+          <label htmlFor="health-key" className="mb-1 block text-sm text-neutral-400">Private Key</label>
+          <textarea
+            id="health-key"
+            value={privateKey}
+            onChange={(e) => setPrivateKey(e.target.value)}
+            rows={8}
+            spellCheck={false}
+            className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 font-mono text-xs focus:border-orange-500 focus:outline-none resize-none"
+            placeholder={"-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"}
+            required
+          />
+        </div>
+
+        {error && (
+          <p className="text-sm text-red-400">
+            {error}
+            {cooldown > 0 && ` — retry in ${cooldown}s`}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting || cooldown > 0}
+          className="w-full rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {cooldown > 0 ? `Wait ${cooldown}s` : submitting ? 'Verifying...' : 'Unlock'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function HealthDashboard() {
   const [hours, setHours] = useState(6);
   const { data: health, isLoading: healthLoading } = useHealthStatus();
   const { data: system } = useSystemMetrics();
@@ -82,6 +174,11 @@ export default function HealthPage() {
   const { data: diskWriteHistory } = useMetricHistory('disk_write', hours);
   const { data: netRxHistory } = useMetricHistory('net_rx', hours);
   const { data: netTxHistory } = useMetricHistory('net_tx', hours);
+
+  const handleLogout = async () => {
+    await fetch('/hproxy/health/logout', { method: 'POST' });
+    window.location.reload();
+  };
 
   if (healthLoading) {
     return (
@@ -104,6 +201,12 @@ export default function HealthPage() {
         <span className="ml-auto text-xs text-neutral-500">
           v{health?.version} &middot; uptime {formatUptime(health?.uptime_seconds ?? 0)}
         </span>
+        <button
+          onClick={handleLogout}
+          className="ml-4 rounded-md border border-neutral-700 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-red-500 hover:text-red-400"
+        >
+          Logout
+        </button>
       </div>
 
       {/* Services */}
@@ -184,10 +287,8 @@ export default function HealthPage() {
 
       {/* Charts */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        {/* Per-CPU — rendered in a child component to keep hook count stable */}
         <CpuChart cores={system?.cpu_cores ?? 0} hours={hours} />
 
-        {/* RAM */}
         <MetricChart
           title="RAM Usage"
           data={ramHistory ?? []}
@@ -195,7 +296,6 @@ export default function HealthPage() {
           color="#3b82f6"
         />
 
-        {/* Disk */}
         <MetricChart
           title="Disk Usage"
           data={diskHistory ?? []}
@@ -204,7 +304,6 @@ export default function HealthPage() {
           yMax={system?.disk_total_bytes}
         />
 
-        {/* Disk I/O */}
         <MultiLineChart
           title="Disk I/O Speed"
           series={[
@@ -214,7 +313,6 @@ export default function HealthPage() {
           unit="bytes_per_sec"
         />
 
-        {/* Bandwidth */}
         <MultiLineChart
           title="Network Bandwidth"
           series={[
@@ -233,4 +331,35 @@ export default function HealthPage() {
       )}
     </div>
   );
+}
+
+export default function HealthPage() {
+  const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
+
+  const checkAuth = useCallback(async () => {
+    try {
+      const res = await fetch('/hproxy/health', { cache: 'no-store' });
+      setIsAuthed(res.status !== 401);
+    } catch {
+      setIsAuthed(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  if (isAuthed === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!isAuthed) {
+    return <HealthLoginForm onSuccess={() => setIsAuthed(true)} />;
+  }
+
+  return <HealthDashboard />;
 }

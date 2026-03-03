@@ -91,6 +91,25 @@ Key variables for production:
 - `ENCRYPTION_KEY` — 64-char hex string (32 bytes) for email field encryption
 - `DATABASE_URL`, `REDIS_URL` — production connection strings
 
+### Health Dashboard
+
+The `/health` page has its own login, completely separate from the app's auth. It uses Ed25519 keypair authentication — only the public key is stored in `.env`, you paste the private key to unlock.
+
+```bash
+# Generate keypair
+openssl genpkey -algorithm ed25519 -out health_key.pem
+openssl pkey -in health_key.pem -pubout
+```
+
+Copy the public key output and set `HEALTH_PUBLIC_KEY` in `.env` (use literal `\n` for newlines):
+```
+HEALTH_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA...\n-----END PUBLIC KEY-----
+```
+
+Keep `health_key.pem` safe — you paste its full contents into the `/health` login form to unlock the dashboard.
+
+Leave `HEALTH_PUBLIC_KEY` blank in dev to skip auth. Wrong key attempts trigger a 30-second cooldown.
+
 ## Dependencies
 
 **Backend** (`packages/api`): fastify 5, @fastify/cors + rate-limit + multipart, pg, ioredis, argon2, jose, minio
