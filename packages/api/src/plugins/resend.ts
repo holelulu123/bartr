@@ -14,6 +14,7 @@ declare module 'fastify' {
 
 const MONTHLY_LIMIT = 3000;
 const REDIS_KEY = 'resend:monthly_count';
+const REDIS_ACTUAL_KEY = 'resend:monthly_quota_actual';
 
 export default fp(async (fastify) => {
   if (!env.resendApiKey) {
@@ -40,7 +41,7 @@ export default fp(async (fastify) => {
 
   fastify.decorate('resend', {
     async sendVerificationEmail(to: string, code: string) {
-      await client.emails.send({
+      const result = await client.emails.send({
         from: env.resendFromEmail,
         to,
         subject: 'bartr — Verify your email',
@@ -63,12 +64,25 @@ export default fp(async (fastify) => {
       const pipeline = fastify.redis.pipeline();
       pipeline.incr(REDIS_KEY);
       pipeline.expire(REDIS_KEY, ttl);
+
+      // Store actual quota from Resend API headers if available
+      const quota = result.headers?.['x-resend-monthly-quota'];
+      if (quota) {
+        pipeline.set(REDIS_ACTUAL_KEY, quota, 'EX', ttl);
+      }
+
       await pipeline.exec();
     },
 
     async getQuota() {
       let sent = 0;
       try {
+        // Prefer actual quota from Resend API headers over manual counter
+        const actual = await fastify.redis.get(REDIS_ACTUAL_KEY);
+        if (actual) {
+          sent = parseInt(actual, 10);
+          return { sent, limit: MONTHLY_LIMIT };
+        }
         const val = await fastify.redis.get(REDIS_KEY);
         if (val) sent = parseInt(val, 10);
       } catch { /* ignore */ }
