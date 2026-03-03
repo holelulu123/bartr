@@ -114,15 +114,14 @@ describe('Home / Landing page', () => {
     render(<HomePage />);
     expect(screen.getByRole('heading', { name: /how it works/i })).toBeInTheDocument();
     expect(screen.getByText(/create an account/i)).toBeInTheDocument();
-    // "Post a listing" appears as a heading and a button — check the heading
-    expect(screen.getByRole('heading', { name: /^post a listing$/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /post on the marketplace/i })).toBeInTheDocument();
   });
 
   it('shows browse listings and post a listing links', async () => {
     const { default: HomePage } = await import('@/app/page');
     render(<HomePage />);
-    expect(screen.getByRole('link', { name: /browse listings/i })).toHaveAttribute('href', '/listings');
-    expect(screen.getByRole('link', { name: /post a listing/i })).toHaveAttribute('href', '/listings/new');
+    expect(screen.getByRole('button', { name: /p2p exchange/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /marketplace/i })).toBeInTheDocument();
   });
 
   it('renders create account and sell links', async () => {

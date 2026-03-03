@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Shield, Zap, Lock, ArrowRight, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/auth-context';
 
 const FEATURES = [
   {
@@ -30,12 +32,19 @@ const FEATURES = [
 
 const HOW_IT_WORKS = [
   { step: '01', title: 'Create an account', body: 'Sign up with your email and choose a password to protect your encrypted keys.' },
-  { step: '02', title: 'Post a listing', body: 'Describe what you\'re selling or trading. Set your price and accepted payment methods.' },
+  { step: '02', title: 'Post on the marketplace', body: 'Describe what you\'re selling or trading. Set your price and accepted payment methods.' },
   { step: '03', title: 'Connect with buyers', body: 'Encrypted messages keep your conversation private from day one.' },
   { step: '04', title: 'Close the deal', body: 'Agree on terms, exchange payment, and leave a rating for the community.' },
 ];
 
 export default function HomePage() {
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  const navigate = (path: string) => {
+    router.push(isAuthenticated ? path : '/login');
+  };
+
   return (
     <div className="flex flex-col">
       {/* Hero */}
@@ -59,11 +68,11 @@ export default function HomePage() {
             No fees, no KYC, no surveillance.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg" className="bg-orange-500 hover:bg-orange-600 text-white">
-              <Link href="/listings">Browse listings <ArrowRight className="ml-2 h-4 w-4" /></Link>
+            <Button size="lg" className="bg-orange-500 hover:bg-orange-600 text-white" onClick={() => navigate('/exchange')}>
+              P2P Exchange <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="/listings/new">Post a listing</Link>
+            <Button size="lg" variant="outline" onClick={() => navigate('/market')}>
+              Marketplace
             </Button>
           </div>
         </div>
