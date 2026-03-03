@@ -1,6 +1,8 @@
 import os from 'node:os';
 import fs from 'node:fs';
 import type Redis from 'ioredis';
+import type { Pool } from 'pg';
+import { drainSince } from './api-metrics-buffer.js';
 
 const SAMPLE_INTERVAL_MS = 5_000;      // sample every 5s in memory
 const FLUSH_INTERVAL_MS = 5 * 60_000;  // flush max to Redis every 5 min
@@ -157,6 +159,28 @@ function sample() {
   if (netStats) {
     prevNetStats = { rx: netStats.rx, tx: netStats.tx, ts: Date.now() };
   }
+
+  // API performance (from ring buffer)
+  const now = Date.now();
+  const events = drainSince(now - SAMPLE_INTERVAL_MS);
+  if (events.length > 0) {
+    const durations = events.map((e) => e.duration_ms).sort((a, b) => a - b);
+    const p50 = durations[Math.floor(durations.length * 0.5)];
+    const p95 = durations[Math.floor(durations.length * 0.95)];
+    const windowSec = SAMPLE_INTERVAL_MS / 1000;
+    const reqRate = Math.round((events.length / windowSec) * 100) / 100;
+    const errorCount = events.filter((e) => e.status >= 400).length;
+
+    bufferMax('resp_time_p50', Math.round(p50 * 100) / 100);
+    bufferMax('resp_time_p95', Math.round(p95 * 100) / 100);
+    bufferMax('req_rate', reqRate);
+    bufferMax('error_rate', errorCount);
+  } else {
+    bufferMax('resp_time_p50', 0);
+    bufferMax('resp_time_p95', 0);
+    bufferMax('req_rate', 0);
+    bufferMax('error_rate', 0);
+  }
 }
 
 // ── Flush (every 5 min): write max values to Redis, clear buffer ──────────
@@ -192,13 +216,45 @@ async function collectDisk(redis: Redis) {
   await pipeline.exec();
 }
 
+// ── Infrastructure metrics (every 5 min alongside disk) ────────────────────
+
+async function collectInfra(redis: Redis, pg: Pool) {
+  const now = Date.now();
+  const cutoff = now - RETENTION_MS;
+  const pipeline = redis.pipeline();
+
+  // Redis memory
+  try {
+    const info = await redis.info('memory');
+    const match = info.match(/used_memory:(\d+)/);
+    if (match) {
+      const usedMem = parseInt(match[1], 10);
+      latestBuffer.set('redis_mem', usedMem);
+      pipeline.zadd('metrics:redis_mem', now.toString(), `${now}|${usedMem}`);
+      pipeline.zremrangebyscore('metrics:redis_mem', '-inf', cutoff.toString());
+    }
+  } catch { /* ignore */ }
+
+  // PostgreSQL active connections
+  try {
+    const res = await pg.query('SELECT count(*)::int AS c FROM pg_stat_activity');
+    const conns = res.rows[0].c;
+    latestBuffer.set('pg_conns', conns);
+    pipeline.zadd('metrics:pg_conns', now.toString(), `${now}|${conns}`);
+    pipeline.zremrangebyscore('metrics:pg_conns', '-inf', cutoff.toString());
+  } catch { /* ignore */ }
+
+  await pipeline.exec();
+}
+
 // ── Public API ────────────────────────────────────────────────────────────
 
 let sampleTimer: ReturnType<typeof setInterval> | null = null;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 let diskTimer: ReturnType<typeof setInterval> | null = null;
+let infraTimer: ReturnType<typeof setInterval> | null = null;
 
-export function startMetricsCollector(redis: Redis) {
+export function startMetricsCollector(redis: Redis, pg: Pool) {
   // Initial sample to seed deltas (first real values on second tick)
   sample();
 
@@ -217,13 +273,21 @@ export function startMetricsCollector(redis: Redis) {
     collectDisk(redis).catch(() => {});
   }, DISK_INTERVAL_MS);
 
+  // Infrastructure metrics on same schedule as disk
+  collectInfra(redis, pg).catch(() => {});
+  infraTimer = setInterval(() => {
+    collectInfra(redis, pg).catch(() => {});
+  }, DISK_INTERVAL_MS);
+
   if (sampleTimer.unref) sampleTimer.unref();
   if (flushTimer.unref) flushTimer.unref();
   if (diskTimer.unref) diskTimer.unref();
+  if (infraTimer.unref) infraTimer.unref();
 }
 
 export function stopMetricsCollector() {
   if (sampleTimer) { clearInterval(sampleTimer); sampleTimer = null; }
   if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
   if (diskTimer) { clearInterval(diskTimer); diskTimer = null; }
+  if (infraTimer) { clearInterval(infraTimer); infraTimer = null; }
 }

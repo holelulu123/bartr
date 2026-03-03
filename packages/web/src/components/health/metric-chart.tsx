@@ -53,21 +53,28 @@ function formatBytesPerSec(bytes: number): string {
   return `${formatBytes(bytes)}/s`;
 }
 
+type MetricUnit = 'percent' | 'bytes' | 'bytes_per_sec' | 'ms' | 'count' | 'count_per_sec';
+
+function formatUnit(v: number, unit: MetricUnit): string {
+  if (unit === 'percent') return `${v}%`;
+  if (unit === 'bytes') return formatBytes(v);
+  if (unit === 'bytes_per_sec') return formatBytesPerSec(v);
+  if (unit === 'ms') return `${v.toFixed(1)}ms`;
+  if (unit === 'count_per_sec') return `${v.toFixed(1)}/s`;
+  return v.toLocaleString();
+}
+
 interface MetricChartProps {
   title: string;
   data: MetricSample[];
-  unit?: 'percent' | 'bytes' | 'bytes_per_sec';
+  unit?: MetricUnit;
   color?: string;
   /** Fixed Y-axis maximum. For percent charts defaults to 100. */
   yMax?: number;
 }
 
 export function MetricChart({ title, data, unit = 'percent', color = '#f97316', yMax }: MetricChartProps) {
-  const formatValue = (v: number) => {
-    if (unit === 'percent') return `${v}%`;
-    if (unit === 'bytes') return formatBytes(v);
-    return formatBytesPerSec(v);
-  };
+  const formatValue = (v: number) => formatUnit(v, unit);
 
   const domain: [number, number] | undefined =
     yMax != null ? [0, yMax] : unit === 'percent' ? [0, 100] : undefined;
@@ -121,16 +128,12 @@ export function MetricChart({ title, data, unit = 'percent', color = '#f97316', 
 interface MultiLineChartProps {
   title: string;
   series: Array<{ name: string; data: MetricSample[]; color: string }>;
-  unit?: 'percent' | 'bytes' | 'bytes_per_sec';
+  unit?: MetricUnit;
   yMax?: number;
 }
 
 export function MultiLineChart({ title, series, unit = 'percent', yMax }: MultiLineChartProps) {
-  const formatValue = (v: number) => {
-    if (unit === 'percent') return `${v}%`;
-    if (unit === 'bytes') return formatBytes(v);
-    return formatBytesPerSec(v);
-  };
+  const formatValue = (v: number) => formatUnit(v, unit);
 
   const domain: [number, number] | undefined =
     yMax != null ? [0, yMax] : unit === 'percent' ? [0, 100] : undefined;

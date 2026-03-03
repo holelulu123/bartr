@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useHealthStatus, useSystemMetrics, useMetricHistory, useResendQuota, healthKeys } from '@/hooks/use-health';
+import { useHealthStatus, useSystemMetrics, useMetricHistory, useResendQuota, useApiPerformance, useInfraMetrics, useGrowthData, healthKeys } from '@/hooks/use-health';
 import { health as healthApi } from '@/lib/api';
 import { ServiceCard } from '@/components/health/service-card';
 import { StatCard } from '@/components/health/stat-card';
 import { QuotaBar } from '@/components/health/quota-bar';
 import { MetricChart, MultiLineChart } from '@/components/health/metric-chart';
+import { DailyBarChart } from '@/components/health/daily-bar-chart';
 import type { MetricSample } from '@bartr/shared';
 
 const TIME_RANGES = [
@@ -16,6 +17,13 @@ const TIME_RANGES = [
   { label: '24h', hours: 24 },
   { label: '7d', hours: 168 },
   { label: '14d', hours: 336 },
+] as const;
+
+const GROWTH_RANGES = [
+  { label: '7d', days: 7 },
+  { label: '14d', days: 14 },
+  { label: '30d', days: 30 },
+  { label: '90d', days: 90 },
 ] as const;
 
 function formatBytes(bytes: number): string {
@@ -162,18 +170,69 @@ function HealthLoginForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+function SectionHeading({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-4">
+      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+      {subtitle && <p className="text-xs text-neutral-500 mt-0.5">{subtitle}</p>}
+    </div>
+  );
+}
+
+function TimeRangeSelector({ value, onChange, ranges }: {
+  value: number;
+  onChange: (v: number) => void;
+  ranges: ReadonlyArray<{ label: string; hours?: number; days?: number }>;
+}) {
+  return (
+    <div className="flex gap-2 mb-4">
+      {ranges.map((r) => {
+        const val = r.hours ?? r.days ?? 0;
+        return (
+          <button
+            key={r.label}
+            onClick={() => onChange(val)}
+            className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+              value === val
+                ? 'border-orange-500 bg-orange-500/10 text-orange-400'
+                : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+            }`}
+          >
+            {r.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function HealthDashboard() {
   const [hours, setHours] = useState(6);
+  const [growthDays, setGrowthDays] = useState(30);
   const { data: health, isLoading: healthLoading } = useHealthStatus();
   const { data: system } = useSystemMetrics();
   const { data: resend } = useResendQuota();
+  const { data: apiPerf } = useApiPerformance();
+  const { data: infra } = useInfraMetrics();
+  const { data: growth } = useGrowthData(growthDays);
 
+  // Machine resource histories
   const { data: ramHistory } = useMetricHistory('ram', hours);
   const { data: diskHistory } = useMetricHistory('disk', hours);
   const { data: diskReadHistory } = useMetricHistory('disk_read', hours);
   const { data: diskWriteHistory } = useMetricHistory('disk_write', hours);
   const { data: netRxHistory } = useMetricHistory('net_rx', hours);
   const { data: netTxHistory } = useMetricHistory('net_tx', hours);
+
+  // API perf histories
+  const { data: respP50History } = useMetricHistory('resp_time_p50', hours);
+  const { data: respP95History } = useMetricHistory('resp_time_p95', hours);
+  const { data: reqRateHistory } = useMetricHistory('req_rate', hours);
+  const { data: errorRateHistory } = useMetricHistory('error_rate', hours);
+
+  // Infra histories
+  const { data: redisMemHistory } = useMetricHistory('redis_mem', hours);
+  const { data: pgConnsHistory } = useMetricHistory('pg_conns', hours);
 
   const handleLogout = async () => {
     await fetch('/hproxy/health/logout', { method: 'POST' });
@@ -192,41 +251,31 @@ function HealthDashboard() {
     health?.status === 'ok' ? 'bg-green-500' : health?.status === 'degraded' ? 'bg-yellow-500' : 'bg-red-500';
 
   return (
-    <div className="px-4 py-8 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">System Health</h1>
-        <span className={`inline-block h-3 w-3 rounded-full ${statusColor}`} />
-        <span className="text-sm text-neutral-400 capitalize">{health?.status ?? 'unknown'}</span>
-        <span className="ml-auto text-xs text-neutral-500">
-          v{health?.version} &middot; uptime {formatUptime(health?.uptime_seconds ?? 0)}
-        </span>
-        <button
-          onClick={handleLogout}
-          className="ml-4 rounded-md border border-neutral-700 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-red-500 hover:text-red-400"
-        >
-          Logout
-        </button>
-      </div>
+    <div className="px-4 py-8 max-w-6xl mx-auto space-y-10">
+      {/* ── 1. Overview ────────────────────────────────────────────────────── */}
+      <section>
+        <div className="flex items-center gap-3 mb-6">
+          <h1 className="text-2xl font-bold tracking-tight">System Health</h1>
+          <span className={`inline-block h-3 w-3 rounded-full ${statusColor}`} />
+          <span className="text-sm text-neutral-400 capitalize">{health?.status ?? 'unknown'}</span>
+          <span className="ml-auto text-xs text-neutral-500">
+            v{health?.version} &middot; uptime {formatUptime(health?.uptime_seconds ?? 0)}
+          </span>
+          <button
+            onClick={handleLogout}
+            className="ml-4 rounded-md border border-neutral-700 px-3 py-1 text-xs text-neutral-400 transition-colors hover:border-red-500 hover:text-red-400"
+          >
+            Logout
+          </button>
+        </div>
 
-      {/* Services */}
-      <section className="mb-8">
-        <h2 className="text-sm font-medium text-neutral-400 mb-3 uppercase tracking-wider">Services</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           <ServiceCard name="Database" ok={health?.services.db.ok ?? false} latency_ms={health?.services.db.latency_ms ?? 0} />
           <ServiceCard name="Redis" ok={health?.services.redis.ok ?? false} latency_ms={health?.services.redis.latency_ms ?? 0} />
           <ServiceCard name="MinIO" ok={health?.services.minio.ok ?? false} latency_ms={health?.services.minio.latency_ms ?? 0} />
-          <ServiceCard
-            name="Price Feed"
-            ok={!health?.price_feed.stale}
-            latency_ms={0}
-          />
+          <ServiceCard name="Price Feed" ok={!health?.price_feed.stale} latency_ms={0} />
         </div>
-      </section>
 
-      {/* Stats */}
-      <section className="mb-8">
-        <h2 className="text-sm font-medium text-neutral-400 mb-3 uppercase tracking-wider">Stats</h2>
         <div className="grid grid-cols-3 gap-3">
           <StatCard label="Total Users" value={health?.stats.users ?? 0} />
           <StatCard label="Active Offers" value={health?.stats.active_offers ?? 0} />
@@ -234,11 +283,12 @@ function HealthDashboard() {
         </div>
       </section>
 
-      {/* Live System */}
-      {system && (
-        <section className="mb-8">
-          <h2 className="text-sm font-medium text-neutral-400 mb-3 uppercase tracking-wider">Live System</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      {/* ── 2. Machine Resources ───────────────────────────────────────────── */}
+      <section>
+        <SectionHeading title="Machine Resources" subtitle="CPU, RAM, disk, and network utilization" />
+
+        {system && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <StatCard
               label="CPU (avg)"
               value={`${(system.cpu_percent_per_core.reduce((a, b) => a + b, 0) / (system.cpu_cores || 1)).toFixed(1)}%`}
@@ -265,67 +315,90 @@ function HealthDashboard() {
               sub={`RX: ${formatBytesPerSec(system.net_rx_bytes_sec)} TX: ${formatBytesPerSec(system.net_tx_bytes_sec)}`}
             />
           </div>
-        </section>
-      )}
+        )}
 
-      {/* Time Range */}
-      <div className="flex gap-2 mb-6">
-        {TIME_RANGES.map((r) => (
-          <button
-            key={r.label}
-            onClick={() => setHours(r.hours)}
-            className={`px-3 py-1 text-xs rounded-md border transition-colors ${
-              hours === r.hours
-                ? 'border-orange-500 bg-orange-500/10 text-orange-400'
-                : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
+        <TimeRangeSelector value={hours} onChange={setHours} ranges={TIME_RANGES} />
 
-      {/* Charts */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <CpuChart cores={system?.cpu_cores ?? 0} hours={hours} />
-
-        <MetricChart
-          title="RAM Usage"
-          data={ramHistory ?? []}
-          unit="percent"
-          color="#3b82f6"
-        />
-
-        <MetricChart
-          title="Disk Usage"
-          data={diskHistory ?? []}
-          unit="bytes"
-          color="#10b981"
-          yMax={system?.disk_total_bytes}
-        />
-
-        <MultiLineChart
-          title="Disk I/O Speed"
-          series={[
-            { name: 'Read', data: diskReadHistory ?? [], color: '#06b6d4' },
-            { name: 'Write', data: diskWriteHistory ?? [], color: '#f59e0b' },
-          ]}
-          unit="bytes_per_sec"
-        />
-
-        <MultiLineChart
-          title="Network Bandwidth"
-          series={[
-            { name: 'RX', data: netRxHistory ?? [], color: '#8b5cf6' },
-            { name: 'TX', data: netTxHistory ?? [], color: '#ec4899' },
-          ]}
-          unit="bytes_per_sec"
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CpuChart cores={system?.cpu_cores ?? 0} hours={hours} />
+          <MetricChart title="RAM Usage" data={ramHistory ?? []} unit="percent" color="#3b82f6" />
+          <MetricChart title="Disk Usage" data={diskHistory ?? []} unit="bytes" color="#10b981" yMax={system?.disk_total_bytes} />
+          <MultiLineChart
+            title="Disk I/O Speed"
+            series={[
+              { name: 'Read', data: diskReadHistory ?? [], color: '#06b6d4' },
+              { name: 'Write', data: diskWriteHistory ?? [], color: '#f59e0b' },
+            ]}
+            unit="bytes_per_sec"
+          />
+          <MultiLineChart
+            title="Network Bandwidth"
+            series={[
+              { name: 'RX', data: netRxHistory ?? [], color: '#8b5cf6' },
+              { name: 'TX', data: netTxHistory ?? [], color: '#ec4899' },
+            ]}
+            unit="bytes_per_sec"
+          />
+        </div>
       </section>
 
-      {/* Resend Quota */}
+      {/* ── 3. API Performance ─────────────────────────────────────────────── */}
+      <section>
+        <SectionHeading title="API Performance" subtitle="Response times, throughput, and error rates" />
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <StatCard label="p50 Response" value={`${apiPerf?.resp_time_p50.toFixed(1) ?? '0'}ms`} />
+          <StatCard label="p95 Response" value={`${apiPerf?.resp_time_p95.toFixed(1) ?? '0'}ms`} />
+          <StatCard label="Request Rate" value={`${apiPerf?.req_rate.toFixed(1) ?? '0'}/s`} />
+          <StatCard label="Errors (5s)" value={apiPerf?.error_rate ?? 0} />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MultiLineChart
+            title="Response Time"
+            series={[
+              { name: 'p50', data: respP50History ?? [], color: '#3b82f6' },
+              { name: 'p95', data: respP95History ?? [], color: '#f97316' },
+            ]}
+            unit="ms"
+          />
+          <MetricChart title="Request Rate" data={reqRateHistory ?? []} unit="count_per_sec" color="#10b981" />
+          <MetricChart title="Error Count" data={errorRateHistory ?? []} unit="count" color="#ef4444" />
+        </div>
+      </section>
+
+      {/* ── 4. Infrastructure ──────────────────────────────────────────────── */}
+      <section>
+        <SectionHeading title="Infrastructure" subtitle="Redis memory and PostgreSQL connections" />
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <StatCard label="Redis Memory" value={formatBytes(infra?.redis_mem_bytes ?? 0)} />
+          <StatCard label="PG Connections" value={infra?.pg_connections ?? 0} />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MetricChart title="Redis Memory" data={redisMemHistory ?? []} unit="bytes" color="#ef4444" />
+          <MetricChart title="PostgreSQL Connections" data={pgConnsHistory ?? []} unit="count" color="#8b5cf6" />
+        </div>
+      </section>
+
+      {/* ── 5. Growth ──────────────────────────────────────────────────────── */}
+      <section>
+        <SectionHeading title="Growth" subtitle="Daily registrations, listings, and messages" />
+
+        <TimeRangeSelector value={growthDays} onChange={setGrowthDays} ranges={GROWTH_RANGES} />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <DailyBarChart title="User Registrations" data={growth?.users ?? []} color="#3b82f6" />
+          <DailyBarChart title="Listings Created" data={growth?.listings ?? []} color="#10b981" />
+          <DailyBarChart title="Messages Sent" data={growth?.messages ?? []} color="#f97316" />
+        </div>
+      </section>
+
+      {/* ── 6. Email ───────────────────────────────────────────────────────── */}
       {resend && (
-        <section className="mb-8">
+        <section>
+          <SectionHeading title="Email" subtitle="Resend API usage and quota" />
           <QuotaBar sent={resend.sent} limit={resend.limit} resets_at={resend.resets_at} />
         </section>
       )}

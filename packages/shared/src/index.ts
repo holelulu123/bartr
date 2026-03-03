@@ -129,6 +129,29 @@ export interface ResendQuota {
   resets_at: string;
 }
 
+export interface ApiPerformanceMetrics {
+  resp_time_p50: number;
+  resp_time_p95: number;
+  req_rate: number;
+  error_rate: number;
+}
+
+export interface InfraMetrics {
+  redis_mem_bytes: number;
+  pg_connections: number;
+}
+
+export interface DailyCount {
+  date: string;
+  count: number;
+}
+
+export interface GrowthData {
+  users: DailyCount[];
+  listings: DailyCount[];
+  messages: DailyCount[];
+}
+
 // ── Fiat currencies ─────────────────────────────────────────────────────────
 
 export interface FiatCurrency {

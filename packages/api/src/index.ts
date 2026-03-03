@@ -43,7 +43,7 @@ await app.register(priceRoutes);
 
 try {
   await app.listen({ port: env.port, host: env.host });
-  startMetricsCollector(app.redis);
+  startMetricsCollector(app.redis, app.pg);
   startUnverifiedCleanup(app);
 } catch (err) {
   app.log.fatal(err);

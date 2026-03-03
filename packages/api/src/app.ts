@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 // multipart is registered per-route in listings.ts and users.ts
 import rateLimit from '@fastify/rate-limit';
 import { env } from './config/env.js';
+import { recordRequest } from './lib/api-metrics-buffer.js';
 import dbPlugin from './plugins/db.js';
 import redisPlugin from './plugins/redis.js';
 import minioPlugin from './plugins/minio.js';
@@ -40,6 +41,13 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     reply.header('X-Frame-Options', 'DENY');
     reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
     reply.header('X-Permitted-Cross-Domain-Policies', 'none');
+  });
+
+  // Record response times for API performance metrics (exclude /health to avoid noise)
+  app.addHook('onResponse', async (request, reply) => {
+    if (!request.url.startsWith('/health')) {
+      recordRequest(reply.elapsedTime, reply.statusCode);
+    }
   });
 
   await app.register(cookie);

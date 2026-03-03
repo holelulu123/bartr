@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
-import type { HealthResponse, SystemMetrics, ResendQuota } from '@bartr/shared';
+import type { HealthResponse, SystemMetrics, ResendQuota, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
 
 // ── Mock data ─────────────────────────────────────────────────────────────
 
@@ -41,6 +41,24 @@ const mockResend: ResendQuota = {
   resets_at: '2026-04-01T00:00:00.000Z',
 };
 
+const mockApiPerf: ApiPerformanceMetrics = {
+  resp_time_p50: 12.5,
+  resp_time_p95: 45.2,
+  req_rate: 3.2,
+  error_rate: 1,
+};
+
+const mockInfra: InfraMetrics = {
+  redis_mem_bytes: 52_428_800,
+  pg_connections: 8,
+};
+
+const mockGrowth: GrowthData = {
+  users: [{ date: '2026-03-01', count: 5 }, { date: '2026-03-02', count: 3 }],
+  listings: [{ date: '2026-03-01', count: 10 }],
+  messages: [{ date: '2026-03-01', count: 25 }],
+};
+
 // ── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock('next/navigation', () => ({
@@ -75,6 +93,8 @@ vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   LineChart: ({ children }: { children: React.ReactNode }) => <div data-testid="line-chart">{children}</div>,
   Line: () => null,
+  BarChart: ({ children }: { children: React.ReactNode }) => <div data-testid="bar-chart">{children}</div>,
+  Bar: () => null,
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -93,11 +113,17 @@ vi.mock('@/hooks/use-health', () => ({
     system: ['health', 'system'],
     history: (metric: string, hours: number) => ['health', 'history', metric, hours],
     resend: ['health', 'resend'],
+    apiPerformance: ['health', 'api-performance'],
+    infra: ['health', 'infra'],
+    growth: (days: number) => ['health', 'growth', days],
   },
   useHealthStatus: () => ({ data: mockHealth, isLoading: false }),
   useSystemMetrics: () => ({ data: mockSystem }),
   useMetricHistory: () => ({ data: [] }),
   useResendQuota: () => ({ data: mockResend }),
+  useApiPerformance: () => ({ data: mockApiPerf }),
+  useInfraMetrics: () => ({ data: mockInfra }),
+  useGrowthData: () => ({ data: mockGrowth }),
 }));
 
 vi.mock('@/contexts/auth-context', () => ({
@@ -172,8 +198,9 @@ describe('Health page', () => {
     });
     expect(screen.getByText('6h')).toBeInTheDocument();
     expect(screen.getByText('24h')).toBeInTheDocument();
-    expect(screen.getByText('7d')).toBeInTheDocument();
-    expect(screen.getByText('14d')).toBeInTheDocument();
+    // "7d" and "14d" appear in both machine resources and growth time ranges
+    expect(screen.getAllByText('7d').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('14d').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders resend quota bar', async () => {
@@ -192,6 +219,50 @@ describe('Health page', () => {
       expect(screen.getByText(/v0\.0\.1/)).toBeInTheDocument();
     });
     expect(screen.getByText(/uptime/i)).toBeInTheDocument();
+  });
+
+  it('renders section headings', async () => {
+    const { default: HealthPage } = await import('@/app/health/page');
+    render(<HealthPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Machine Resources')).toBeInTheDocument();
+    });
+    expect(screen.getByText('API Performance')).toBeInTheDocument();
+    expect(screen.getByText('Infrastructure')).toBeInTheDocument();
+    expect(screen.getByText('Growth')).toBeInTheDocument();
+    expect(screen.getByText('Email')).toBeInTheDocument();
+  });
+
+  it('renders API performance cards', async () => {
+    const { default: HealthPage } = await import('@/app/health/page');
+    render(<HealthPage />);
+    await waitFor(() => {
+      expect(screen.getByText('p50 Response')).toBeInTheDocument();
+    });
+    expect(screen.getByText('p95 Response')).toBeInTheDocument();
+    // "Request Rate" appears as both a card label and chart title
+    expect(screen.getAllByText('Request Rate').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Errors (5s)')).toBeInTheDocument();
+  });
+
+  it('renders infrastructure cards', async () => {
+    const { default: HealthPage } = await import('@/app/health/page');
+    render(<HealthPage />);
+    await waitFor(() => {
+      // "Redis Memory" appears as both a card label and chart title
+      expect(screen.getAllByText('Redis Memory').length).toBeGreaterThanOrEqual(1);
+    });
+    // "PG Connections" appears as card label; chart has different title
+    expect(screen.getByText('PG Connections')).toBeInTheDocument();
+  });
+
+  it('renders growth time range buttons', async () => {
+    const { default: HealthPage } = await import('@/app/health/page');
+    render(<HealthPage />);
+    await waitFor(() => {
+      expect(screen.getByText('30d')).toBeInTheDocument();
+    });
+    expect(screen.getByText('90d')).toBeInTheDocument();
   });
 });
 
@@ -221,6 +292,8 @@ describe('Health page – login gate', () => {
       ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
       LineChart: () => <div />,
       Line: () => null,
+      BarChart: () => <div />,
+      Bar: () => null,
     }));
     vi.doMock('@tanstack/react-query', () => ({
       useQuery: () => ({ data: [], isLoading: false }),
@@ -236,11 +309,17 @@ describe('Health page – login gate', () => {
         system: ['health', 'system'],
         history: (metric: string, hours: number) => ['health', 'history', metric, hours],
         resend: ['health', 'resend'],
+        apiPerformance: ['health', 'api-performance'],
+        infra: ['health', 'infra'],
+        growth: (days: number) => ['health', 'growth', days],
       },
       useHealthStatus: () => ({ data: undefined, isLoading: false }),
       useSystemMetrics: () => ({ data: undefined }),
       useMetricHistory: () => ({ data: [] }),
       useResendQuota: () => ({ data: undefined }),
+      useApiPerformance: () => ({ data: undefined }),
+      useInfraMetrics: () => ({ data: undefined }),
+      useGrowthData: () => ({ data: undefined }),
     }));
     vi.doMock('@/contexts/auth-context', () => ({
       useAuth: () => ({ isAuthenticated: false, isLoading: false }),
@@ -283,6 +362,8 @@ describe('Health page – loading state', () => {
       ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
       LineChart: () => <div />,
       Line: () => null,
+      BarChart: () => <div />,
+      Bar: () => null,
     }));
     vi.doMock('@tanstack/react-query', () => ({
       useQuery: () => ({ data: [], isLoading: false }),
@@ -298,11 +379,17 @@ describe('Health page – loading state', () => {
         system: ['health', 'system'],
         history: (metric: string, hours: number) => ['health', 'history', metric, hours],
         resend: ['health', 'resend'],
+        apiPerformance: ['health', 'api-performance'],
+        infra: ['health', 'infra'],
+        growth: (days: number) => ['health', 'growth', days],
       },
       useHealthStatus: () => ({ data: undefined, isLoading: true }),
       useSystemMetrics: () => ({ data: undefined }),
       useMetricHistory: () => ({ data: [] }),
       useResendQuota: () => ({ data: undefined }),
+      useApiPerformance: () => ({ data: undefined }),
+      useInfraMetrics: () => ({ data: undefined }),
+      useGrowthData: () => ({ data: undefined }),
     }));
     vi.doMock('@/contexts/auth-context', () => ({
       useAuth: () => ({ isAuthenticated: false, isLoading: false }),

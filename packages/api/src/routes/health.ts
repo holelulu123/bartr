@@ -1,7 +1,7 @@
 import os from 'node:os';
 import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota } from '@bartr/shared';
+import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
 import { getLatestSample } from '../lib/metrics-collector.js';
 
 const startedAt = Date.now();
@@ -9,6 +9,8 @@ const PRICE_STALE_MS = 10 * 60_000; // 10 minutes
 
 const VALID_METRICS = new Set([
   'ram', 'disk', 'disk_read', 'disk_write', 'net_rx', 'net_tx',
+  'resp_time_p50', 'resp_time_p95', 'req_rate', 'error_rate',
+  'redis_mem', 'pg_conns',
 ]);
 
 function isValidMetric(m: string): boolean {
@@ -131,7 +133,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
     const { metric, hours } = request.query as { metric?: string; hours?: string };
 
     if (!metric || !isValidMetric(metric)) {
-      return reply.status(400).send({ error: 'Invalid metric. Use cpu:N, ram, disk, disk_read, disk_write, net_rx, net_tx' });
+      return reply.status(400).send({ error: 'Invalid metric' });
     }
 
     const h = Math.min(Math.max(parseFloat(hours || '6'), 0.1), 336); // max 14 days
@@ -167,6 +169,68 @@ export default async function healthRoutes(fastify: FastifyInstance) {
     };
 
     return reply.send(response);
+  });
+
+  // ── GET /health/api-performance — live API perf snapshot ────────────────
+  fastify.get('/health/api-performance', async (_request, reply) => {
+    const response: ApiPerformanceMetrics = {
+      resp_time_p50: getLatestSample('resp_time_p50'),
+      resp_time_p95: getLatestSample('resp_time_p95'),
+      req_rate: getLatestSample('req_rate'),
+      error_rate: getLatestSample('error_rate'),
+    };
+    return reply.send(response);
+  });
+
+  // ── GET /health/infra — live infrastructure snapshot ────────────────────
+  fastify.get('/health/infra', async (_request, reply) => {
+    const response: InfraMetrics = {
+      redis_mem_bytes: getLatestSample('redis_mem'),
+      pg_connections: getLatestSample('pg_conns'),
+    };
+    return reply.send(response);
+  });
+
+  // ── GET /health/growth — daily counts from DB ──────────────────────────
+  fastify.get('/health/growth', async (request, reply) => {
+    const { days: daysParam } = request.query as { days?: string };
+    const days = Math.min(Math.max(parseInt(daysParam || '30', 10), 1), 365);
+
+    try {
+      const [usersRes, listingsRes, messagesRes] = await Promise.all([
+        fastify.pg.query(
+          `SELECT DATE(created_at) AS date, COUNT(*)::int AS count
+           FROM users WHERE created_at >= NOW() - $1::int * INTERVAL '1 day'
+           GROUP BY DATE(created_at) ORDER BY date`,
+          [days],
+        ),
+        fastify.pg.query(
+          `SELECT DATE(created_at) AS date, COUNT(*)::int AS count
+           FROM listings WHERE created_at >= NOW() - $1::int * INTERVAL '1 day'
+           GROUP BY DATE(created_at) ORDER BY date`,
+          [days],
+        ),
+        fastify.pg.query(
+          `SELECT DATE(created_at) AS date, COUNT(*)::int AS count
+           FROM messages WHERE created_at >= NOW() - $1::int * INTERVAL '1 day'
+           GROUP BY DATE(created_at) ORDER BY date`,
+          [days],
+        ),
+      ]);
+
+      const toDaily = (rows: Array<{ date: string; count: number }>) =>
+        rows.map((r) => ({ date: new Date(r.date).toISOString().split('T')[0], count: r.count }));
+
+      const response: GrowthData = {
+        users: toDaily(usersRes.rows),
+        listings: toDaily(listingsRes.rows),
+        messages: toDaily(messagesRes.rows),
+      };
+
+      return reply.send(response);
+    } catch {
+      return reply.status(500).send({ error: 'Failed to query growth data' });
+    }
   });
 }
 
