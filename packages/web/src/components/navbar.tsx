@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Info, ShieldCheck, Moon, Sun, User, Package, BarChart2, Settings, LogOut } from 'lucide-react';
@@ -48,7 +49,8 @@ export function Navbar() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
         {/* Logo */}
-        <Link href="/" className="mr-6 flex items-center space-x-2 font-bold text-primary text-lg">
+        <Link href="/" className="mr-6 flex items-center gap-2 font-bold text-primary text-lg">
+          <Image src="/logo.png" alt="" width={28} height={28} className="h-7 w-7" />
           {APP_NAME}
         </Link>
 

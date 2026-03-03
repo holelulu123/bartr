@@ -13,6 +13,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Bartr — P2P Marketplace',
   description: 'A peer-to-peer crypto and barter marketplace. No KYC, no escrow.',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
