@@ -12,8 +12,7 @@ declare module 'fastify' {
   }
 }
 
-const MONTHLY_LIMIT = 3000;
-const REDIS_KEY = 'resend:monthly_count';
+const MONTHLY_LIMIT = parseInt(process.env.RESEND_MONTHLY_LIMIT || '3000', 10);
 
 export default fp(async (fastify) => {
   if (!env.resendApiKey) {
@@ -23,12 +22,7 @@ export default fp(async (fastify) => {
         fastify.log.info({ to, code }, 'MOCK: would send verification email');
       },
       async getQuota() {
-        let sent = 0;
-        try {
-          const val = await fastify.redis.get(REDIS_KEY);
-          if (val) sent = parseInt(val, 10);
-        } catch { /* ignore */ }
-        return { sent, limit: MONTHLY_LIMIT };
+        return { sent: 0, limit: MONTHLY_LIMIT };
       },
     } satisfies ResendService);
     return;
@@ -56,37 +50,54 @@ export default fp(async (fastify) => {
       });
 
       if (error) throw new Error(error.message);
-
-      // Increment monthly counter with auto-expire at month end
-      const now = new Date();
-      const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-      const ttl = Math.ceil((nextMonth.getTime() - now.getTime()) / 1000);
-
-      const pipeline = fastify.redis.pipeline();
-      pipeline.incr(REDIS_KEY);
-      pipeline.expire(REDIS_KEY, ttl);
-      await pipeline.exec();
     },
 
     async getQuota() {
-      // Hit a lightweight Resend endpoint to get fresh quota headers
+      // Count emails sent this month via the Resend list endpoint
       try {
-        const res = await fetch('https://api.resend.com/emails?limit=1', {
-          headers: { Authorization: `Bearer ${env.resendApiKey}` },
-        });
-        const quota = res.headers.get('x-resend-monthly-quota');
-        if (quota) {
-          return { sent: parseInt(quota, 10), limit: MONTHLY_LIMIT };
-        }
-      } catch { /* fall through to Redis */ }
+        const now = new Date();
+        const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
-      // Fallback: manual counter
-      let sent = 0;
-      try {
-        const val = await fastify.redis.get(REDIS_KEY);
-        if (val) sent = parseInt(val, 10);
-      } catch { /* ignore */ }
-      return { sent, limit: MONTHLY_LIMIT };
+        let sent = 0;
+        let cursor: string | undefined;
+        let hasMore = true;
+
+        while (hasMore) {
+          const url = new URL('https://api.resend.com/emails');
+          url.searchParams.set('limit', '100');
+          if (cursor) url.searchParams.set('after', cursor);
+
+          const res = await fetch(url.toString(), {
+            headers: { Authorization: `Bearer ${env.resendApiKey}` },
+          });
+          if (!res.ok) break;
+
+          const body = await res.json() as {
+            data: { id: string; created_at: string }[];
+            has_more: boolean;
+          };
+
+          for (const email of body.data) {
+            if (new Date(email.created_at) >= monthStart) {
+              sent++;
+            } else {
+              // Emails are returned newest-first; once we see one before this month, stop
+              hasMore = false;
+              break;
+            }
+          }
+
+          if (hasMore && body.has_more && body.data.length > 0) {
+            cursor = body.data[body.data.length - 1].id;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return { sent, limit: MONTHLY_LIMIT };
+      } catch {
+        return { sent: 0, limit: MONTHLY_LIMIT };
+      }
     },
   } satisfies ResendService);
 });
