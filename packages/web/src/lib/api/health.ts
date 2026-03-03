@@ -1,18 +1,21 @@
-import { get } from './client';
 import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota } from '@bartr/shared';
 
-export function getHealth() {
-  return get<HealthResponse>('/health');
+export async function getHealth(): Promise<HealthResponse> {
+  const res = await fetch('/api/health', { cache: 'no-store' });
+  return res.json();
 }
 
-export function getSystemMetrics() {
-  return get<SystemMetrics>('/health/system');
+export async function getSystemMetrics(): Promise<SystemMetrics> {
+  const res = await fetch('/api/health/system', { cache: 'no-store' });
+  return res.json();
 }
 
-export function getMetricHistory(metric: string, hours: number) {
-  return get<MetricSample[]>(`/health/history?metric=${encodeURIComponent(metric)}&hours=${hours}`);
+export async function getMetricHistory(metric: string, hours: number): Promise<MetricSample[]> {
+  const res = await fetch(`/api/health/history?metric=${encodeURIComponent(metric)}&hours=${hours}`, { cache: 'no-store' });
+  return res.json();
 }
 
-export function getResendQuota() {
-  return get<ResendQuota>('/health/resend');
+export async function getResendQuota(): Promise<ResendQuota> {
+  const res = await fetch('/api/health/resend', { cache: 'no-store' });
+  return res.json();
 }

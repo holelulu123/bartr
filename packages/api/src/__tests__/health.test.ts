@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { buildApp } from '../app.js';
+import { _resetFailedAttempts } from '../routes/health.js';
+import argon2 from 'argon2';
 import type { FastifyInstance } from 'fastify';
 import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota } from '@bartr/shared';
 
@@ -148,5 +150,86 @@ describe('GET /health/resend', () => {
     expect(body.resets_at).toBeTruthy();
     // resets_at should be a valid ISO date
     expect(new Date(body.resets_at).getTime()).toBeGreaterThan(0);
+  });
+});
+
+describe('Health Basic Auth', () => {
+  const TEST_USERNAME = 'admin';
+  const TEST_PASSWORD = 'test-health-password';
+  let passwordHash: string;
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    passwordHash = await argon2.hash(TEST_PASSWORD);
+  });
+
+  beforeEach(async () => {
+    _resetFailedAttempts();
+    process.env.HEALTH_PASSWORD_HASH = passwordHash;
+    process.env.HEALTH_USERNAME = TEST_USERNAME;
+    app = await buildApp({ skipRateLimit: true });
+    await app.ready();
+  });
+
+  afterEach(async () => {
+    delete process.env.HEALTH_PASSWORD_HASH;
+    delete process.env.HEALTH_USERNAME;
+    await app.close();
+  });
+
+  function basicAuth(user: string, pass: string): string {
+    return 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
+  }
+
+  it('returns 401 without auth header on /health', async () => {
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe('Basic realm="Health"');
+  });
+
+  it('returns 401 with wrong password', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { authorization: basicAuth(TEST_USERNAME, 'wrong-password') },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 200 with correct credentials', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { authorization: basicAuth(TEST_USERNAME, TEST_PASSWORD) },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('returns 401 on /health/system without auth', async () => {
+    const res = await app.inject({ method: 'GET', url: '/health/system' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 401 on /health/resend without auth', async () => {
+    const res = await app.inject({ method: 'GET', url: '/health/resend' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 429 on rapid retry after failed attempt', async () => {
+    // First: fail authentication
+    await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { authorization: basicAuth(TEST_USERNAME, 'wrong') },
+    });
+
+    // Immediate retry with correct creds should be blocked by cooldown
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { authorization: basicAuth(TEST_USERNAME, TEST_PASSWORD) },
+    });
+    expect(res.statusCode).toBe(429);
+    expect(res.headers['retry-after']).toBeTruthy();
   });
 });
