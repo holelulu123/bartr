@@ -36,9 +36,63 @@ const Line = dynamic(
   { ssr: false },
 );
 
+function isMidnight(ts: number): boolean {
+  const d = new Date(ts);
+  return d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
+}
+
 function formatTime(ts: number): string {
   const d = new Date(ts);
+  if (isMidnight(ts)) {
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    const yy = String(d.getUTCFullYear()).slice(-2);
+    return `${mm}-${dd}-${yy}`;
+  }
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
+}
+
+/** Build custom ticks that include midnight boundaries so date labels appear on day changes. */
+function buildTicks(data: { timestamp: number }[], tickCount = 6): number[] {
+  if (data.length === 0) return [];
+  const min = data[0].timestamp;
+  const max = data[data.length - 1].timestamp;
+
+  // Collect midnight timestamps within the range
+  const midnights: number[] = [];
+  const startDay = new Date(min);
+  startDay.setUTCHours(0, 0, 0, 0);
+  let cursor = startDay.getTime();
+  // Advance to the first midnight strictly after min
+  if (cursor <= min) cursor += 86_400_000;
+  while (cursor < max) {
+    midnights.push(cursor);
+    cursor += 86_400_000;
+  }
+
+  // Generate evenly spaced ticks
+  const step = (max - min) / (tickCount - 1);
+  const regular: number[] = [];
+  for (let i = 0; i < tickCount; i++) {
+    regular.push(Math.round(min + step * i));
+  }
+
+  // Merge: replace the closest regular tick with each midnight
+  const ticks = [...regular];
+  for (const m of midnights) {
+    let closestIdx = 0;
+    let closestDist = Infinity;
+    for (let i = 0; i < ticks.length; i++) {
+      const dist = Math.abs(ticks[i] - m);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestIdx = i;
+      }
+    }
+    ticks[closestIdx] = m;
+  }
+
+  return [...new Set(ticks)].sort((a, b) => a - b);
 }
 
 function formatBytes(bytes: number): string {
@@ -83,6 +137,10 @@ export function MetricChart({ title, data, unit = 'percent', color = '#f97316', 
             <AreaChart data={data}>
               <XAxis
                 dataKey="timestamp"
+                type="number"
+                domain={['dataMin', 'dataMax']}
+                scale="time"
+                ticks={buildTicks(data)}
                 tickFormatter={formatTime}
                 tick={{ fill: '#737373', fontSize: 10 }}
                 axisLine={false}
@@ -159,6 +217,10 @@ export function MultiLineChart({ title, series, unit = 'percent', yMax }: MultiL
             <LineChart data={data}>
               <XAxis
                 dataKey="timestamp"
+                type="number"
+                domain={['dataMin', 'dataMax']}
+                scale="time"
+                ticks={buildTicks(data)}
                 tickFormatter={formatTime}
                 tick={{ fill: '#737373', fontSize: 10 }}
                 axisLine={false}
