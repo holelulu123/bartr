@@ -14,7 +14,6 @@ declare module 'fastify' {
 
 const MONTHLY_LIMIT = 3000;
 const REDIS_KEY = 'resend:monthly_count';
-const REDIS_ACTUAL_KEY = 'resend:monthly_quota_actual';
 
 export default fp(async (fastify) => {
   if (!env.resendApiKey) {
@@ -41,7 +40,7 @@ export default fp(async (fastify) => {
 
   fastify.decorate('resend', {
     async sendVerificationEmail(to: string, code: string) {
-      const result = await client.emails.send({
+      const { error } = await client.emails.send({
         from: env.resendFromEmail,
         to,
         subject: 'bartr — Verify your email',
@@ -56,6 +55,8 @@ export default fp(async (fastify) => {
 </div>`.trim(),
       });
 
+      if (error) throw new Error(error.message);
+
       // Increment monthly counter with auto-expire at month end
       const now = new Date();
       const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
@@ -64,25 +65,24 @@ export default fp(async (fastify) => {
       const pipeline = fastify.redis.pipeline();
       pipeline.incr(REDIS_KEY);
       pipeline.expire(REDIS_KEY, ttl);
-
-      // Store actual quota from Resend API headers if available
-      const quota = result.headers?.['x-resend-monthly-quota'];
-      if (quota) {
-        pipeline.set(REDIS_ACTUAL_KEY, quota, 'EX', ttl);
-      }
-
       await pipeline.exec();
     },
 
     async getQuota() {
+      // Hit a lightweight Resend endpoint to get fresh quota headers
+      try {
+        const res = await fetch('https://api.resend.com/emails?limit=1', {
+          headers: { Authorization: `Bearer ${env.resendApiKey}` },
+        });
+        const quota = res.headers.get('x-resend-monthly-quota');
+        if (quota) {
+          return { sent: parseInt(quota, 10), limit: MONTHLY_LIMIT };
+        }
+      } catch { /* fall through to Redis */ }
+
+      // Fallback: manual counter
       let sent = 0;
       try {
-        // Prefer actual quota from Resend API headers over manual counter
-        const actual = await fastify.redis.get(REDIS_ACTUAL_KEY);
-        if (actual) {
-          sent = parseInt(actual, 10);
-          return { sent, limit: MONTHLY_LIMIT };
-        }
         const val = await fastify.redis.get(REDIS_KEY);
         if (val) sent = parseInt(val, 10);
       } catch { /* ignore */ }
