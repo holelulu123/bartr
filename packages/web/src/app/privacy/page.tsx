@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BrandName } from '@/components/brand-name';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy — Bartr',
@@ -109,7 +110,7 @@ export default function PrivacyPage() {
           <Section title="8. Changes to this policy">
             <p>
               We may update this policy. When we do, we will update the &quot;Last updated&quot; date
-              at the top. Continued use of Bartr after changes constitutes acceptance of the
+              at the top. Continued use of <BrandName /> after changes constitutes acceptance of the
               updated policy.
             </p>
           </Section>
@@ -124,7 +125,7 @@ export default function PrivacyPage() {
 
         <div className="mt-12 flex gap-4">
           <Link href="/about" className="text-orange-400 hover:text-orange-300 text-sm">
-            About Bartr &rarr;
+            About <BrandName /> &rarr;
           </Link>
           <Link href="/" className="text-neutral-500 hover:text-neutral-300 text-sm">
             &larr; Home

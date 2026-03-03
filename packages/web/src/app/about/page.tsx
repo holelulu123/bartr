@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BrandName } from '@/components/brand-name';
 
 export const metadata: Metadata = {
   title: 'About — Bartr',
@@ -10,14 +11,14 @@ export default function AboutPage() {
   return (
     <div className="px-4 py-16">
       <div className="mx-auto max-w-2xl prose prose-invert prose-neutral">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">About Bartr</h1>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">About <BrandName /></h1>
         <p className="text-neutral-400 text-lg mb-10">
           A free, privacy-first P2P marketplace and crypto exchange. No company. No fees. No surveillance.
         </p>
 
-        <Section title="What is Bartr?">
+        <Section title={<>What is <BrandName />?</>}>
           <p>
-            Bartr is a bulletin-board-style marketplace and peer-to-peer crypto exchange where
+            <BrandName /> is a bulletin-board-style marketplace and peer-to-peer crypto exchange where
             people can buy, sell, and trade goods, services, and cryptocurrencies without an
             intermediary. There is no escrow, no centrally-held funds, and no mandatory ID
             verification.
@@ -35,12 +36,12 @@ export default function AboutPage() {
             to authorities on request.
           </p>
           <p>
-            We believe commerce should be private by default. Bartr was built to give people a
+            We believe commerce should be private by default. <BrandName /> was built to give people a
             space to trade freely, without leaving a dossier behind.
           </p>
           <p>
             We also truly believe that cryptographic currencies have the potential to make the
-            monetary system more efficient, transparent, and accessible to everyone. Bartr exists
+            monetary system more efficient, transparent, and accessible to everyone. <BrandName /> exists
             to bring real utility to crypto — not just speculation, but actual peer-to-peer
             commerce and exchange.
           </p>
@@ -62,7 +63,7 @@ export default function AboutPage() {
 
         <Section title="Revenue model">
           <p>
-            There is none. Bartr is a community project funded entirely by{' '}
+            There is none. <BrandName /> is a community project funded entirely by{' '}
             <Link href="/donate" className="text-orange-400 hover:text-orange-300">
               voluntary donations
             </Link>
@@ -75,7 +76,7 @@ export default function AboutPage() {
             Privacy policy &rarr;
           </Link>
           <Link href="/donate" className="text-orange-400 hover:text-orange-300 text-sm">
-            Support Bartr &rarr;
+            Support <BrandName /> &rarr;
           </Link>
         </div>
       </div>
@@ -83,7 +84,7 @@ export default function AboutPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="mb-10">
       <h2 className="text-xl font-semibold mb-3">{title}</h2>

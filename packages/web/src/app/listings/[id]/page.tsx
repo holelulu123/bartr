@@ -27,6 +27,7 @@ import { PAYMENT_METHOD_LABELS, LISTING_CONDITION_LABELS, getFiatFlag } from '@b
 import type { ListingCondition } from '@bartr/shared';
 import { CoinIcon } from '@/components/crypto-icons';
 import type { ListingDetail } from '@/lib/api';
+import { BrandName } from '@/components/brand-name';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -390,7 +391,7 @@ export default function ListingDetailPage() {
           </DialogHeader>
           {reportSuccess ? (
             <p className="text-sm text-green-500 py-2" role="status" data-testid="report-success">
-              Report submitted. Thank you for helping keep Bartr safe.
+              Report submitted. Thank you for helping keep <BrandName /> safe.
             </p>
           ) : (
             <div className="space-y-3">

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import QRCode from 'react-qr-code';
 import Image from 'next/image';
 import { Copy, Check } from 'lucide-react';
+import { BrandName } from '@/components/brand-name';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -111,9 +112,9 @@ export default function DonatePage() {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold tracking-tight mb-4">Support Bartr</h1>
+          <h1 className="text-4xl font-bold tracking-tight mb-4">Support <BrandName /></h1>
           <p className="text-neutral-400 text-lg max-w-xl mx-auto">
-            Bartr is a free, volunteer-run, privacy-first marketplace and P2P crypto exchange with no
+            <BrandName /> is a free, volunteer-run, privacy-first marketplace and P2P crypto exchange with no
             fees, no KYC, and no ads.
           </p>
           <p className="text-neutral-400 text-lg max-w-xl mx-auto mt-3">
@@ -195,7 +196,7 @@ export default function DonatePage() {
         {/* Back link */}
         <div className="text-center mt-12">
           <Link href="/" className="text-neutral-500 hover:text-neutral-300 transition text-sm">
-            &larr; Back to Bartr
+            &larr; Back to <BrandName />
           </Link>
         </div>
       </div>

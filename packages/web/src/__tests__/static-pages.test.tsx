@@ -49,7 +49,7 @@ describe('About page', () => {
   it('renders key sections', async () => {
     const { default: AboutPage } = await import('@/app/about/page');
     render(<AboutPage />);
-    expect(screen.getByText(/what is bartr/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /what is bartr/i })).toBeInTheDocument();
     expect(screen.getByText(/why we built it/i)).toBeInTheDocument();
     expect(screen.getByText(/revenue model/i)).toBeInTheDocument();
   });

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { BrandName } from '@/components/brand-name';
 
 export const metadata: Metadata = {
   title: 'Safety Tips — Bartr',
@@ -24,7 +25,7 @@ export default function TipsPage() {
       <div className="mx-auto max-w-2xl prose prose-invert prose-neutral">
         <h1 className="text-3xl font-bold tracking-tight mb-2">Safety Tips</h1>
         <p className="text-neutral-400 text-lg mb-10">
-          Bartr is a peer-to-peer platform with no escrow. Your safety is your responsibility.
+          <BrandName /> is a peer-to-peer platform with no escrow. Your safety is your responsibility.
           Follow these tips to protect yourself.
         </p>
 
