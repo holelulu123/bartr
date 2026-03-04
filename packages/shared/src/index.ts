@@ -216,3 +216,18 @@ const FIAT_FLAG_MAP = Object.fromEntries(FIAT_CURRENCIES.map((c) => [c.code, c.f
 export function getFiatFlag(code: string): string {
   return FIAT_FLAG_MAP[code] ?? '💱';
 }
+
+const FIAT_SYMBOL_MAP: Record<string, string> = {
+  USD: '$', EUR: '€', ILS: '₪', GBP: '£', CAD: 'C$', AUD: 'A$',
+  JPY: '¥', CHF: 'CHF', CNY: '¥', INR: '₹', KRW: '₩', BRL: 'R$',
+  MXN: 'MX$', SGD: 'S$', HKD: 'HK$', NOK: 'kr', SEK: 'kr', DKK: 'kr',
+  PLN: 'zł', CZK: 'Kč', HUF: 'Ft', RON: 'lei', TRY: '₺', ZAR: 'R',
+  THB: '฿', TWD: 'NT$', PHP: '₱', IDR: 'Rp', MYR: 'RM', VND: '₫',
+  AED: 'د.إ', SAR: '﷼', ARS: 'AR$', CLP: 'CL$', COP: 'CO$', PEN: 'S/.',
+  NGN: '₦', KES: 'KSh', EGP: 'E£', PKR: '₨', BDT: '৳', UAH: '₴',
+  GEL: '₾', AMD: '֏', NZD: 'NZ$', ISK: 'kr',
+};
+
+export function getFiatSymbol(code: string): string {
+  return FIAT_SYMBOL_MAP[code] ?? code;
+}

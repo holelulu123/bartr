@@ -19,10 +19,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
+import { SETTLEMENT_METHOD_LABELS, CRYPTO_PAYMENT_METHODS } from '@bartr/shared';
 import type { OfferType, SettlementMethod } from '@bartr/shared';
 
-const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_METHOD_LABELS) as [SettlementMethod, string][];
+const CRYPTO_KEYS = new Set<string>(CRYPTO_PAYMENT_METHODS);
+const SETTLEMENT_OPTIONS = (Object.entries(SETTLEMENT_METHOD_LABELS) as [SettlementMethod, string][])
+  .filter(([key]) => !CRYPTO_KEYS.has(key));
 
 export default function ExchangePage() {
   const { isAuthenticated } = useAuth();
@@ -64,7 +66,7 @@ export default function ExchangePage() {
   const offers = data?.offers ?? [];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-[1500px] mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -151,11 +153,11 @@ export default function ExchangePage() {
 
         {/* Settlement method */}
         <Select value={paymentMethod || 'all'} onValueChange={(v) => setPaymentMethod(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-full sm:w-44" aria-label="Settlement method">
+          <SelectTrigger className="w-full sm:w-56" aria-label="Settlement method">
             <SelectValue placeholder="Settlement" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Any method</SelectItem>
+            <SelectItem value="all">All payment methods</SelectItem>
             {SETTLEMENT_OPTIONS.map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}
@@ -187,6 +189,17 @@ export default function ExchangePage() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Column headers */}
+      <div className="hidden md:grid items-center gap-3 px-4 py-2 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider grid-cols-[75px_1.2fr_1fr_180px_140px_1fr_90px]">
+        <span>{offerType === 'buy' ? 'Buyer' : offerType === 'sell' ? 'Seller' : 'Type'}</span>
+        <span className="text-center">Trader</span>
+        <span>Limit</span>
+        <span>Price</span>
+        <span>Payment</span>
+        <span>Offer Details</span>
+        <span />
       </div>
 
       {/* Offers list */}

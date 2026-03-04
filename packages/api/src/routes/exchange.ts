@@ -241,7 +241,8 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       const result = await fastify.pg.query(
         `SELECT eo.*, u.nickname as seller_nickname,
                 COALESCE(rs.rating_avg, 0) as seller_rating_avg,
-                COALESCE(rs.tier, 'new') as seller_tier
+                COALESCE(rs.tier, 'new') as seller_tier,
+                (SELECT COUNT(*) FROM trades t WHERE (t.buyer_id = eo.user_id OR t.seller_id = eo.user_id) AND t.status = 'completed')::int as seller_trade_count
          FROM exchange_offers eo
          JOIN users u ON u.id = eo.user_id
          LEFT JOIN reputation_scores rs ON rs.user_id = eo.user_id
@@ -268,7 +269,8 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       const result = await fastify.pg.query(
         `SELECT eo.*, u.nickname as seller_nickname,
                 COALESCE(rs.rating_avg, 0) as seller_rating_avg,
-                COALESCE(rs.tier, 'new') as seller_tier
+                COALESCE(rs.tier, 'new') as seller_tier,
+                (SELECT COUNT(*) FROM trades t WHERE (t.buyer_id = eo.user_id OR t.seller_id = eo.user_id) AND t.status = 'completed')::int as seller_trade_count
          FROM exchange_offers eo
          JOIN users u ON u.id = eo.user_id
          LEFT JOIN reputation_scores rs ON rs.user_id = eo.user_id

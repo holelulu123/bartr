@@ -313,6 +313,7 @@ export interface ExchangeOffer {
   seller_nickname: string;
   seller_rating_avg: number;
   seller_tier: string;
+  seller_trade_count: number;
 }
 
 export interface CreateOfferPayload {

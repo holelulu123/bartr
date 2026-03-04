@@ -134,7 +134,7 @@ export default function MarketPage() {
   const hasFilters = !!(q || category || paymentMethod || country);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-[1500px] mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -265,7 +265,7 @@ export default function MarketPage() {
           Failed to load listings. Please try again.
         </div>
       ) : isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <ListingCardSkeleton key={i} />
           ))}
@@ -287,7 +287,7 @@ export default function MarketPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
             {allListings.map((listing) => (
               <ListingCard key={listing.id} listing={listing} />
             ))}

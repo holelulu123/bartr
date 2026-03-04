@@ -118,10 +118,10 @@ describe('ListingCard', () => {
     expect(screen.getByText('Test Listing')).toBeInTheDocument();
   });
 
-  it('renders price and currency with flag', () => {
+  it('renders price and currency code', () => {
     render(<ListingCard listing={makeListing()} />);
     expect(screen.getByText('100')).toBeInTheDocument();
-    expect(screen.getByText(/USD/)).toBeInTheDocument();
+    expect(screen.getByText('USD')).toBeInTheDocument();
   });
 
   it('renders payment method badges', () => {

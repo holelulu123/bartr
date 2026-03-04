@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { CryptoPaymentMethod, ListingCondition } from '@bartr/shared';
-import { LISTING_CONDITION_LABELS, CRYPTO_PAYMENT_METHODS, CRYPTO_PAYMENT_METHOD_LABELS, FIAT_CURRENCIES, getFiatFlag } from '@bartr/shared';
+import { LISTING_CONDITION_LABELS, CRYPTO_PAYMENT_METHODS, CRYPTO_PAYMENT_METHOD_LABELS, FIAT_CURRENCIES } from '@bartr/shared';
 import type { ElementType } from 'react';
 
 const CRYPTO_OPTIONS: { value: CryptoPaymentMethod; label: string }[] =
@@ -223,6 +223,11 @@ function CreateListingForm() {
 
     if (!selectedCountry) {
       setServerError('Please select a country.');
+      return;
+    }
+
+    if (images.length === 0) {
+      setServerError('Please add at least one image.');
       return;
     }
 
