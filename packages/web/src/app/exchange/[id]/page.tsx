@@ -38,6 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ApiError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
 import type { SettlementMethod } from '@bartr/shared';
@@ -103,16 +104,22 @@ function OfferDetailSkeleton() {
 function TradeProposalRow({
   trade,
   fiatCurrency,
+  cryptoCurrency,
+  offerId,
   onSelect,
   isSelected,
 }: {
   trade: TradeSummary;
   fiatCurrency: string;
+  cryptoCurrency: string;
+  offerId: string;
   onSelect: () => void;
   isSelected: boolean;
 }) {
   const acceptTrade = useAcceptTrade();
   const declineTrade = useDeclineTrade();
+  const createThread = useCreateThread();
+  const { encrypt } = useCrypto();
 
   const statusColors: Record<string, string> = {
     offered: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
@@ -170,7 +177,26 @@ function TradeProposalRow({
             variant="outline"
             className="flex-1 h-7 text-xs"
             disabled={acceptTrade.isPending || declineTrade.isPending}
-            onClick={() => declineTrade.mutate(trade.id)}
+            onClick={async () => {
+              await declineTrade.mutateAsync(trade.id);
+              // Send system message about decline
+              const methodLabel = trade.payment_method
+                ? (SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method)
+                : '';
+              const details = trade.fiat_amount
+                ? `${fmt(trade.fiat_amount)} ${fiatCurrency} for ${cryptoCurrency}${methodLabel ? ` via ${methodLabel}` : ''}`
+                : '';
+              const autoMsg = `[SYSTEM] Declined: ${details}`;
+              try {
+                const thread = await createThread.mutateAsync({
+                  recipient_nickname: trade.buyer_nickname,
+                  offer_id: offerId,
+                });
+                const { public_key } = await usersApi.getUserPublicKey(trade.buyer_nickname);
+                const encrypted = await encrypt(autoMsg, public_key);
+                await messagesApi.sendMessage(thread.id, encrypted);
+              } catch { /* non-critical */ }
+            }}
           >
             <X className="h-3 w-3 mr-1" />
             Decline
@@ -275,7 +301,9 @@ function MakeOfferForm({
 
       onTradeCreated(trade.id, thread.id);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to create trade';
+      const message = err instanceof ApiError && err.body && typeof err.body === 'object' && 'error' in err.body
+        ? String((err.body as { error: string }).error)
+        : err instanceof Error ? err.message : 'Failed to create trade';
       setError(message);
       triggerShake();
     }
@@ -360,9 +388,11 @@ function MakeOfferForm({
             </Button>
 
             {/* Error below button */}
-            <p className={cn('text-xs h-4', (rangeError || error) ? 'text-destructive' : 'invisible')}>
-              {rangeError || error || '\u00A0'}
-            </p>
+            <div className="relative h-4">
+              <p className={cn('absolute inset-x-0 top-0 text-xs', (rangeError || error) ? 'text-destructive' : 'invisible')}>
+                {rangeError || error || '\u00A0'}
+              </p>
+            </div>
           </div>
 
           {/* Right: safety tips spanning both rows */}
@@ -771,6 +801,8 @@ export default function OfferDetailPage() {
                           key={trade.id}
                           trade={trade}
                           fiatCurrency={offer.fiat_currency}
+                          cryptoCurrency={offer.crypto_currency}
+                          offerId={offer.id}
                           onSelect={() => setSelectedTradeId(trade.id)}
                           isSelected={selectedTradeId === trade.id}
                         />

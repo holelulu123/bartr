@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, AlertCircle, ArrowLeftRight } from 'lucide-react';
+import { Send, AlertCircle, ArrowLeftRight, XCircle } from 'lucide-react';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
@@ -19,14 +19,37 @@ interface DecryptedMessage extends Message {
 
 function timeLabel(dateStr: string): string {
   const d = new Date(dateStr);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function dateKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${mm}-${dd}-${d.getFullYear()}`;
+}
+
+function DateSeparator({ date }: { date: string }) {
+  const d = new Date(date);
   const now = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  let label: string;
   if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    label = 'Today';
+  } else if (d.toDateString() === yesterday.toDateString()) {
+    label = 'Yesterday';
+  } else {
+    label = dateKey(date);
   }
+
   return (
-    d.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
-    ' ' +
-    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    <div className="flex items-center gap-3 my-3 px-2">
+      <div className="flex-1 h-px bg-border" />
+      <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
+      <div className="flex-1 h-px bg-border" />
+    </div>
   );
 }
 
@@ -34,15 +57,22 @@ const SYSTEM_PREFIX = '[SYSTEM] ';
 
 function SystemMessage({ msg, isOwn }: { msg: DecryptedMessage; isOwn: boolean }) {
   let text = msg.body.slice(SYSTEM_PREFIX.length);
-  // Replace neutral "Offer:" with directional label
+  let icon = <ArrowLeftRight className="h-3.5 w-3.5 text-primary shrink-0" />;
+
+  // Replace neutral labels with directional ones
   if (text.startsWith('Offer: ')) {
     const details = text.slice('Offer: '.length);
     text = isOwn ? `Offer sent: ${details}` : `Offer received: ${details}`;
+  } else if (text.startsWith('Declined: ')) {
+    icon = <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />;
+    const details = text.slice('Declined: '.length);
+    text = isOwn ? `You declined: ${details}` : `Offer declined: ${details}`;
   }
+
   return (
     <div className="flex justify-center mb-3 px-4">
       <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 max-w-[85%]">
-        <ArrowLeftRight className="h-3.5 w-3.5 text-primary shrink-0" />
+        {icon}
         <p className="text-xs text-muted-foreground">{text}</p>
       </div>
     </div>
@@ -211,13 +241,18 @@ export function ChatPanel({ threadId, recipientNickname, contextLabel, className
             No messages yet. Say hello!
           </div>
         ) : (
-          decrypted.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              msg={msg}
-              isOwn={msg.sender_nickname === user?.nickname}
-            />
-          ))
+          decrypted.map((msg, i) => {
+            const showDate = i === 0 || dateKey(msg.created_at) !== dateKey(decrypted[i - 1].created_at);
+            return (
+              <div key={msg.id}>
+                {showDate && <DateSeparator date={msg.created_at} />}
+                <MessageBubble
+                  msg={msg}
+                  isOwn={msg.sender_nickname === user?.nickname}
+                />
+              </div>
+            );
+          })
         )}
         <div ref={bottomRef} />
       </div>

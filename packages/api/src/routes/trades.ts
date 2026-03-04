@@ -107,6 +107,17 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
         return reply.status(409).send({ error: 'You already have an active trade on this offer' });
       }
 
+      // 30-minute cooldown after a declined trade
+      const recentDecline = await fastify.pg.query(
+        "SELECT updated_at FROM trades WHERE offer_id = $1 AND buyer_id = $2 AND status = 'declined' AND updated_at > now() - interval '30 minutes' ORDER BY updated_at DESC LIMIT 1",
+        [offer_id, buyerId],
+      );
+      if (recentDecline.rows.length > 0) {
+        const cooldownEnd = new Date(new Date(recentDecline.rows[0].updated_at).getTime() + 30 * 60_000);
+        const minsLeft = Math.ceil((cooldownEnd.getTime() - Date.now()) / 60_000);
+        return reply.status(429).send({ error: `Your previous offer was declined. Please wait ${minsLeft} minute${minsLeft !== 1 ? 's' : ''} before making a new offer.` });
+      }
+
       const result = await fastify.pg.query(
         `INSERT INTO trades (offer_id, buyer_id, seller_id, status, fiat_amount, payment_method)
          VALUES ($1, $2, $3, 'offered', $4, $5)
