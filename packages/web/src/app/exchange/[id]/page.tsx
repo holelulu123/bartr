@@ -262,7 +262,7 @@ export default function OfferDetailPage() {
         {offer.terms && (
           <div>
             <p className="text-sm text-muted-foreground mb-1">Trade terms</p>
-            <p className="text-[13px] whitespace-pre-wrap">{offer.terms}</p>
+            <p className="text-[13px] whitespace-pre-wrap break-words">{offer.terms}</p>
           </div>
         )}
       </div>

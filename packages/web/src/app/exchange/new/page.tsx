@@ -40,7 +40,7 @@ const PRICE_SOURCES: { value: PriceSource; label: string }[] = [
 const schema = z.object({
   margin_percent: z.string().optional(),
   fixed_price: z.string().optional(),
-  terms: z.string().max(2000, 'Terms too long').optional(),
+  terms: z.string().max(100, 'Terms too long (max 100 characters)').optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -102,6 +102,7 @@ function CreateOfferForm() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -111,10 +112,10 @@ function CreateOfferForm() {
   const watchedMargin = watch('margin_percent');
   const watchedFixedPrice = watch('fixed_price');
 
-  // Live validation for margin and fixed price (inputs are type="text" so raw strings come through)
-  const marginError = watchedMargin !== undefined && watchedMargin !== '' && (!/^-?\d*\.?\d*$/.test(watchedMargin))
-    ? 'Margin must be a number (e.g. 2.5 or -1)'
-    : null;
+  // Margin: max 2 digits before decimal, 2 after, optional leading minus, block invalid input
+  const isValidMargin = (value: string) => value === '' || value === '-' || /^-?\d{0,2}(\.\d{0,2})?$/.test(value);
+
+  // Live validation for fixed price
   const fixedPriceError = watchedFixedPrice !== undefined && watchedFixedPrice !== '' && (!/^\d*\.?\d*$/.test(watchedFixedPrice) || (watchedFixedPrice.trim() !== '' && parseFloat(watchedFixedPrice) <= 0))
     ? 'Price must be a positive number'
     : null;
@@ -186,11 +187,17 @@ function CreateOfferForm() {
 
   function togglePayment(method: SettlementMethod) {
     setSelectedPayments((prev) =>
-      prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method],
+      prev.includes(method) ? prev.filter((m) => m !== method) : prev.length >= 10 ? prev : [...prev, method],
     );
   }
 
   const isValidCity = (value: string) => !/\d/.test(value);
+
+  // Validate fiat trade limits: max 6 digits before decimal, no leading zero, optional 2 decimals (allow empty)
+  const isValidFiatLimit = (value: string) => value === '' || /^[1-9]\d{0,5}(\.\d{0,2})?$/.test(value);
+
+  // Validate crypto trade limits: positive decimal (allow empty)
+  const isValidCryptoLimit = (value: string) => value === '' || /^\d*\.?\d*$/.test(value);
 
   async function handleFindLocation() {
     setGeoError('');
@@ -292,7 +299,7 @@ function CreateOfferForm() {
   const rangeError = !minError && !maxError && activeMin !== '' && activeMax !== '' && !isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum
     ? 'Max must be greater than or equal to min'
     : null;
-  const hasPriceErrors = (rateType === 'market' && !!marginError) || (rateType === 'fixed' && !!fixedPriceError);
+  const hasPriceErrors = (rateType === 'fixed' && !!fixedPriceError);
   const hasLimitErrors = !!minError || !!maxError || !!rangeError;
 
   // Field-level errors shown after first submit attempt
@@ -438,13 +445,13 @@ function CreateOfferForm() {
                 type="text"
                 inputMode="decimal"
                 placeholder="e.g. 2.5"
-                {...register('margin_percent')}
-                className={cn(marginError && 'border-destructive')}
+                value={watchedMargin ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (isValidMargin(val)) setValue('margin_percent', val);
+                }}
               />
-              {marginError
-                ? <p className="text-xs text-destructive">{marginError}</p>
-                : <p className="text-xs text-muted-foreground">Positive = above market, negative = below</p>
-              }
+              <p className="text-xs text-muted-foreground">Positive = above market, negative = below</p>
             </div>
             <div className="space-y-1.5">
               <Label>Effective price</Label>
@@ -520,11 +527,14 @@ function CreateOfferForm() {
                   </Label>
                   <Input
                     id="fiat_min"
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="numeric"
                     placeholder="e.g. 50"
                     value={fiatMin}
-                    onChange={(e) => updateLinkedAmounts('fiat', 'min', e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (isValidFiatLimit(val)) updateLinkedAmounts('fiat', 'min', val);
+                    }}
                     className={cn(minError && 'border-destructive')}
                   />
                   {minError && <p className="text-xs text-destructive">{minError}</p>}
@@ -535,11 +545,14 @@ function CreateOfferForm() {
                   </Label>
                   <Input
                     id="fiat_max"
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="numeric"
                     placeholder="e.g. 10000"
                     value={fiatMax}
-                    onChange={(e) => updateLinkedAmounts('fiat', 'max', e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (isValidFiatLimit(val)) updateLinkedAmounts('fiat', 'max', val);
+                    }}
                     className={cn((maxError || rangeError) && 'border-destructive')}
                   />
                   {maxError && <p className="text-xs text-destructive">{maxError}</p>}
@@ -554,11 +567,14 @@ function CreateOfferForm() {
                   </Label>
                   <Input
                     id="crypto_min"
-                    type="number"
-                    step="0.00000001"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="e.g. 0.001"
                     value={cryptoMin}
-                    onChange={(e) => updateLinkedAmounts('crypto', 'min', e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (isValidCryptoLimit(val)) updateLinkedAmounts('crypto', 'min', val);
+                    }}
                     className={cn(minError && 'border-destructive')}
                   />
                   {minError && <p className="text-xs text-destructive">{minError}</p>}
@@ -569,11 +585,14 @@ function CreateOfferForm() {
                   </Label>
                   <Input
                     id="crypto_max"
-                    type="number"
-                    step="0.00000001"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="e.g. 0.5"
                     value={cryptoMax}
-                    onChange={(e) => updateLinkedAmounts('crypto', 'max', e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (isValidCryptoLimit(val)) updateLinkedAmounts('crypto', 'max', val);
+                    }}
                     className={cn((maxError || rangeError) && 'border-destructive')}
                   />
                   {maxError && <p className="text-xs text-destructive">{maxError}</p>}
@@ -610,9 +629,12 @@ function CreateOfferForm() {
               </button>
             ))}
           </div>
-          {settlementError && (
-            <p className="text-xs text-destructive">{settlementError}</p>
-          )}
+          <p className={cn('text-xs text-destructive', !settlementError && 'invisible')}>
+            {settlementError || 'placeholder'}
+          </p>
+          <p className={cn('text-xs text-destructive -mt-1', selectedPayments.length < 10 && 'invisible')}>
+            Maximum 10 settlement methods allowed
+          </p>
         </div>
 
         {/* Location */}
@@ -659,7 +681,7 @@ function CreateOfferForm() {
                   const val = e.target.value;
                   if (isValidCity(val)) setCity(val);
                 }}
-                maxLength={100}
+                maxLength={30}
               />
             </div>
           </div>
@@ -687,6 +709,7 @@ function CreateOfferForm() {
             id="terms"
             placeholder="Any conditions or instructions for traders..."
             rows={3}
+            maxLength={100}
             {...register('terms')}
           />
           {errors.terms && (

@@ -251,7 +251,7 @@ export function OfferRow({ offer }: OfferRowProps) {
       {/* Offer Details (trade terms) */}
       <div className="hidden md:block min-w-0 overflow-hidden">
         {offer.terms ? (
-          <p className="text-xs text-muted-foreground line-clamp-2 leading-snug">
+          <p className="text-xs text-muted-foreground line-clamp-2 leading-snug break-all">
             {offer.terms}
           </p>
         ) : (

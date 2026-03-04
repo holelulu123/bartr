@@ -111,7 +111,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
 
       // Validate city
       if (city !== undefined && city !== null) {
-        if (typeof city !== 'string' || city.length > 100) {
+        if (typeof city !== 'string' || city.length > 30) {
           return reply.status(400).send({ error: 'City must be a string (max 100 chars)' });
         }
         if (/\d/.test(city)) {
@@ -120,8 +120,8 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       }
 
       // Validate terms length
-      if (terms && terms.length > 2000) {
-        return reply.status(400).send({ error: 'Terms too long (max 2000 characters)' });
+      if (terms && terms.length > 100) {
+        return reply.status(400).send({ error: 'Terms too long (max 100 characters)' });
       }
 
       // Enforce per-user max exchange offers limit
@@ -386,7 +386,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
 
       if (body.city !== undefined) {
         if (body.city !== null) {
-          if (typeof body.city !== 'string' || body.city.length > 100) {
+          if (typeof body.city !== 'string' || body.city.length > 30) {
             return reply.status(400).send({ error: 'City must be a string (max 100 chars)' });
           }
           if (/\d/.test(body.city)) {
@@ -398,8 +398,8 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       }
 
       if (body.terms !== undefined) {
-        if (body.terms !== null && body.terms.length > 2000) {
-          return reply.status(400).send({ error: 'Terms too long (max 2000 characters)' });
+        if (body.terms !== null && body.terms.length > 100) {
+          return reply.status(400).send({ error: 'Terms too long (max 100 characters)' });
         }
         updates.push(`terms = $${paramIdx++}`);
         values.push(body.terms);

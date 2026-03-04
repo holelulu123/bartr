@@ -67,7 +67,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       }
 
       if (city !== undefined && city !== null) {
-        if (typeof city !== 'string' || city.length > 100) {
+        if (typeof city !== 'string' || city.length > 30) {
           return reply.status(400).send({ error: 'City must be a string (max 100 chars)' });
         }
         if (/\d/.test(city)) {
@@ -370,7 +370,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
 
       if (body.city !== undefined) {
         if (body.city !== null) {
-          if (typeof body.city !== 'string' || body.city.length > 100) {
+          if (typeof body.city !== 'string' || body.city.length > 30) {
             return reply.status(400).send({ error: 'City must be a string (max 100 chars)' });
           }
           if (/\d/.test(body.city)) {

@@ -478,7 +478,7 @@ function CreateListingForm() {
                   const val = e.target.value;
                   if (isValidCity(val)) setCity(val);
                 }}
-                maxLength={100}
+                maxLength={30}
               />
             </div>
           </div>
