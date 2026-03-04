@@ -117,10 +117,23 @@ export function OfferRow({ offer }: OfferRowProps) {
     )}>
       {/* Type + pair */}
       <div className="flex flex-col items-start gap-1">
-        <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
-          {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
-          {isBuy ? 'Buy' : 'Sell'}
-        </Badge>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-help">
+                <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
+                  {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
+                  {isBuy ? 'Buy' : 'Sell'}
+                </Badge>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {isBuy
+                ? `${offer.seller_nickname} wants to buy ${offer.crypto_currency} with ${offer.fiat_currency}`
+                : `${offer.seller_nickname} wants to sell ${offer.crypto_currency} for ${offer.fiat_currency}`}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <span className={cn('text-sm font-semibold', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
           {offer.crypto_currency}/{offer.fiat_currency}
         </span>
