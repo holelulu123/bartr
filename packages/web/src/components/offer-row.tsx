@@ -146,8 +146,11 @@ export function OfferRow({ offer }: OfferRowProps) {
           <MiniIdenticon seed={offer.seller_nickname} size={32} />
         </Link>
         <div className="min-w-0 overflow-hidden">
-          {offer.country_code && (
-            <span className="text-xs">{getCountryFlag(offer.country_code)}</span>
+          {(offer.country_code || offer.city) && (
+            <span className="text-xs">
+              {offer.country_code && getCountryFlag(offer.country_code)}
+              {offer.city && ` ${offer.city}`}
+            </span>
           )}
           <Link
             href={`/user/${offer.seller_nickname}`}

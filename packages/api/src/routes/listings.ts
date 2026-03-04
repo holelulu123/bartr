@@ -16,6 +16,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       price_indication?: string;
       currency?: string;
       country_code?: string;
+      city?: string;
       condition?: string;
     };
   }>(
@@ -23,7 +24,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, fastify.requireEmailVerified] },
     async (request, reply) => {
       const userId = request.user!.sub;
-      const { title, description, category_id, payment_methods, price_indication, currency, country_code, condition } =
+      const { title, description, category_id, payment_methods, price_indication, currency, country_code, city, condition } =
         request.body;
 
       if (!title || title.length < 3 || title.length > 200) {
@@ -65,6 +66,15 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'country_code is required and must be a 2-letter ISO code' });
       }
 
+      if (city !== undefined && city !== null) {
+        if (typeof city !== 'string' || city.length > 100) {
+          return reply.status(400).send({ error: 'City must be a string (max 100 chars)' });
+        }
+        if (/\d/.test(city)) {
+          return reply.status(400).send({ error: 'City must not contain numbers' });
+        }
+      }
+
       if (condition !== undefined && condition !== null) {
         const validConditions = ['brand_new', 'like_new', 'good', 'fair', 'for_parts'];
         if (!validConditions.includes(condition)) {
@@ -82,9 +92,9 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       }
 
       const result = await fastify.pg.query(
-        `INSERT INTO listings (user_id, title, description, category_id, payment_methods, price_indication, currency, country_code, condition)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id, user_id, title, description, category_id, payment_methods, price_indication, currency, country_code, condition, status, created_at, updated_at`,
+        `INSERT INTO listings (user_id, title, description, category_id, payment_methods, price_indication, currency, country_code, city, condition)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING id, user_id, title, description, category_id, payment_methods, price_indication, currency, country_code, city, condition, status, created_at, updated_at`,
         [
           userId,
           title,
@@ -94,6 +104,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
           price_indication,
           currency,
           country_code,
+          city ?? null,
           condition || null,
         ],
       );
@@ -252,6 +263,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       price_indication?: string;
       currency?: string;
       country_code?: string | null;
+      city?: string | null;
       condition?: string | null;
       status?: string;
     };
@@ -354,6 +366,19 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         }
         updates.push(`country_code = $${paramIdx++}`);
         values.push(body.country_code);
+      }
+
+      if (body.city !== undefined) {
+        if (body.city !== null) {
+          if (typeof body.city !== 'string' || body.city.length > 100) {
+            return reply.status(400).send({ error: 'City must be a string (max 100 chars)' });
+          }
+          if (/\d/.test(body.city)) {
+            return reply.status(400).send({ error: 'City must not contain numbers' });
+          }
+        }
+        updates.push(`city = $${paramIdx++}`);
+        values.push(body.city);
       }
 
       if (body.condition !== undefined) {

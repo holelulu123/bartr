@@ -26,6 +26,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       fixed_price?: number;
       payment_methods: string[];
       country_code?: string;
+      city?: string;
       terms?: string;
       price_source?: string;
     };
@@ -38,7 +39,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         offer_type, crypto_currency, fiat_currency,
         amount, min_amount, max_amount,
         rate_type, margin_percent, fixed_price,
-        payment_methods, country_code, terms,
+        payment_methods, country_code, city, terms,
         price_source = 'coingecko',
       } = request.body;
 
@@ -108,6 +109,16 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'country_code must be a 2-letter ISO code' });
       }
 
+      // Validate city
+      if (city !== undefined && city !== null) {
+        if (typeof city !== 'string' || city.length > 100) {
+          return reply.status(400).send({ error: 'City must be a string (max 100 chars)' });
+        }
+        if (/\d/.test(city)) {
+          return reply.status(400).send({ error: 'City must not contain numbers' });
+        }
+      }
+
       // Validate terms length
       if (terms && terms.length > 2000) {
         return reply.status(400).send({ error: 'Terms too long (max 2000 characters)' });
@@ -137,14 +148,14 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
           user_id, offer_type, crypto_currency, fiat_currency,
           amount, min_amount, max_amount,
           rate_type, margin_percent, fixed_price,
-          payment_methods, country_code, terms, price_source
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          payment_methods, country_code, city, terms, price_source
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *`,
         [
           userId, offer_type, crypto_currency, fiat_currency,
           amount ?? null, min_amount, max_amount,
           rate_type, margin_percent ?? 0, fixed_price ?? null,
-          JSON.stringify(payment_methods), country_code ?? null, terms ?? null,
+          JSON.stringify(payment_methods), country_code ?? null, city ?? null, terms ?? null,
           price_source,
         ],
       );
@@ -285,6 +296,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       fixed_price?: number | null;
       payment_methods?: string[];
       country_code?: string | null;
+      city?: string | null;
       terms?: string | null;
       status?: string;
       price_source?: string;
@@ -368,6 +380,19 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         }
         updates.push(`country_code = $${paramIdx++}`);
         values.push(body.country_code);
+      }
+
+      if (body.city !== undefined) {
+        if (body.city !== null) {
+          if (typeof body.city !== 'string' || body.city.length > 100) {
+            return reply.status(400).send({ error: 'City must be a string (max 100 chars)' });
+          }
+          if (/\d/.test(body.city)) {
+            return reply.status(400).send({ error: 'City must not contain numbers' });
+          }
+        }
+        updates.push(`city = $${paramIdx++}`);
+        values.push(body.city);
       }
 
       if (body.terms !== undefined) {

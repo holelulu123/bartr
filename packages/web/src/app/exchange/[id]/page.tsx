@@ -246,12 +246,14 @@ export default function OfferDetailPage() {
           </div>
         </div>
 
-        {/* Country */}
-        {offer.country_code && (
+        {/* Location */}
+        {(offer.country_code || offer.city) && (
           <div>
             <p className="text-sm text-muted-foreground mb-1">Location</p>
             <p className="font-medium">
-              {getCountryFlag(offer.country_code)} {getCountryName(offer.country_code)}
+              {offer.country_code && <>{getCountryFlag(offer.country_code)} {getCountryName(offer.country_code)}</>}
+              {offer.country_code && offer.city && ', '}
+              {offer.city}
             </p>
           </div>
         )}

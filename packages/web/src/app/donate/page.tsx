@@ -132,7 +132,10 @@ export default function DonatePage() {
             <SelectContent>
               {COINS.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.dropdownLabel}
+                  <span className="inline-flex items-center gap-2">
+                    <Image src={c.iconPath} alt="" width={20} height={20} />
+                    {c.dropdownLabel}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>

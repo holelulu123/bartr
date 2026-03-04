@@ -65,6 +65,7 @@ export interface ListingSummary {
   currency: string | null;
   payment_methods: PaymentMethod[];
   country_code: string | null;
+  city: string | null;
   condition: ListingCondition | null;
   status: ListingStatus;
   created_at: string;
@@ -84,6 +85,7 @@ export interface ListingDetail {
   price_indication: string | null;
   currency: string | null;
   country_code: string | null;
+  city: string | null;
   condition: ListingCondition | null;
   status: ListingStatus;
   created_at: string;
@@ -302,6 +304,7 @@ export interface ExchangeOffer {
   fixed_price: number | null;
   payment_methods: SettlementMethod[];
   country_code: string | null;
+  city: string | null;
   terms: string | null;
   price_source: PriceSource;
   status: OfferStatus;
@@ -324,6 +327,7 @@ export interface CreateOfferPayload {
   fixed_price?: number;
   payment_methods: SettlementMethod[];
   country_code?: string;
+  city?: string;
   terms?: string;
   price_source?: PriceSource;
 }
@@ -337,6 +341,7 @@ export interface UpdateOfferPayload {
   fixed_price?: number | null;
   payment_methods?: SettlementMethod[];
   country_code?: string | null;
+  city?: string | null;
   terms?: string | null;
   status?: OfferStatus;
 }

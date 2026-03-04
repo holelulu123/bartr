@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Navigation } from 'lucide-react';
 import { ProtectedRoute } from '@/components/protected-route';
 import { useCreateOffer } from '@/hooks/use-exchange';
 import { useSupportedCoins, getFiatFlag, useExchangePrices, getExchangePrice } from '@/hooks/use-prices';
@@ -24,10 +24,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
+import { SETTLEMENT_METHOD_LABELS, CRYPTO_PAYMENT_METHODS } from '@bartr/shared';
 import type { SettlementMethod, OfferType, RateType, PriceSource } from '@bartr/shared';
 
-const SETTLEMENT_OPTIONS = Object.entries(SETTLEMENT_METHOD_LABELS) as [SettlementMethod, string][];
+const CRYPTO_KEYS = new Set<string>(CRYPTO_PAYMENT_METHODS);
+const SETTLEMENT_OPTIONS = (Object.entries(SETTLEMENT_METHOD_LABELS) as [SettlementMethod, string][])
+  .filter(([key]) => !CRYPTO_KEYS.has(key));
 
 const PRICE_SOURCES: { value: PriceSource; label: string }[] = [
   { value: 'coingecko', label: 'CoinGecko' },
@@ -61,8 +63,13 @@ function CreateOfferForm() {
   const [priceSource, setPriceSource] = useState<PriceSource>('coingecko');
   const [selectedPayments, setSelectedPayments] = useState<SettlementMethod[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<string>('');
+  const [city, setCity] = useState('');
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState('');
   const [countrySearch, setCountrySearch] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [shake, setShake] = useState(false);
   const [limitsView, setLimitsView] = useState<'fiat' | 'crypto'>('fiat');
 
   // Controlled amount fields (not in react-hook-form)
@@ -183,32 +190,56 @@ function CreateOfferForm() {
     );
   }
 
+  const isValidCity = (value: string) => !/\d/.test(value);
+
+  async function handleFindLocation() {
+    setGeoError('');
+    setGeoLoading(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }),
+      );
+      const { latitude, longitude } = pos.coords;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`,
+        { headers: { 'User-Agent': 'Bartr/1.0' } },
+      );
+      const data = await res.json();
+      const countryCode = data.address?.country_code?.toUpperCase();
+      const cityName = data.address?.city || data.address?.town || data.address?.village || '';
+
+      if (!countryCode || !COUNTRIES.find((c) => c.code === countryCode)) {
+        setGeoError('Your country is not in our supported list');
+        return;
+      }
+      setSelectedCountry(countryCode);
+      if (cityName && isValidCity(cityName)) {
+        setCity(cityName);
+      }
+    } catch {
+      setGeoError('Could not detect location. Please allow location access.');
+    } finally {
+      setGeoLoading(false);
+    }
+  }
+
   async function onSubmit(values: FormValues) {
     setServerError(null);
-
-    if (selectedPayments.length === 0) {
-      setServerError('Select at least one settlement method.');
-      return;
-    }
-
-    if (rateType === 'fixed' && !values.fixed_price) {
-      setServerError('Fixed price is required for fixed rate type.');
-      return;
-    }
+    setSubmitted(true);
 
     const minAmount = parseFloat(fiatMin);
     const maxAmount = parseFloat(fiatMax);
 
-    if (!fiatMin || isNaN(minAmount) || minAmount < 0) {
-      setServerError('Min amount is required.');
-      return;
-    }
-    if (!fiatMax || isNaN(maxAmount) || maxAmount <= 0) {
-      setServerError('Max amount is required and must be greater than 0.');
-      return;
-    }
-    if (minAmount > maxAmount) {
-      setServerError('Min amount must be less than or equal to max amount.');
+    const hasCountryErr = !selectedCountry;
+    const hasSettlementErr = selectedPayments.length === 0;
+    const hasFixedPriceErr = rateType === 'fixed' && !values.fixed_price;
+    const hasMinErr = !fiatMin || isNaN(minAmount) || minAmount < 0;
+    const hasMaxErr = !fiatMax || isNaN(maxAmount) || maxAmount <= 0;
+    const hasRangeErr = !hasMinErr && !hasMaxErr && minAmount > maxAmount;
+
+    if (hasCountryErr || hasSettlementErr || hasFixedPriceErr || hasMinErr || hasMaxErr || hasRangeErr || hasPriceErrors || hasLimitErrors) {
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
       return;
     }
 
@@ -224,7 +255,8 @@ function CreateOfferForm() {
         ...(rateType === 'market' && { price_source: priceSource }),
         ...(rateType === 'market' && values.margin_percent && { margin_percent: parseFloat(values.margin_percent) }),
         ...(rateType === 'fixed' && values.fixed_price && { fixed_price: parseFloat(values.fixed_price) }),
-        ...(selectedCountry && { country_code: selectedCountry }),
+        country_code: selectedCountry,
+        ...(city && { city }),
         ...(values.terms && { terms: values.terms }),
       });
 
@@ -251,13 +283,22 @@ function CreateOfferForm() {
   const activeMax = limitsView === 'fiat' ? fiatMax : cryptoMax;
   const minNum = parseFloat(activeMin);
   const maxNum = parseFloat(activeMax);
-  const minError = activeMin !== '' && (isNaN(minNum) || minNum < 0) ? 'Must be a valid number' : null;
-  const maxError = activeMax !== '' && (isNaN(maxNum) || maxNum <= 0) ? 'Must be a number greater than 0' : null;
+  const minError = activeMin !== '' && (isNaN(minNum) || minNum < 0)
+    ? 'Must be a valid number'
+    : (submitted && !fiatMin) ? 'Min amount is required' : null;
+  const maxError = activeMax !== '' && (isNaN(maxNum) || maxNum <= 0)
+    ? 'Must be a number greater than 0'
+    : (submitted && !fiatMax) ? 'Max amount is required' : null;
   const rangeError = !minError && !maxError && activeMin !== '' && activeMax !== '' && !isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum
     ? 'Max must be greater than or equal to min'
     : null;
   const hasPriceErrors = (rateType === 'market' && !!marginError) || (rateType === 'fixed' && !!fixedPriceError);
   const hasLimitErrors = !!minError || !!maxError || !!rangeError;
+
+  // Field-level errors shown after first submit attempt
+  const countryError = submitted && !selectedCountry ? 'Please select a country' : null;
+  const settlementError = submitted && selectedPayments.length === 0 ? 'Select at least one settlement method' : null;
+  const fixedPriceRequired = submitted && rateType === 'fixed' && !watchedFixedPrice ? 'Fixed price is required' : null;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
@@ -429,9 +470,9 @@ function CreateOfferForm() {
                 inputMode="decimal"
                 placeholder={`Price per 1 ${cryptoCurrency}`}
                 {...register('fixed_price')}
-                className={cn(fixedPriceError && 'border-destructive')}
+                className={cn((fixedPriceError || fixedPriceRequired) && 'border-destructive')}
               />
-              {fixedPriceError && <p className="text-xs text-destructive">{fixedPriceError}</p>}
+              {(fixedPriceError || fixedPriceRequired) && <p className="text-xs text-destructive">{fixedPriceError || fixedPriceRequired}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm">Margin</Label>
@@ -569,29 +610,24 @@ function CreateOfferForm() {
               </button>
             ))}
           </div>
-          {selectedPayments.length === 0 && serverError === 'Select at least one settlement method.' && (
-            <p className="text-sm text-destructive">Select at least one settlement method.</p>
+          {settlementError && (
+            <p className="text-xs text-destructive">{settlementError}</p>
           )}
         </div>
 
-        {/* Additional options (Country + Terms) */}
-        <details className="group">
-          <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground transition-colors select-none list-none flex items-center gap-1.5">
-            <span className="text-xs transition-transform group-open:rotate-90">&#9654;</span>
-            Additional options
-          </summary>
-          <div className="mt-3 space-y-4">
-            {/* Country */}
-            <div className="space-y-1.5">
-              <Label htmlFor="country">Country (optional)</Label>
+        {/* Location */}
+        <div className="space-y-3">
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="country">Country</Label>
               <Select
-                value={selectedCountry || 'none'}
+                value={selectedCountry || undefined}
                 onValueChange={(val) => {
                   setCountrySearch('');
-                  setSelectedCountry(val === 'none' ? '' : val);
+                  setSelectedCountry(val);
                 }}
               >
-                <SelectTrigger id="country" aria-label="Country">
+                <SelectTrigger id="country" aria-label="Country" aria-required="true">
                   <SelectValue placeholder="Select a country" />
                 </SelectTrigger>
                 <SelectContent>
@@ -604,7 +640,6 @@ function CreateOfferForm() {
                       aria-label="Search countries"
                     />
                   </div>
-                  <SelectItem value="none">No country</SelectItem>
                   {filteredCountries.map((c) => (
                     <SelectItem key={c.code} value={c.code}>
                       {c.flag} {c.name}
@@ -613,35 +648,66 @@ function CreateOfferForm() {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Terms */}
-            <div className="space-y-1.5">
-              <Label htmlFor="terms">Trade terms (optional)</Label>
-              <Textarea
-                id="terms"
-                placeholder="Any conditions or instructions for traders..."
-                rows={3}
-                {...register('terms')}
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="city">City (optional)</Label>
+              <Input
+                id="city"
+                type="text"
+                placeholder="e.g. Berlin"
+                value={city}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (isValidCity(val)) setCity(val);
+                }}
+                maxLength={100}
               />
-              {errors.terms && (
-                <p className="text-sm text-destructive">{errors.terms.message}</p>
-              )}
             </div>
           </div>
-        </details>
+          {countryError && <p className="text-xs text-destructive">{countryError}</p>}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={geoLoading}
+            onClick={handleFindLocation}
+            className="text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+          >
+            <Navigation className="h-4 w-4 mr-1.5" />
+            {geoLoading ? 'Detecting...' : 'Find My Location'}
+          </Button>
+          {geoError && (
+            <p className="text-xs text-destructive">{geoError}</p>
+          )}
+        </div>
+
+        {/* Terms */}
+        <div className="space-y-1.5">
+          <Label htmlFor="terms">Trade terms (optional)</Label>
+          <Textarea
+            id="terms"
+            placeholder="Any conditions or instructions for traders..."
+            rows={3}
+            {...register('terms')}
+          />
+          {errors.terms && (
+            <p className="text-sm text-destructive">{errors.terms.message}</p>
+          )}
+        </div>
 
         {/* Server error */}
-        {serverError
-          && serverError !== 'Select at least one settlement method.'
-          && (
-            <p className="text-sm text-destructive" role="alert">
-              {serverError}
-            </p>
-          )}
+        {serverError && (
+          <p className="text-sm text-destructive" role="alert">
+            {serverError}
+          </p>
+        )}
 
         {/* Submit */}
         <div className="flex gap-3 pt-1">
-          <Button type="submit" disabled={isProcessing || hasLimitErrors || hasPriceErrors} className="flex-1">
+          <Button
+            type="submit"
+            disabled={isProcessing}
+            className={cn('flex-1', shake && 'animate-shake')}
+          >
             {isProcessing ? 'Creating...' : 'Create offer'}
           </Button>
           <Button type="button" variant="outline" asChild>

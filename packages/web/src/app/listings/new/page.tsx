@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Image as ImageIcon, X, Monitor, Laptop, Shirt, Home, Wrench, Package, Car, Smartphone, Sofa, Dumbbell, Baby, BookOpen, Hammer, Trophy, Music, PawPrint, Watch, Gamepad2, Gift, Banknote, Bitcoin } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, X, Navigation, Monitor, Laptop, Shirt, Home, Wrench, Package, Car, Smartphone, Sofa, Dumbbell, Baby, BookOpen, Hammer, Trophy, Music, PawPrint, Watch, Gamepad2, Gift, Banknote, Bitcoin } from 'lucide-react';
 import { ProtectedRoute } from '@/components/protected-route';
 import { useCreateListing, useCategories } from '@/hooks/use-listings';
 import { moderation as moderationApi, listings as listingsApi } from '@/lib/api';
@@ -90,6 +90,9 @@ function CreateListingForm() {
   const [selectedCryptos, setSelectedCryptos] = useState<CryptoPaymentMethod[]>([]);
   const [selectedCondition, setSelectedCondition] = useState<string>('');
   const [selectedCountry, setSelectedCountry] = useState<string>('');
+  const [city, setCity] = useState('');
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState('');
   const [countrySearch, setCountrySearch] = useState('');
   const [currencySearch, setCurrencySearch] = useState('');
   const [images, setImages] = useState<ImagePreview[]>([]);
@@ -139,6 +142,39 @@ function CreateListingForm() {
 
   function handleCategoryChange(val: string) {
     setValue('category_id', val === 'none' ? undefined : val);
+  }
+
+  const isValidCity = (value: string) => !/\d/.test(value);
+
+  async function handleFindLocation() {
+    setGeoError('');
+    setGeoLoading(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }),
+      );
+      const { latitude, longitude } = pos.coords;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`,
+        { headers: { 'User-Agent': 'Bartr/1.0' } },
+      );
+      const data = await res.json();
+      const countryCode = data.address?.country_code?.toUpperCase();
+      const cityName = data.address?.city || data.address?.town || data.address?.village || '';
+
+      if (!countryCode || !COUNTRIES.find((c) => c.code === countryCode)) {
+        setGeoError('Your country is not in our supported list');
+        return;
+      }
+      setSelectedCountry(countryCode);
+      if (cityName && isValidCity(cityName)) {
+        setCity(cityName);
+      }
+    } catch {
+      setGeoError('Could not detect location. Please allow location access.');
+    } finally {
+      setGeoLoading(false);
+    }
   }
 
   // ── Image handling ─────────────────────────────────────────────────────
@@ -217,6 +253,7 @@ function CreateListingForm() {
         price_indication: values.price_indication,
         currency: values.currency,
         country_code: selectedCountry,
+        ...(city && { city }),
         ...(values.category_id && { category_id: Number(values.category_id) }),
         ...(selectedCondition && { condition: selectedCondition as ListingCondition }),
       });
@@ -392,36 +429,68 @@ function CreateListingForm() {
           </div>
         </div>
 
-        {/* Country */}
-        <div className="space-y-1.5">
-          <Label htmlFor="country">Country</Label>
-          <Select
-            value={selectedCountry || undefined}
-            onValueChange={(val) => {
-              setCountrySearch('');
-              setSelectedCountry(val);
-            }}
+        {/* Location */}
+        <div className="space-y-3">
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="country">Country</Label>
+              <Select
+                value={selectedCountry || undefined}
+                onValueChange={(val) => {
+                  setCountrySearch('');
+                  setSelectedCountry(val);
+                }}
+              >
+                <SelectTrigger id="country" aria-label="Country" aria-required="true">
+                  <SelectValue placeholder="Select a country" />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="px-2 py-1.5">
+                    <Input
+                      placeholder="Search countries…"
+                      value={countrySearch}
+                      onChange={(e) => setCountrySearch(e.target.value)}
+                      className="h-8"
+                      aria-label="Search countries"
+                    />
+                  </div>
+                  {filteredCountries.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.flag} {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="city">City (optional)</Label>
+              <Input
+                id="city"
+                type="text"
+                placeholder="e.g. Berlin"
+                value={city}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (isValidCity(val)) setCity(val);
+                }}
+                maxLength={100}
+              />
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={geoLoading}
+            onClick={handleFindLocation}
+            className="text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
           >
-            <SelectTrigger id="country" aria-label="Country" aria-required="true">
-              <SelectValue placeholder="Select a country" />
-            </SelectTrigger>
-            <SelectContent>
-              <div className="px-2 py-1.5">
-                <Input
-                  placeholder="Search countries…"
-                  value={countrySearch}
-                  onChange={(e) => setCountrySearch(e.target.value)}
-                  className="h-8"
-                  aria-label="Search countries"
-                />
-              </div>
-              {filteredCountries.map((c) => (
-                <SelectItem key={c.code} value={c.code}>
-                  {c.flag} {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Navigation className="h-4 w-4 mr-1.5" />
+            {geoLoading ? 'Detecting...' : 'Find My Location'}
+          </Button>
+          {geoError && (
+            <p className="text-xs text-destructive">{geoError}</p>
+          )}
         </div>
 
         {/* Cryptocurrency */}
