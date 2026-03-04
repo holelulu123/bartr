@@ -12,6 +12,7 @@ import {
   MessageSquare,
   AlertTriangle,
 } from 'lucide-react';
+import { useMessageSidebar } from '@/contexts/message-sidebar-context';
 import {
   useTrade,
   useAcceptTrade,
@@ -205,6 +206,7 @@ export default function TradeDetailPage() {
   const [ratingOpen, setRatingOpen] = useState(false);
   const [actionError, setActionError] = useState('');
 
+  const { openSidebar } = useMessageSidebar();
   const { data: trade, isLoading, isError } = useTrade(id);
   const acceptMutation = useAcceptTrade();
   const declineMutation = useDeclineTrade();
@@ -282,13 +284,9 @@ export default function TradeDetailPage() {
 
         {/* Message button */}
         <div className="pt-1">
-          <Button asChild variant="outline" size="sm">
-            <Link
-              href={`/messages`}
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Open chat
-            </Link>
+          <Button variant="outline" size="sm" onClick={openSidebar}>
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Open chat
           </Button>
         </div>
       </div>

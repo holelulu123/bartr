@@ -3,11 +3,13 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { QueryProvider } from '@/components/query-provider';
 import { AuthProvider } from '@/contexts/auth-context';
 import { CryptoProvider } from '@/contexts/crypto-context';
+import { MessageSidebarProvider } from '@/contexts/message-sidebar-context';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { GlobalAuthGuard } from '@/components/global-auth-guard';
 import { Toaster } from '@/components/toaster';
 import { IdleLogout } from '@/components/idle-logout';
+import { MessageSidebar } from '@/components/message-sidebar';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -27,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <QueryProvider>
             <AuthProvider>
               <CryptoProvider>
+              <MessageSidebarProvider>
               <GlobalAuthGuard>
                 <Navbar />
                 <main className="flex-1">
@@ -35,7 +38,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Footer />
                 <Toaster />
                 <IdleLogout />
+                <MessageSidebar />
               </GlobalAuthGuard>
+              </MessageSidebarProvider>
               </CryptoProvider>
             </AuthProvider>
           </QueryProvider>

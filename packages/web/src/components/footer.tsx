@@ -3,7 +3,7 @@ import { BrandName } from '@/components/brand-name';
 
 export function Footer() {
   return (
-    <footer className="border-t border-border mt-auto">
+    <footer className="border-t border-border mt-auto" data-footer>
       <div className="container py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
         <p>
           &copy; {new Date().getFullYear()} <BrandName /> — P2P marketplace and exchange. No escrow, no KYC.

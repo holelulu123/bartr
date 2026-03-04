@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, AlertCircle } from 'lucide-react';
+import { Send, AlertCircle, ArrowLeftRight } from 'lucide-react';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
@@ -30,7 +30,30 @@ function timeLabel(dateStr: string): string {
   );
 }
 
+const SYSTEM_PREFIX = '[SYSTEM] ';
+
+function SystemMessage({ msg, isOwn }: { msg: DecryptedMessage; isOwn: boolean }) {
+  let text = msg.body.slice(SYSTEM_PREFIX.length);
+  // Replace neutral "Offer:" with directional label
+  if (text.startsWith('Offer: ')) {
+    const details = text.slice('Offer: '.length);
+    text = isOwn ? `Offer sent: ${details}` : `Offer received: ${details}`;
+  }
+  return (
+    <div className="flex justify-center mb-3 px-4">
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 max-w-[85%]">
+        <ArrowLeftRight className="h-3.5 w-3.5 text-primary shrink-0" />
+        <p className="text-xs text-muted-foreground">{text}</p>
+      </div>
+    </div>
+  );
+}
+
 export function MessageBubble({ msg, isOwn }: { msg: DecryptedMessage; isOwn: boolean }) {
+  if (!msg.decryptError && msg.body.startsWith(SYSTEM_PREFIX)) {
+    return <SystemMessage msg={msg} isOwn={isOwn} />;
+  }
+
   return (
     <div className={cn('flex mb-2', isOwn ? 'justify-end' : 'justify-start')}>
       <div

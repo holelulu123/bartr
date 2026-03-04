@@ -10,11 +10,12 @@ window.HTMLElement.prototype.scrollIntoView = vi.fn();
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
 let mockParams: Record<string, string> = {};
+let mockSearchParams = new URLSearchParams();
 
 vi.mock('next/navigation', () => ({
   useParams: () => mockParams,
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockSearchParams,
   usePathname: () => '/',
 }));
 
@@ -50,6 +51,29 @@ vi.mock('@/contexts/crypto-context', () => ({
 // CryptoGuard uses useCrypto + useAuth — mock it so it just renders children in tests
 vi.mock('@/components/crypto-guard', () => ({
   CryptoGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+// Message sidebar mock
+const mockOpenSidebar = vi.fn();
+const mockCloseSidebar = vi.fn();
+const mockOpenThread = vi.fn();
+const mockOpenContact = vi.fn();
+const mockClearSelection = vi.fn();
+let mockSidebarState = {
+  isOpen: false,
+  selectedThreadId: null as string | null,
+  pendingContact: null as { nickname: string; listingId?: string } | null,
+};
+
+vi.mock('@/contexts/message-sidebar-context', () => ({
+  useMessageSidebar: () => ({
+    ...mockSidebarState,
+    openSidebar: mockOpenSidebar,
+    closeSidebar: mockCloseSidebar,
+    openThread: mockOpenThread,
+    openContact: mockOpenContact,
+    clearSelection: mockClearSelection,
+  }),
 }));
 
 // threads query mock
@@ -100,7 +124,7 @@ vi.mock('@/hooks/use-trades', () => ({
   useRateTrade: () => mockRateMutation,
 }));
 
-// api mock (for getUserPublicKey called inside ChatPage)
+// api mock (for getUserPublicKey called inside ChatPanel)
 vi.mock('@/lib/api', () => ({
   users: {
     getUserPublicKey: vi.fn().mockResolvedValue({ public_key: 'pk-base64' }),
@@ -161,22 +185,76 @@ afterEach(() => {
   mockUser = { id: 'user-1', nickname: 'alice' };
   mockIsUnlocked = true;
   mockParams = {};
+  mockSearchParams = new URLSearchParams();
+  mockSidebarState = {
+    isOpen: false,
+    selectedThreadId: null,
+    pendingContact: null,
+  };
 });
 
-// ── MessagesPage (inbox) ─────────────────────────────────────────────────────
+// ── MessagesPage (redirect) ─────────────────────────────────────────────────
 
 import MessagesPage from '@/app/messages/page';
 
-describe('MessagesPage — inbox', () => {
-  it('shows loading skeleton while fetching threads', () => {
-    mockUseThreads.mockReturnValue({ data: undefined, isLoading: true });
+describe('MessagesPage — redirect', () => {
+  it('calls openSidebar and redirects to / when no params', () => {
     render(<MessagesPage />);
-    expect(screen.getByRole('heading', { name: /messages/i })).toBeInTheDocument();
+    expect(mockOpenSidebar).toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+
+  it('calls openThread when ?thread= is present', () => {
+    mockSearchParams = new URLSearchParams('thread=thread-42');
+    render(<MessagesPage />);
+    expect(mockOpenThread).toHaveBeenCalledWith('thread-42');
+    expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+
+  it('calls openContact when ?contact= is present', () => {
+    mockSearchParams = new URLSearchParams('contact=bob');
+    render(<MessagesPage />);
+    expect(mockOpenContact).toHaveBeenCalledWith('bob');
+    expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+});
+
+// ── ChatRedirectPage ────────────────────────────────────────────────────────
+
+import ChatRedirectPage from '@/app/messages/[threadId]/page';
+
+describe('ChatRedirectPage', () => {
+  it('calls openThread and redirects to /', () => {
+    mockParams = { threadId: 'thread-99' };
+    render(<ChatRedirectPage />);
+    expect(mockOpenThread).toHaveBeenCalledWith('thread-99');
+    expect(mockReplace).toHaveBeenCalledWith('/');
+  });
+});
+
+// ── MessageSidebar ──────────────────────────────────────────────────────────
+
+import { MessageSidebar } from '@/components/message-sidebar';
+
+function renderSidebar() {
+  // Override the mock to use real context for these tests
+  return render(<MessageSidebar />);
+}
+
+describe('MessageSidebar — thread list', () => {
+  beforeEach(() => {
+    mockSidebarState = { isOpen: true, selectedThreadId: null, pendingContact: null };
+  });
+
+  it('shows Messages heading when open with no thread selected', () => {
+    mockUseThreads.mockReturnValue({ data: { threads: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } }, isLoading: false });
+    renderSidebar();
+    expect(screen.getByText('Messages')).toBeInTheDocument();
   });
 
   it('shows empty state when no threads', () => {
     mockUseThreads.mockReturnValue({ data: { threads: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } }, isLoading: false });
-    render(<MessagesPage />);
+    renderSidebar();
     expect(screen.getByText(/no messages yet/i)).toBeInTheDocument();
   });
 
@@ -185,28 +263,35 @@ describe('MessagesPage — inbox', () => {
       data: { threads: [makeThread()], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
       isLoading: false,
     });
-    render(<MessagesPage />);
-    // alice is current user, so other is bob
+    renderSidebar();
     expect(screen.getByText('bob')).toBeInTheDocument();
   });
 
-  it('shows listing title in thread row', () => {
+  it('groups multiple threads from same person into one row', () => {
     mockUseThreads.mockReturnValue({
-      data: { threads: [makeThread()], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
+      data: {
+        threads: [
+          makeThread({ id: 'thread-1', listing_title: 'Vintage Camera' }),
+          makeThread({ id: 'thread-2', listing_title: 'Old Laptop' }),
+        ],
+        pagination: { page: 1, limit: 20, total: 2, pages: 1 },
+      },
       isLoading: false,
     });
-    render(<MessagesPage />);
-    expect(screen.getByText(/vintage camera/i)).toBeInTheDocument();
+    renderSidebar();
+    // Only one row for "bob" even though there are 2 threads
+    const bobs = screen.getAllByText('bob');
+    expect(bobs).toHaveLength(1);
   });
 
-  it('thread row links to correct message thread', () => {
+  it('clicking a thread calls openThread', async () => {
     mockUseThreads.mockReturnValue({
       data: { threads: [makeThread({ id: 'thread-42' })], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
       isLoading: false,
     });
-    render(<MessagesPage />);
-    const link = screen.getByRole('link', { name: /bob/i });
-    expect(link).toHaveAttribute('href', '/messages/thread-42');
+    renderSidebar();
+    await userEvent.click(screen.getByRole('button', { name: /bob/i }));
+    expect(mockOpenThread).toHaveBeenCalledWith('thread-42');
   });
 
   it('shows time-ago for last message', () => {
@@ -214,23 +299,34 @@ describe('MessagesPage — inbox', () => {
       data: { threads: [makeThread()], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
       isLoading: false,
     });
-    render(<MessagesPage />);
+    renderSidebar();
     expect(screen.getByText(/\d+[mhd]/)).toBeInTheDocument();
+  });
+
+  it('close button calls closeSidebar', async () => {
+    mockUseThreads.mockReturnValue({ data: { threads: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } }, isLoading: false });
+    renderSidebar();
+    await userEvent.click(screen.getByRole('button', { name: /close messages/i }));
+    expect(mockCloseSidebar).toHaveBeenCalled();
   });
 });
 
-// ── ChatPage ─────────────────────────────────────────────────────────────────
-
-import ChatPage from '@/app/messages/[threadId]/page';
+// ── MessageSidebar — conversation view ──────────────────────────────────────
 
 const mockSendMutateAsync = vi.fn();
 
-function setupChat(options: { messages?: unknown[]; isLoading?: boolean; isError?: boolean } = {}) {
-  mockParams = { threadId: 'thread-1' };
+function setupSidebarChat(options: { messages?: unknown[]; isLoading?: boolean; isError?: boolean; threadId?: string } = {}) {
+  const tid = options.threadId ?? 'thread-1';
+  mockSidebarState = { isOpen: true, selectedThreadId: tid, pendingContact: null };
+
+  mockUseThreads.mockReturnValue({
+    data: { threads: [makeThread({ id: tid })], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
+    isLoading: false,
+  });
 
   mockUseQueryClient.mockReturnValue({
     getQueryData: vi.fn(() => ({
-      threads: [makeThread()],
+      threads: [makeThread({ id: tid })],
     })),
   });
 
@@ -248,81 +344,87 @@ function setupChat(options: { messages?: unknown[]; isLoading?: boolean; isError
   });
 }
 
-describe('ChatPage — rendering', () => {
-  it('renders chat header with other participant', () => {
-    setupChat({ messages: [] });
-    render(<ChatPage />);
+describe('MessageSidebar — conversation view', () => {
+  it('renders chat header with other participant when thread selected', () => {
+    setupSidebarChat({ messages: [] });
+    renderSidebar();
+    // bob appears in header
     expect(screen.getByText('bob')).toBeInTheDocument();
   });
 
-  it('shows listing title in header', () => {
-    setupChat({ messages: [] });
-    render(<ChatPage />);
-    expect(screen.getByText(/vintage camera/i)).toBeInTheDocument();
+  it('shows back button that calls clearSelection', async () => {
+    setupSidebarChat({ messages: [] });
+    renderSidebar();
+    await userEvent.click(screen.getByRole('button', { name: /back to threads/i }));
+    expect(mockClearSelection).toHaveBeenCalled();
   });
 
-  it('renders empty state when no messages', async () => {
-    setupChat({ messages: [] });
-    render(<ChatPage />);
+  it('renders empty state when no messages in selected thread', async () => {
+    setupSidebarChat({ messages: [] });
+    renderSidebar();
     await waitFor(() => expect(screen.getByText(/no messages yet/i)).toBeInTheDocument());
   });
 
   it('send button is disabled when no text', () => {
-    setupChat({ messages: [] });
-    render(<ChatPage />);
-    const sendBtn = screen.getByRole('button');
+    setupSidebarChat({ messages: [] });
+    renderSidebar();
+    const sendBtn = screen.getByRole('button', { name: '' });
     expect(sendBtn).toBeDisabled();
   });
 
-  it('renders back to inbox link', () => {
-    setupChat({ messages: [] });
-    render(<ChatPage />);
-    expect(screen.getByRole('link', { name: '' })).toHaveAttribute('href', '/messages');
-  });
-
   it('shows error state on fetch error', () => {
-    setupChat({ isError: true });
-    render(<ChatPage />);
+    setupSidebarChat({ isError: true });
+    renderSidebar();
     expect(screen.getByText(/failed to load messages/i)).toBeInTheDocument();
   });
 });
 
-describe('ChatPage — sending messages', () => {
+describe('MessageSidebar — sending messages', () => {
   beforeEach(() => {
-    setupChat({ messages: [] });
+    setupSidebarChat({ messages: [] });
     mockSendMutateAsync.mockResolvedValue({ id: 'msg-1' });
   });
 
   it('send button is enabled when text is entered and keys are unlocked', async () => {
-    render(<ChatPage />);
+    renderSidebar();
     const textarea = screen.getByPlaceholderText(/type a message/i);
     await userEvent.type(textarea, 'Hello!');
-    const sendBtn = screen.getByRole('button');
+    const sendBtn = screen.getByRole('button', { name: '' });
     expect(sendBtn).not.toBeDisabled();
   });
 
   it('clears textarea after sending', async () => {
-    render(<ChatPage />);
+    renderSidebar();
     const textarea = screen.getByPlaceholderText(/type a message/i);
     await userEvent.type(textarea, 'Hello!');
     await act(async () => {
-      await userEvent.click(screen.getByRole('button'));
+      await userEvent.click(screen.getByRole('button', { name: '' }));
     });
     await waitFor(() => expect((textarea as HTMLTextAreaElement).value).toBe(''));
   });
 
   it('calls sendMessage mutation on Enter key', async () => {
-    render(<ChatPage />);
+    renderSidebar();
     const textarea = screen.getByPlaceholderText(/type a message/i);
     await userEvent.type(textarea, 'Hello!{Enter}');
     await waitFor(() => expect(mockSendMutateAsync).toHaveBeenCalledWith('Hello!'));
   });
 
   it('does not send on Shift+Enter', async () => {
-    render(<ChatPage />);
+    renderSidebar();
     const textarea = screen.getByPlaceholderText(/type a message/i);
     await userEvent.type(textarea, 'Hello!{shift>}{Enter}{/shift}');
     expect(mockSendMutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+// ── MessageSidebar — not rendered when closed ───────────────────────────────
+
+describe('MessageSidebar — closed', () => {
+  it('renders nothing when isOpen is false', () => {
+    mockSidebarState = { isOpen: false, selectedThreadId: null, pendingContact: null };
+    const { container } = renderSidebar();
+    expect(container.innerHTML).toBe('');
   });
 });
 
@@ -378,8 +480,6 @@ describe('TradesDashboardPage', () => {
     const buyingTrade = makeTrade({ listing_title: 'Vintage Camera' });
     const sellingTrade = makeTrade({ id: 'trade-2', listing_title: 'My Widget', buyer_nickname: 'charlie', buyer_id: 'user-3' });
 
-    // The component calls useTrades({ role: 'buyer' }) and useTrades({ role: 'seller' })
-    // simultaneously, so mock based on argument
     mockUseTrades.mockImplementation((filters: { role?: string } = {}) => {
       if (filters.role === 'seller') {
         return { data: { trades: [sellingTrade], pagination: { page: 1, limit: 20, total: 1, pages: 1 } }, isLoading: false };
@@ -402,7 +502,6 @@ describe('TradeDetailPage — loading and errors', () => {
     mockParams = { id: 'trade-1' };
     mockUseTrade.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     render(<TradeDetailPage />);
-    // Skeleton has aria not yet set, just verify no crash
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
   });
 
@@ -449,12 +548,17 @@ describe('TradeDetailPage — content', () => {
     render(<TradeDetailPage />);
     expect(screen.getByRole('link', { name: /my trades/i })).toHaveAttribute('href', '/dashboard/trades');
   });
+
+  it('Open chat button calls openSidebar', async () => {
+    render(<TradeDetailPage />);
+    await userEvent.click(screen.getByRole('button', { name: /open chat/i }));
+    expect(mockOpenSidebar).toHaveBeenCalled();
+  });
 });
 
 describe('TradeDetailPage — seller actions (offered)', () => {
   beforeEach(() => {
     mockParams = { id: 'trade-1' };
-    // alice is the seller here
     mockUser = { id: 'user-2', nickname: 'bob' };
     mockUseTrade.mockReturnValue({
       data: makeTradeDetail({ seller_id: 'user-2', seller_nickname: 'bob', buyer_id: 'user-1', buyer_nickname: 'alice' }),

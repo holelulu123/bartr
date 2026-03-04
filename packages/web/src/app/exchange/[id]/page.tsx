@@ -14,6 +14,7 @@ import { useCrypto } from '@/contexts/crypto-context';
 import { usePrices } from '@/hooks/use-prices';
 import { useCreateExchangeTrade, useTradesForOffer, useAcceptTrade, useDeclineTrade } from '@/hooks/use-trades';
 import { useCreateThread } from '@/hooks/use-messages';
+import { messages as messagesApi, users as usersApi } from '@/lib/api';
 import { CoinIcon } from '@/components/crypto-icons';
 import { ReputationBadge } from '@/components/reputation-badge';
 import { ChatPanel } from '@/components/chat-panel';
@@ -207,6 +208,7 @@ function MakeOfferForm({
 
   const createTrade = useCreateExchangeTrade();
   const createThread = useCreateThread();
+  const { encrypt } = useCrypto();
 
   const minFiat = Number(offer.min_amount) || 0;
   const maxFiat = Number(offer.max_amount) || 0;
@@ -259,6 +261,17 @@ function MakeOfferForm({
         recipient_nickname: offer.seller_nickname,
         offer_id: offer.id,
       });
+
+      // Send auto-message announcing the offer
+      const methodLabel = SETTLEMENT_METHOD_LABELS[paymentMethod as SettlementMethod] ?? paymentMethod;
+      const autoMsg = `[SYSTEM] Offer: ${fmt(amount)} ${offer.fiat_currency} for ${offer.crypto_currency} via ${methodLabel}`;
+      try {
+        const { public_key } = await usersApi.getUserPublicKey(offer.seller_nickname);
+        const encrypted = await encrypt(autoMsg, public_key);
+        await messagesApi.sendMessage(thread.id, encrypted);
+      } catch {
+        // non-critical — offer still created
+      }
 
       onTradeCreated(trade.id, thread.id);
     } catch (err: unknown) {

@@ -8,6 +8,7 @@ import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Info, ShieldCheck
 import { useTheme } from 'next-themes';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
+import { useMessageSidebar } from '@/contexts/message-sidebar-context';
 import { useThreads } from '@/hooks/use-messages';
 import { useUnreadThreads } from '@/hooks/use-unread-threads';
 import { usePendingProposals } from '@/hooks/use-pending-proposals';
@@ -39,7 +40,6 @@ function timeAgo(iso: string): string {
 const navLinks = [
   { href: '/exchange', label: 'P2P Exchange', icon: ArrowLeftRight },
   { href: '/market', label: 'Marketplace', icon: Store },
-  { href: '/messages', label: 'Messages', icon: MessageSquare },
   { href: '/donate', label: 'Donate', icon: Heart },
   { href: '/tips', label: 'Tips', icon: ShieldCheck },
   { href: '/about', label: 'About', icon: Info },
@@ -59,6 +59,7 @@ export function Navbar() {
   );
 
   const { proposals, hasNew: hasNewProposals, markAllRead } = usePendingProposals(isAuthenticated);
+  const { isOpen: messagesOpen, openSidebar, closeSidebar: closeMessages } = useMessageSidebar();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -81,9 +82,6 @@ export function Navbar() {
               )}
             >
               {label}
-              {href === '/messages' && isAuthenticated && hasUnread && (
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-orange-500" aria-label="Unread messages" />
-              )}
             </Link>
           ))}
         </nav>
@@ -92,6 +90,18 @@ export function Navbar() {
         <div className="ml-auto flex items-center gap-4">
           {isAuthenticated ? (
             <>
+              {/* Messages icon */}
+              <button
+                className="relative rounded-md p-1.5 text-muted-foreground hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Messages"
+                onClick={messagesOpen ? closeMessages : openSidebar}
+              >
+                <MessageSquare className="h-5 w-5" />
+                {hasUnread && (
+                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-orange-500" aria-label="Unread messages" />
+                )}
+              </button>
+
               {/* Notifications bell */}
               <DropdownMenu onOpenChange={(open) => { if (open) markAllRead(); }}>
                 <DropdownMenuTrigger asChild>
@@ -225,6 +235,19 @@ export function Navbar() {
       {/* Mobile nav */}
       {mobileOpen && (
         <div className="md:hidden border-t border-border px-4 py-3 flex flex-col gap-1">
+          {isAuthenticated && (
+            <button
+              type="button"
+              onClick={() => { (messagesOpen ? closeMessages : openSidebar)(); setMobileOpen(false); }}
+              className="relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent text-muted-foreground"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Messages
+              {hasUnread && (
+                <span className="absolute top-2 left-6 h-2 w-2 rounded-full bg-orange-500" aria-label="Unread messages" />
+              )}
+            </button>
+          )}
           {navLinks.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
@@ -237,9 +260,6 @@ export function Navbar() {
             >
               <Icon className="h-4 w-4" />
               {label}
-              {href === '/messages' && isAuthenticated && hasUnread && (
-                <span className="absolute top-2 left-6 h-2 w-2 rounded-full bg-orange-500" aria-label="Unread messages" />
-              )}
             </Link>
           ))}
         </div>

@@ -42,9 +42,18 @@ vi.mock('@/hooks/use-listings', () => ({
   useDeleteListing: () => mockUseDeleteListing(),
 }));
 
-const mockCreateThreadMutation = { mutateAsync: vi.fn(), isPending: false };
-vi.mock('@/hooks/use-messages', () => ({
-  useCreateThread: () => mockCreateThreadMutation,
+const mockOpenContact = vi.fn();
+vi.mock('@/contexts/message-sidebar-context', () => ({
+  useMessageSidebar: () => ({
+    isOpen: false,
+    selectedThreadId: null,
+    pendingContact: null,
+    openSidebar: vi.fn(),
+    closeSidebar: vi.fn(),
+    openThread: vi.fn(),
+    openContact: mockOpenContact,
+    clearSelection: vi.fn(),
+  }),
 }));
 
 const mockSubmitFlagMutation = { mutateAsync: vi.fn(), isPending: false };
@@ -228,18 +237,16 @@ describe('ListingDetailPage — visitor actions', () => {
     expect(screen.queryByRole('button', { name: /delete listing/i })).not.toBeInTheDocument();
   });
 
-  it('Make Offer opens chat thread and navigates to messages page', async () => {
-    mockCreateThreadMutation.mutateAsync.mockResolvedValue({ id: 'thread-1', listing_id: 'listing-1', created_at: '', participant_1_nickname: 'alice', participant_2_nickname: 'bob', listing_title: null, last_message_at: null });
+  it('Make Offer opens message sidebar with seller contact', async () => {
     render(<ListingDetailPage />);
     await userEvent.click(screen.getByRole('button', { name: /make offer/i }));
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/messages/thread-1'));
+    expect(mockOpenContact).toHaveBeenCalledWith('alice', 'listing-1');
   });
 
-  it('Message Seller creates thread and navigates to messages page', async () => {
-    mockCreateThreadMutation.mutateAsync.mockResolvedValue({ id: 'thread-1', listing_id: 'listing-1', created_at: '', participant_1_nickname: 'alice', participant_2_nickname: 'bob', listing_title: null, last_message_at: null });
+  it('Message Seller opens message sidebar with seller contact', async () => {
     render(<ListingDetailPage />);
     await userEvent.click(screen.getByRole('button', { name: /message seller/i }));
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/messages/thread-1'));
+    expect(mockOpenContact).toHaveBeenCalledWith('alice', 'listing-1');
   });
 });
 

@@ -35,6 +35,20 @@ vi.mock('@/hooks/use-pending-proposals', () => ({
   usePendingProposals: () => ({ proposals: [], hasNew: false, markAllRead: vi.fn() }),
 }));
 
+// ── Mock useMessageSidebar ──────────────────────────────────────────────────
+vi.mock('@/contexts/message-sidebar-context', () => ({
+  useMessageSidebar: () => ({
+    isOpen: false,
+    selectedThreadId: null,
+    pendingContact: null,
+    openSidebar: vi.fn(),
+    closeSidebar: vi.fn(),
+    openThread: vi.fn(),
+    openContact: vi.fn(),
+    clearSelection: vi.fn(),
+  }),
+}));
+
 // ── Mock UserAvatar (avoids real image requests in tests) ─────────────────────
 vi.mock('@/components/user-avatar', () => ({
   UserAvatar: ({ nickname }: { nickname: string }) => (
@@ -83,7 +97,6 @@ describe('Navbar — unauthenticated', () => {
     render(<Navbar />);
     expect(screen.getByRole('link', { name: 'P2P Exchange' })).toHaveAttribute('href', '/exchange');
     expect(screen.getByRole('link', { name: 'Marketplace' })).toHaveAttribute('href', '/market');
-    expect(screen.getByRole('link', { name: 'Messages' })).toHaveAttribute('href', '/messages');
     expect(screen.getByRole('link', { name: 'Donate' })).toHaveAttribute('href', '/donate');
   });
 
