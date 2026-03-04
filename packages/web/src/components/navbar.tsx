@@ -4,12 +4,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Info, ShieldCheck, Moon, Sun, User, Package, BarChart2, Settings, LogOut } from 'lucide-react';
+import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Info, ShieldCheck, Moon, Sun, User, Package, BarChart2, Settings, LogOut, Bell } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
 import { useThreads } from '@/hooks/use-messages';
 import { useUnreadThreads } from '@/hooks/use-unread-threads';
+import { usePendingProposals } from '@/hooks/use-pending-proposals';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +23,18 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
+
+function timeAgo(iso: string): string {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return 'now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return '1W+';
+}
 
 const navLinks = [
   { href: '/exchange', label: 'P2P Exchange', icon: ArrowLeftRight },
@@ -44,6 +57,8 @@ export function Navbar() {
     threadsData?.threads ?? [],
     user?.nickname ?? '',
   );
+
+  const { proposals, hasNew: hasNewProposals, markAllRead } = usePendingProposals(isAuthenticated);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -74,9 +89,54 @@ export function Navbar() {
         </nav>
 
         {/* Right section */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-4">
           {isAuthenticated ? (
             <>
+              {/* Notifications bell */}
+              <DropdownMenu onOpenChange={(open) => { if (open) markAllRead(); }}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="relative rounded-md p-1.5 text-muted-foreground hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label="Notifications"
+                  >
+                    <Bell className="h-5 w-5" />
+                    {hasNewProposals && (
+                      <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-orange-500" aria-label="New proposals" />
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80">
+                  <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {proposals.length === 0 ? (
+                    <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                      No pending proposals
+                    </div>
+                  ) : (
+                    proposals.map((t) => (
+                      <DropdownMenuItem key={t.id} asChild>
+                        <Link
+                          href={`/exchange/${t.offer_id}`}
+                          className="flex items-center gap-2 py-2"
+                        >
+                          <UserAvatar nickname={t.buyer_nickname} size={28} />
+                          <span className="text-sm flex-1">
+                            <span className="font-medium">{t.buyer_nickname}</span>{' '}
+                            offered you{t.fiat_amount != null ? ` ${t.fiat_amount} ${t.offer_summary?.split('/')[1] ?? ''}` : ''}{' '}
+                            on{' '}
+                            <span className="font-medium">{t.offer_summary?.replace(/^(buy|sell)\s+/i, '')}</span>{' '}
+                            offer
+                          </span>
+                          <span className="text-xs font-medium text-orange-500 shrink-0">
+                            {timeAgo(t.created_at)}
+                          </span>
+                        </Link>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               {/* User dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

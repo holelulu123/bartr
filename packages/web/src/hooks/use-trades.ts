@@ -10,10 +10,14 @@ export const tradeKeys = {
   detail: (id: string) => [...tradeKeys.details(), id] as const,
 };
 
-export function useTrades(filters: TradesFilter = {}) {
+export function useTrades(
+  filters: TradesFilter = {},
+  options: { enabled?: boolean; refetchInterval?: number } = {},
+) {
   return useQuery({
     queryKey: tradeKeys.list(filters),
     queryFn: () => tradesApi.getTrades(filters),
+    ...options,
   });
 }
 

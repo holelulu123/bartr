@@ -30,6 +30,11 @@ vi.mock('@/hooks/use-messages', () => ({
   useThreads: () => ({ data: undefined }),
 }));
 
+// ── Mock usePendingProposals ─────────────────────────────────────────────────
+vi.mock('@/hooks/use-pending-proposals', () => ({
+  usePendingProposals: () => ({ proposals: [], hasNew: false, markAllRead: vi.fn() }),
+}));
+
 // ── Mock UserAvatar (avoids real image requests in tests) ─────────────────────
 vi.mock('@/components/user-avatar', () => ({
   UserAvatar: ({ nickname }: { nickname: string }) => (
