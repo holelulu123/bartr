@@ -40,7 +40,6 @@ function timeAgo(iso: string): string {
 const navLinks = [
   { href: '/exchange', label: 'P2P Exchange', icon: ArrowLeftRight },
   { href: '/market', label: 'Marketplace', icon: Store },
-  { href: '/donate', label: 'Donate', icon: Heart },
   { href: '/tips', label: 'Tips', icon: ShieldCheck },
   { href: '/about', label: 'About', icon: Info },
 ];
@@ -84,6 +83,18 @@ export function Navbar() {
               {label}
             </Link>
           ))}
+          <Link
+            href="/donate"
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+              pathname?.startsWith('/donate')
+                ? 'bg-pink-500/15 text-pink-600 dark:text-pink-400'
+                : 'text-pink-500 dark:text-pink-400 hover:bg-pink-500/10',
+            )}
+          >
+            <Heart className="h-3.5 w-3.5 fill-current" />
+            Donate
+          </Link>
         </nav>
 
         {/* Right section */}
@@ -262,6 +273,19 @@ export function Navbar() {
               {label}
             </Link>
           ))}
+          <Link
+            href="/donate"
+            onClick={() => setMobileOpen(false)}
+            className={cn(
+              'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+              pathname?.startsWith('/donate')
+                ? 'bg-pink-500/15 text-pink-600 dark:text-pink-400'
+                : 'text-pink-500 dark:text-pink-400 hover:bg-pink-500/10',
+            )}
+          >
+            <Heart className="h-4 w-4 fill-current" />
+            Donate
+          </Link>
         </div>
       )}
     </header>
