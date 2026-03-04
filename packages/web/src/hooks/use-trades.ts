@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { trades as tradesApi } from '@/lib/api';
-import type { TradesFilter, RateTradePayload } from '@/lib/api';
+import type { TradesFilter, CreateTradePayload, RateTradePayload } from '@/lib/api';
 
 export const tradeKeys = {
   all: ['trades'] as const,
@@ -32,6 +32,24 @@ export function useCreateOffer() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: tradeKeys.lists() });
     },
+  });
+}
+
+export function useCreateExchangeTrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateTradePayload) => tradesApi.createTrade(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: tradeKeys.lists() });
+    },
+  });
+}
+
+export function useTradesForOffer(offerId: string) {
+  return useQuery({
+    queryKey: tradeKeys.list({ offer_id: offerId }),
+    queryFn: () => tradesApi.getTrades({ offer_id: offerId }),
+    enabled: !!offerId,
   });
 }
 

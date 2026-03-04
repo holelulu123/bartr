@@ -69,39 +69,57 @@ export default async function messageRoutes(fastify: FastifyInstance) {
 
   // List my threads
   fastify.get<{
-    Querystring: { page?: string; limit?: string };
+    Querystring: { page?: string; limit?: string; offer_id?: string };
   }>(
     '/threads',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const userId = request.user!.sub;
-      const { page = '1', limit = '20' } = request.query;
+      const { page = '1', limit = '20', offer_id } = request.query;
 
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
       const offset = (pageNum - 1) * limitNum;
 
+      const countParams: (string | number)[] = [userId];
+      let countWhere = '(mt.participant_1 = $1 OR mt.participant_2 = $1)';
+      if (offer_id) {
+        countParams.push(offer_id);
+        countWhere += ` AND mt.offer_id = $${countParams.length}`;
+      }
+
       const countRes = await fastify.pg.query(
-        'SELECT COUNT(*) FROM message_threads WHERE participant_1 = $1 OR participant_2 = $1',
-        [userId],
+        `SELECT COUNT(*) FROM message_threads mt WHERE ${countWhere}`,
+        countParams,
       );
       const total = parseInt(countRes.rows[0].count, 10);
 
+      const listParams: (string | number)[] = [userId];
+      let listWhere = '(mt.participant_1 = $1 OR mt.participant_2 = $1)';
+      let paramIdx = 2;
+      if (offer_id) {
+        listParams.push(offer_id);
+        listWhere += ` AND mt.offer_id = $${paramIdx++}`;
+      }
+      listParams.push(limitNum, offset);
+
       const result = await fastify.pg.query(
-        `SELECT mt.id, mt.listing_id, mt.created_at,
+        `SELECT mt.id, mt.listing_id, mt.offer_id, mt.created_at,
                 u1.nickname as participant_1_nickname,
                 u2.nickname as participant_2_nickname,
                 l.title as listing_title,
+                CASE WHEN eo.id IS NOT NULL THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
                 (SELECT m.created_at FROM messages m WHERE m.thread_id = mt.id ORDER BY m.created_at DESC LIMIT 1) as last_message_at,
                 (SELECT u.nickname FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.thread_id = mt.id ORDER BY m.created_at DESC LIMIT 1) as last_sender_nickname
          FROM message_threads mt
          JOIN users u1 ON u1.id = mt.participant_1
          JOIN users u2 ON u2.id = mt.participant_2
          LEFT JOIN listings l ON l.id = mt.listing_id
-         WHERE mt.participant_1 = $1 OR mt.participant_2 = $1
+         LEFT JOIN exchange_offers eo ON eo.id = mt.offer_id
+         WHERE ${listWhere}
          ORDER BY last_message_at DESC NULLS LAST, mt.created_at DESC
-         LIMIT $2 OFFSET $3`,
-        [userId, limitNum, offset],
+         LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+        listParams,
       );
 
       return reply.send({

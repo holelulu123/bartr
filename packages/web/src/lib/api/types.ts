@@ -151,18 +151,29 @@ export interface Category {
 // Trades
 export interface Trade {
   id: string;
-  listing_id: string;
+  listing_id: string | null;
+  offer_id: string | null;
   buyer_id: string;
   seller_id: string;
   status: TradeStatus;
+  fiat_amount: number | null;
+  payment_method: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface TradeSummary extends Trade {
-  listing_title: string;
+  listing_title: string | null;
+  offer_summary: string | null;
   buyer_nickname: string;
   seller_nickname: string;
+}
+
+export interface CreateTradePayload {
+  listing_id?: string;
+  offer_id?: string;
+  fiat_amount?: number;
+  payment_method?: string;
 }
 
 export interface TradeEvent {
@@ -184,6 +195,7 @@ export interface TradesResponse {
 export interface TradesFilter {
   role?: 'buyer' | 'seller';
   status?: TradeStatus;
+  offer_id?: string;
   page?: number;
   limit?: number;
 }
@@ -219,10 +231,12 @@ export interface UserRatingsResponse {
 export interface MessageThread {
   id: string;
   listing_id: string | null;
+  offer_id: string | null;
   created_at: string;
   participant_1_nickname: string;
   participant_2_nickname: string;
   listing_title: string | null;
+  offer_summary: string | null;
   last_message_at: string | null;
   last_sender_nickname: string | null;
 }
@@ -249,6 +263,7 @@ export interface MessagesResponse {
 export interface CreateThreadPayload {
   recipient_nickname: string;
   listing_id?: string;
+  offer_id?: string;
 }
 
 // Moderation

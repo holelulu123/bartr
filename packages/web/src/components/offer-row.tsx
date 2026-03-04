@@ -147,12 +147,12 @@ export function OfferRow({ offer }: OfferRowProps) {
         <div className="min-w-0 overflow-hidden">
           <Link
             href={`/user/${offer.seller_nickname}`}
-            className="text-sm font-semibold hover:underline block truncate"
+            className="text-base font-semibold hover:underline block truncate"
           >
             {offer.seller_nickname}
           </Link>
           {(offer.country_code || offer.city) && (
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-sm text-muted-foreground truncate">
               {offer.country_code && getCountryFlag(offer.country_code)}{' '}
               {offer.country_code && getCountryName(offer.country_code)}
               {offer.city && `, ${offer.city}`}
@@ -163,14 +163,14 @@ export function OfferRow({ offer }: OfferRowProps) {
               {[1, 2, 3, 4, 5].map((n) => (
                 <Star
                   key={n}
-                  className={cn('h-3.5 w-3.5', n <= stars ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/30')}
+                  className={cn('h-4 w-4', n <= stars ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/30')}
                 />
               ))}
-              <span className="text-xs text-muted-foreground ml-0.5">
+              <span className="text-sm text-muted-foreground ml-0.5">
                 {ratingAvg.toFixed(1)}
               </span>
             </div>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               · {tradeCount} {tradeCount === 1 ? 'trade' : 'trades'}
             </span>
           </div>
@@ -179,7 +179,7 @@ export function OfferRow({ offer }: OfferRowProps) {
 
       {/* Limit */}
       <div className="min-w-0">
-        <p className="text-base font-bold leading-tight whitespace-nowrap">
+        <p className="text-lg font-bold leading-tight whitespace-nowrap">
           {isFixed
             ? `${fmt(minFiat)} ${offer.fiat_currency}`
             : offer.min_amount || offer.max_amount
@@ -187,7 +187,7 @@ export function OfferRow({ offer }: OfferRowProps) {
               : 'Any amount'}
         </p>
         {effectivePrice !== undefined && (offer.min_amount || offer.max_amount) && (
-          <p className="text-xs text-muted-foreground leading-tight mt-0.5 whitespace-nowrap">
+          <p className="text-sm text-muted-foreground leading-tight mt-0.5 whitespace-nowrap">
             {isFixed
               ? `${fmt(minCrypto!, 6)} ${offer.crypto_currency}`
               : `${fmt(minCrypto!, 6)} – ${fmt(maxCrypto!, 6)} ${offer.crypto_currency}`}
@@ -276,7 +276,7 @@ export function OfferRow({ offer }: OfferRowProps) {
       <div className="flex items-center gap-1.5">
         <Button asChild size="sm" variant="outline">
           <Link href={`/exchange/${offer.id}`}>
-            Offer
+            {isOwn ? 'View' : 'Offer'}
           </Link>
         </Button>
         {isOwn && (

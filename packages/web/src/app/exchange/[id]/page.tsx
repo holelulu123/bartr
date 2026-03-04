@@ -1,19 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ArrowUp, ArrowDown, MessageSquare, Star, Pause, Play, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft, ArrowUp, ArrowDown, Star, Pause, Play, Trash2,
+  Lock, LogIn, MessageSquare, Check, X,
+} from 'lucide-react';
 import { useOffer, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
 import { useUser } from '@/hooks/use-users';
 import { useAuth } from '@/contexts/auth-context';
+import { useCrypto } from '@/contexts/crypto-context';
 import { usePrices } from '@/hooks/use-prices';
-import { PriceTicker } from '@/components/price-ticker';
+import { useCreateExchangeTrade, useTradesForOffer, useAcceptTrade, useDeclineTrade } from '@/hooks/use-trades';
+import { useCreateThread } from '@/hooks/use-messages';
 import { CoinIcon } from '@/components/crypto-icons';
 import { ReputationBadge } from '@/components/reputation-badge';
+import { ChatPanel } from '@/components/chat-panel';
 import { getCountryFlag, getCountryName } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +40,7 @@ import {
 import { cn } from '@/lib/utils';
 import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
 import type { SettlementMethod } from '@bartr/shared';
+import type { TradeSummary } from '@/lib/api';
 
 function fmt(val: number | string | null | undefined, decimals = 2): string {
   if (val === null || val === undefined) return '0';
@@ -34,7 +50,6 @@ function fmt(val: number | string | null | undefined, decimals = 2): string {
   return formatted;
 }
 
-/** Deterministic identicon — compact version for inline use */
 function MiniIdenticon({ seed, size = 32 }: { seed: string; size?: number }) {
   const cells = 5;
   const cellSize = size / cells;
@@ -70,7 +85,7 @@ function MiniIdenticon({ seed, size = 32 }: { seed: string; size?: number }) {
 
 function OfferDetailSkeleton() {
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6" aria-label="Loading">
+    <div className="max-w-[1400px] mx-auto px-4 py-6 space-y-6" aria-label="Loading">
       <div className="h-5 w-32 bg-muted animate-pulse rounded" />
       <div className="h-8 w-64 bg-muted animate-pulse rounded" />
       <div className="space-y-4">
@@ -82,18 +97,316 @@ function OfferDetailSkeleton() {
   );
 }
 
+// ── Trade Proposal Row (for owner view) ─────────────────────────────────────
+
+function TradeProposalRow({
+  trade,
+  fiatCurrency,
+  onSelect,
+  isSelected,
+}: {
+  trade: TradeSummary;
+  fiatCurrency: string;
+  onSelect: () => void;
+  isSelected: boolean;
+}) {
+  const acceptTrade = useAcceptTrade();
+  const declineTrade = useDeclineTrade();
+
+  const statusColors: Record<string, string> = {
+    offered: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
+    accepted: 'bg-green-500/15 text-green-600 dark:text-green-400',
+    declined: 'bg-red-500/15 text-red-600 dark:text-red-400',
+    cancelled: 'bg-muted text-muted-foreground',
+    completed: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  };
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border p-3 transition-colors cursor-pointer',
+        isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
+      )}
+      onClick={onSelect}
+    >
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <MiniIdenticon seed={trade.buyer_nickname} size={24} />
+          <Link
+            href={`/user/${trade.buyer_nickname}`}
+            className="text-sm font-medium hover:underline truncate"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {trade.buyer_nickname}
+          </Link>
+        </div>
+        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', statusColors[trade.status] || 'bg-muted text-muted-foreground')}>
+          {trade.status}
+        </span>
+      </div>
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">
+          {trade.fiat_amount ? `${fmt(trade.fiat_amount)} ${fiatCurrency}` : '--'}
+          {trade.payment_method && (
+            <> · {SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method}</>
+          )}
+        </span>
+      </div>
+      {trade.status === 'offered' && (
+        <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+          <Button
+            size="sm"
+            variant="default"
+            className="flex-1 h-7 text-xs"
+            disabled={acceptTrade.isPending || declineTrade.isPending}
+            onClick={() => acceptTrade.mutate(trade.id)}
+          >
+            <Check className="h-3 w-3 mr-1" />
+            Accept
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 h-7 text-xs"
+            disabled={acceptTrade.isPending || declineTrade.isPending}
+            onClick={() => declineTrade.mutate(trade.id)}
+          >
+            <X className="h-3 w-3 mr-1" />
+            Decline
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Make Offer Form ─────────────────────────────────────────────────────────
+
+function MakeOfferForm({
+  offer,
+  effectivePrice,
+  onTradeCreated,
+}: {
+  offer: {
+    id: string;
+    min_amount: number;
+    max_amount: number;
+    fiat_currency: string;
+    crypto_currency: string;
+    payment_methods: string[];
+    seller_nickname: string;
+  };
+  effectivePrice: number | undefined;
+  onTradeCreated: (tradeId: string, threadId: string) => void;
+}) {
+  const [fiatAmount, setFiatAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [error, setError] = useState('');
+  const [shaking, setShaking] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const createTrade = useCreateExchangeTrade();
+  const createThread = useCreateThread();
+
+  const minFiat = Number(offer.min_amount) || 0;
+  const maxFiat = Number(offer.max_amount) || 0;
+  const isFixedAmount = minFiat === maxFiat && minFiat > 0;
+
+  const parsedAmount = parseFloat(fiatAmount);
+  const cryptoEquiv = effectivePrice && parsedAmount > 0 ? parsedAmount / effectivePrice : undefined;
+
+  // Live validation — only show error after user has typed something
+  const hasInput = fiatAmount.length > 0;
+  const isOutOfRange = hasInput && parsedAmount > 0 && (parsedAmount < minFiat || parsedAmount > maxFiat);
+  const rangeError = isOutOfRange
+    ? `${fmt(minFiat)} – ${fmt(maxFiat)} ${offer.fiat_currency}`
+    : null;
+
+  function triggerShake() {
+    setShaking(true);
+    setTimeout(() => setShaking(false), 500);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+
+    const amount = isFixedAmount ? minFiat : parsedAmount;
+    if (!paymentMethod) {
+      setError('Select a settlement method');
+      triggerShake();
+      return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      setError('Enter a valid amount');
+      triggerShake();
+      return;
+    }
+    if (amount < minFiat || amount > maxFiat) {
+      setError(`Amount must be between ${fmt(minFiat)} and ${fmt(maxFiat)} ${offer.fiat_currency}`);
+      triggerShake();
+      return;
+    }
+
+    try {
+      const trade = await createTrade.mutateAsync({
+        offer_id: offer.id,
+        fiat_amount: amount,
+        payment_method: paymentMethod,
+      });
+
+      const thread = await createThread.mutateAsync({
+        recipient_nickname: offer.seller_nickname,
+        offer_id: offer.id,
+      });
+
+      onTradeCreated(trade.id, thread.id);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create trade';
+      setError(message);
+      triggerShake();
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-5 space-y-4">
+      <h3 className="font-semibold text-sm">Make an offer</h3>
+
+      {/* Fiat amount */}
+      {isFixedAmount ? (
+        <div>
+          <Label className="text-sm text-muted-foreground">Amount (fixed)</Label>
+          <p className="text-lg font-bold mt-1">
+            {fmt(minFiat)} {offer.fiat_currency}
+            {effectivePrice && (
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                ≃ {fmt(minFiat / effectivePrice, 6)} {offer.crypto_currency}
+              </span>
+            )}
+          </p>
+        </div>
+      ) : (
+        <div className="flex gap-5">
+          {/* Left: inputs + button */}
+          <div className="shrink-0 space-y-3">
+            {/* Row 1: Amount + Settlement */}
+            <div className="flex items-end gap-2">
+              <div className="min-w-0">
+                <Label htmlFor="fiat-amount" className="text-sm text-muted-foreground mb-1">
+                  Amount ({offer.fiat_currency})
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="fiat-amount"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={`${fmt(minFiat)} – ${fmt(maxFiat)}`}
+                    value={fiatAmount}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '' || /^[1-9]\d{0,5}(\.\d{0,2})?$/.test(v)) setFiatAmount(v);
+                    }}
+                    className={cn(
+                      'w-32 h-10 text-sm',
+                      isOutOfRange && 'border-destructive ring-1 ring-destructive/30 focus-visible:ring-destructive/50',
+                    )}
+                  />
+                  <span className={cn('text-base font-medium text-muted-foreground whitespace-nowrap', cryptoEquiv === undefined && 'invisible')}>
+                    ≃ {cryptoEquiv !== undefined ? fmt(cryptoEquiv, 6) : '0.000000'} {offer.crypto_currency}
+                  </span>
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <Label htmlFor="payment-method" className="text-sm text-muted-foreground mb-1">
+                  Settlement method
+                </Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger id="payment-method" className="h-10 text-sm w-44">
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {offer.payment_methods.map((pm) => (
+                      <SelectItem key={pm} value={pm} className="text-sm">
+                        {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Row 2: Make offer button (full width of inputs above) */}
+            <Button
+              ref={btnRef}
+              type="submit"
+              className={cn('w-full h-10 text-sm', shaking && 'animate-shake')}
+              disabled={createTrade.isPending || createThread.isPending}
+            >
+              {createTrade.isPending || createThread.isPending ? 'Sending…' : 'Make offer'}
+            </Button>
+
+            {/* Error below button */}
+            <p className={cn('text-xs h-4', (rangeError || error) ? 'text-destructive' : 'invisible')}>
+              {rangeError || error || '\u00A0'}
+            </p>
+          </div>
+
+          {/* Right: safety tips spanning both rows */}
+          <div className="flex-1 min-w-0 flex items-center">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Trades are peer-to-peer with no escrow. Always verify payment before releasing crypto. Never share your private keys or recovery phrase.{' '}
+              <Link href="/tips" className="text-primary hover:underline font-medium">
+                Read safety tips
+              </Link>
+              {' '}— you are solely responsible for your transactions.
+            </p>
+          </div>
+        </div>
+      )}
+
+    </form>
+  );
+}
+
+// ── Main Page ────────────────────────────────────────────────────────────────
+
 export default function OfferDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
+  const { isUnlocked } = useCrypto();
 
   const { data: offer, isLoading, isError } = useOffer(id);
   const { data: sellerProfile } = useUser(offer?.seller_nickname ?? '');
   const { data: priceData } = usePrices();
+  const { data: tradesData, refetch: refetchTrades } = useTradesForOffer(id);
   const updateMutation = useUpdateOffer(id);
   const deleteMutation = useDeleteOffer();
+
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPauseDialog, setShowPauseDialog] = useState(false);
+
+  // Active trade + thread state (for buyer after making an offer)
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  // Selected trade for owner chat
+  const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
+
+  const isOwner = user?.id === offer?.user_id;
+
+  // Find buyer's existing active trade on this offer
+  const myActiveTrade = useMemo(() => {
+    if (!tradesData || isOwner) return null;
+    return tradesData.trades.find(
+      (t) => t.buyer_id === user?.id && ['offered', 'accepted'].includes(t.status),
+    ) ?? null;
+  }, [tradesData, user?.id, isOwner]);
+
+  // Selected trade (for owner to view chat)
+  const selectedTrade = useMemo(() => {
+    if (!tradesData || !selectedTradeId) return null;
+    return tradesData.trades.find((t) => t.id === selectedTradeId) ?? null;
+  }, [tradesData, selectedTradeId]);
 
   if (isLoading) return <OfferDetailSkeleton />;
 
@@ -109,10 +422,9 @@ export default function OfferDetailPage() {
   }
 
   const isBuy = offer.offer_type === 'buy';
-  const isOwner = user?.id === offer.user_id;
   const stars = sellerProfile ? Math.round(sellerProfile.reputation.rating_avg) : 0;
 
-  // Compute effective price for crypto equivalent display
+  // Compute effective price
   let coinPrice: number | undefined;
   if (priceData) {
     const cp = priceData[offer.crypto_currency];
@@ -130,182 +442,347 @@ export default function OfferDetailPage() {
   const maxCrypto = effectivePrice ? maxFiat / effectivePrice : undefined;
   const isFixedAmount = minFiat === maxFiat && minFiat > 0;
 
+  // Trade created callback
+  function handleTradeCreated(_tradeId: string, threadId: string) {
+    setActiveThreadId(threadId);
+    refetchTrades();
+  }
+
+  // Determine right panel chat thread recipient
+  const chatRecipientNickname = isOwner
+    ? selectedTrade?.buyer_nickname ?? null
+    : offer.seller_nickname;
+
+  // Determine the thread ID for chat (buyer side: from activeThreadId or find from myActiveTrade)
+  const chatThreadId = isOwner
+    ? null // Owner selects from proposals
+    : activeThreadId;
+
+  const trades = tradesData?.trades ?? [];
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-      {/* Header — nickname + pair + reputation */}
-      <div>
-        <Link
-          href="/exchange"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to exchange
-        </Link>
-
-        <div className="flex items-center gap-3">
-          <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-[13px]">
-            {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
-            {isBuy ? 'Buying' : 'Selling'}
-          </Badge>
-          <span className="inline-flex items-center gap-2">
-            <CoinIcon symbol={offer.crypto_currency} className="h-6 w-6" />
-            <h1 className="text-2xl font-bold">
-              {offer.crypto_currency}/{offer.fiat_currency}
-            </h1>
-          </span>
-        </div>
-
-        {/* Seller info inline with header */}
-        <div className="flex items-center gap-2.5 mt-3">
-          <Link href={`/user/${offer.seller_nickname}`} className="shrink-0">
-            <MiniIdenticon seed={offer.seller_nickname} size={36} />
-          </Link>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Link
-                href={`/user/${offer.seller_nickname}`}
-                className="text-[15px] font-medium hover:underline truncate"
-              >
-                {offer.seller_nickname}
-              </Link>
-              {sellerProfile && <ReputationBadge tier={sellerProfile.reputation.tier} />}
-            </div>
-            {sellerProfile && (
-              <div className="flex items-center gap-0.5" aria-label={`Rating: ${sellerProfile.reputation.rating_avg.toFixed(1)} out of 5`}>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <Star
-                    key={n}
-                    className={cn('h-3.5 w-3.5', n <= stars ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/40')}
-                  />
-                ))}
-                <span className="text-xs text-muted-foreground ml-1">
-                  {sellerProfile.reputation.rating_avg.toFixed(1)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Offer details card */}
-      <div className="rounded-xl border border-border bg-card p-6 space-y-5">
-        {/* Trade amount + Price — side by side on desktop */}
-        <div className="flex flex-col sm:flex-row sm:items-start gap-6">
-          {/* Trade amount — shown first and prominent */}
-          {(offer.min_amount || offer.max_amount) && (
-            <div className="flex-1">
-              <p className="text-sm text-muted-foreground mb-1">Trade amount</p>
-              <p className="text-3xl font-bold">
-                {isFixedAmount
-                  ? `${fmt(minFiat)} ${offer.fiat_currency}`
-                  : `${offer.min_amount ? fmt(minFiat) : '0'} – ${offer.max_amount ? fmt(maxFiat) : '∞'} ${offer.fiat_currency}`}
-              </p>
-              {effectivePrice !== undefined && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {isFixedAmount
-                    ? `${fmt(minCrypto!, 6)} ${offer.crypto_currency}`
-                    : `${fmt(minCrypto!, 6)} – ${fmt(maxCrypto!, 6)} ${offer.crypto_currency}`}
-                </p>
-              )}
-              {isFixedAmount && (
-                <p className="text-xs text-muted-foreground mt-0.5">Fixed amount</p>
-              )}
-            </div>
-          )}
-
-          {/* Price per coin + margin */}
-          <div className="sm:text-right">
-            <p className="text-sm text-muted-foreground mb-1">Price per {offer.crypto_currency}</p>
-            <p className="text-2xl font-bold">
-              {effectivePrice !== undefined
-                ? `${fmt(effectivePrice)} ${offer.fiat_currency}`
-                : '--'}
-            </p>
-            {offer.rate_type === 'market' && (
-              <div className="mt-1.5">
-                <span className="inline-block rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 text-sm font-medium">
-                  {Number(offer.margin_percent) > 0 ? '+' : ''}{offer.margin_percent}% margin
-                </span>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isBuy ? 'Buyer' : 'Seller'} seeks {Number(offer.margin_percent) === 0 ? 'market price' : `${Math.abs(Number(offer.margin_percent))}% ${Number(offer.margin_percent) > 0 ? 'above' : 'below'} market price`} ({offer.price_source})
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Settlement methods */}
-        <div>
-          <p className="text-sm text-muted-foreground mb-1.5">Settlement methods</p>
-          <div className="flex flex-wrap gap-2">
-            {offer.payment_methods.map((pm) => (
-              <Badge key={pm} variant="outline" className="text-[13px] px-2.5 py-0.5">
-                {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
-              </Badge>
-            ))}
-          </div>
-        </div>
-
-        {/* Location */}
-        {(offer.country_code || offer.city) && (
+    <div className="max-w-[1400px] mx-auto px-4 py-6">
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* ── Left Panel (lg:w-3/5) ─────────────────────────────────── */}
+        <div className="lg:w-3/5 space-y-6">
+          {/* Header */}
           <div>
-            <p className="text-sm text-muted-foreground mb-1">Location</p>
-            <p className="font-medium">
-              {offer.country_code && <>{getCountryFlag(offer.country_code)} {getCountryName(offer.country_code)}</>}
-              {offer.country_code && offer.city && ', '}
-              {offer.city}
-            </p>
-          </div>
-        )}
-
-        {/* Terms */}
-        {offer.terms && (
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Trade terms</p>
-            <p className="text-[13px] whitespace-pre-wrap break-words">{offer.terms}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Actions */}
-      {isAuthenticated && !isOwner && (
-        <div className="flex gap-3">
-          <Button asChild className="flex-1">
-            <Link href={`/messages?contact=${offer.seller_nickname}`}>
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Chat
-            </Link>
-          </Button>
-        </div>
-      )}
-
-      {isOwner && (
-        <div className="flex gap-3">
-          {offer.status !== 'removed' && (
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => setShowPauseDialog(true)}
+            <Link
+              href="/exchange"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
             >
-              {offer.status === 'active' ? (
-                <><Pause className="h-4 w-4 mr-2" />Pause offer</>
-              ) : (
-                <><Play className="h-4 w-4 mr-2" />Resume offer</>
-              )}
-            </Button>
-          )}
-          <Button
-            variant="destructive"
-            className="flex-1"
-            onClick={() => setShowDeleteDialog(true)}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete offer
-          </Button>
-        </div>
-      )}
+              <ArrowLeft className="h-4 w-4" />
+              Back to exchange
+            </Link>
 
-      {/* Pause/Resume confirmation dialog */}
+            <div className="flex items-center gap-3">
+              <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-[13px]">
+                {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
+                {isBuy ? 'Buying' : 'Selling'}
+              </Badge>
+              <span className="inline-flex items-center gap-2">
+                <CoinIcon symbol={offer.crypto_currency} className="h-6 w-6" />
+                <h1 className="text-2xl font-bold">
+                  {offer.crypto_currency}/{offer.fiat_currency}
+                </h1>
+              </span>
+            </div>
+
+            {/* Seller info */}
+            <div className="flex items-center gap-2.5 mt-3">
+              <Link href={`/user/${offer.seller_nickname}`} className="shrink-0">
+                <MiniIdenticon seed={offer.seller_nickname} size={36} />
+              </Link>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/user/${offer.seller_nickname}`}
+                    className="text-base font-medium hover:underline truncate"
+                  >
+                    {offer.seller_nickname}
+                  </Link>
+                  {sellerProfile && <ReputationBadge tier={sellerProfile.reputation.tier} />}
+                </div>
+                {sellerProfile && (
+                  <div className="flex items-center gap-0.5" aria-label={`Rating: ${sellerProfile.reputation.rating_avg.toFixed(1)} out of 5`}>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Star
+                        key={n}
+                        className={cn('h-4 w-4', n <= stars ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/40')}
+                      />
+                    ))}
+                    <span className="text-sm text-muted-foreground ml-1">
+                      {sellerProfile.reputation.rating_avg.toFixed(1)}
+                    </span>
+                    <span className="text-sm text-muted-foreground ml-1.5">
+                      · {offer.seller_trade_count} {offer.seller_trade_count === 1 ? 'trade' : 'trades'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Offer details card */}
+          <div className="rounded-xl border border-border bg-card p-6 space-y-5">
+            {/* Trade amount + Price */}
+            <div className="flex flex-col sm:flex-row sm:items-start gap-6">
+              {(offer.min_amount || offer.max_amount) && (
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground mb-1">Trade amount</p>
+                  <p className="text-3xl font-bold">
+                    {isFixedAmount
+                      ? `${fmt(minFiat)} ${offer.fiat_currency}`
+                      : `${offer.min_amount ? fmt(minFiat) : '0'} – ${offer.max_amount ? fmt(maxFiat) : '∞'} ${offer.fiat_currency}`}
+                  </p>
+                  {effectivePrice !== undefined && (
+                    <p className="text-base text-muted-foreground mt-1">
+                      {isFixedAmount
+                        ? `${fmt(minCrypto!, 6)} ${offer.crypto_currency}`
+                        : `${fmt(minCrypto!, 6)} – ${fmt(maxCrypto!, 6)} ${offer.crypto_currency}`}
+                    </p>
+                  )}
+                  {isFixedAmount && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Fixed amount</p>
+                  )}
+                </div>
+              )}
+
+              <div className="sm:text-right">
+                <p className="text-sm text-muted-foreground mb-1">Price per {offer.crypto_currency}</p>
+                <p className="text-2xl font-bold">
+                  {effectivePrice !== undefined
+                    ? `${fmt(effectivePrice)} ${offer.fiat_currency}`
+                    : '--'}
+                </p>
+                {offer.rate_type === 'market' && (
+                  <div className="mt-1.5">
+                    <span className="inline-block rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 text-sm font-medium">
+                      {Number(offer.margin_percent) > 0 ? '+' : ''}{offer.margin_percent}% margin
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {isBuy ? 'Buyer' : 'Seller'} seeks {Number(offer.margin_percent) === 0 ? 'market price' : `${Math.abs(Number(offer.margin_percent))}% ${Number(offer.margin_percent) > 0 ? 'above' : 'below'} market price`} ({offer.price_source})
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Settlement methods */}
+            <div>
+              <p className="text-sm text-muted-foreground mb-1.5">Settlement methods</p>
+              <div className="flex flex-wrap gap-2">
+                {offer.payment_methods.map((pm) => (
+                  <Badge key={pm} variant="outline" className="text-[13px] px-2.5 py-0.5">
+                    {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* Location */}
+            {(offer.country_code || offer.city) && (
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Location</p>
+                <p className="font-medium">
+                  {offer.country_code && <>{getCountryFlag(offer.country_code)} {getCountryName(offer.country_code)}</>}
+                  {offer.country_code && offer.city && ', '}
+                  {offer.city}
+                </p>
+              </div>
+            )}
+
+            {/* Terms */}
+            {offer.terms && (
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Trade terms</p>
+                <p className="text-[13px] whitespace-pre-wrap break-words">{offer.terms}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Make Offer form — non-owner, no active trade */}
+          {isAuthenticated && !isOwner && !myActiveTrade && (
+            <MakeOfferForm
+              offer={{
+                id: offer.id,
+                min_amount: offer.min_amount,
+                max_amount: offer.max_amount,
+                fiat_currency: offer.fiat_currency,
+                crypto_currency: offer.crypto_currency,
+                payment_methods: offer.payment_methods,
+                seller_nickname: offer.seller_nickname,
+              }}
+              effectivePrice={effectivePrice}
+              onTradeCreated={handleTradeCreated}
+            />
+          )}
+
+          {/* Active trade summary for buyer */}
+          {isAuthenticated && !isOwner && myActiveTrade && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-5 space-y-2">
+              <h3 className="font-semibold text-sm">Your active trade</h3>
+              <div className="flex items-center justify-between text-sm">
+                <span>
+                  {myActiveTrade.fiat_amount ? `${fmt(myActiveTrade.fiat_amount)} ${offer.fiat_currency}` : '--'}
+                  {myActiveTrade.payment_method && (
+                    <> · {SETTLEMENT_METHOD_LABELS[myActiveTrade.payment_method as SettlementMethod] ?? myActiveTrade.payment_method}</>
+                  )}
+                </span>
+                <Badge variant="outline" className="text-xs">{myActiveTrade.status}</Badge>
+              </div>
+            </div>
+          )}
+
+          {/* Owner controls */}
+          {isOwner && (
+            <div className="flex gap-3">
+              {offer.status !== 'removed' && (
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowPauseDialog(true)}
+                >
+                  {offer.status === 'active' ? (
+                    <><Pause className="h-4 w-4 mr-2" />Pause offer</>
+                  ) : (
+                    <><Play className="h-4 w-4 mr-2" />Resume offer</>
+                  )}
+                </Button>
+              )}
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete offer
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Right Panel (lg:w-2/5) ─────────────────────────────────── */}
+        <div className="lg:w-2/5">
+          <div className="lg:sticky lg:top-6">
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              {/* Not authenticated */}
+              {!isAuthenticated && (
+                <div className="p-8 text-center space-y-3">
+                  <LogIn className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                  <p className="text-sm font-medium">Log in to make an offer</p>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/login">Log in</Link>
+                  </Button>
+                </div>
+              )}
+
+              {/* Authenticated but keys not loaded */}
+              {isAuthenticated && !isUnlocked && (
+                <div className="p-8 text-center space-y-3">
+                  <Lock className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                  <p className="text-sm font-medium">Unlock keys to chat</p>
+                  <p className="text-xs text-muted-foreground">
+                    Your encryption keys need to be unlocked before you can send messages.
+                  </p>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/auth/unlock?next=/exchange/${id}`}>Unlock keys</Link>
+                  </Button>
+                </div>
+              )}
+
+              {/* Buyer: no trade yet */}
+              {isAuthenticated && isUnlocked && !isOwner && !myActiveTrade && !chatThreadId && (
+                <div className="p-8 text-center space-y-2">
+                  <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                  <p className="text-sm font-medium">Make an offer to start chatting</p>
+                  <p className="text-xs text-muted-foreground">
+                    Submit your trade proposal using the form on the left.
+                  </p>
+                </div>
+              )}
+
+              {/* Buyer: has active trade — show chat */}
+              {isAuthenticated && isUnlocked && !isOwner && (myActiveTrade || chatThreadId) && chatRecipientNickname && (
+                <ChatPanel
+                  threadId={chatThreadId || ''}
+                  recipientNickname={chatRecipientNickname}
+                  contextLabel={`${offer.offer_type} ${offer.crypto_currency}/${offer.fiat_currency}`}
+                  className="h-[500px] lg:h-[calc(100vh-200px)] lg:max-h-[700px]"
+                />
+              )}
+
+              {/* Owner: trade proposals list */}
+              {isAuthenticated && isUnlocked && isOwner && (
+                <div className="flex flex-col h-[500px] lg:h-[calc(100vh-200px)] lg:max-h-[700px]">
+                  <div className="px-4 py-3 border-b border-border shrink-0">
+                    <h3 className="font-semibold text-sm">
+                      Trade proposals {trades.length > 0 && `(${trades.length})`}
+                    </h3>
+                  </div>
+
+                  {trades.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center p-6">
+                      <div className="text-center space-y-2">
+                        <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                        <p className="text-sm text-muted-foreground">No proposals yet</p>
+                      </div>
+                    </div>
+                  ) : selectedTrade && chatRecipientNickname ? (
+                    /* Owner: selected trade — show chat */
+                    <div className="flex-1 flex flex-col min-h-0">
+                      <button
+                        className="px-4 py-2 text-xs text-muted-foreground hover:text-foreground border-b border-border text-left shrink-0"
+                        onClick={() => setSelectedTradeId(null)}
+                      >
+                        <ArrowLeft className="h-3 w-3 inline mr-1" />
+                        Back to proposals
+                      </button>
+                      <div className="px-3 py-2 border-b border-border shrink-0 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{selectedTrade.buyer_nickname}</span>
+                        {' · '}
+                        {selectedTrade.fiat_amount ? `${fmt(selectedTrade.fiat_amount)} ${offer.fiat_currency}` : '--'}
+                        {selectedTrade.payment_method && ` · ${SETTLEMENT_METHOD_LABELS[selectedTrade.payment_method as SettlementMethod] ?? selectedTrade.payment_method}`}
+                      </div>
+                      <ChatPanel
+                        threadId=""
+                        recipientNickname={chatRecipientNickname}
+                        className="flex-1 min-h-0"
+                      />
+                    </div>
+                  ) : (
+                    /* Owner: proposals list */
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                      {trades.map((trade) => (
+                        <TradeProposalRow
+                          key={trade.id}
+                          trade={trade}
+                          fiatCurrency={offer.fiat_currency}
+                          onSelect={() => setSelectedTradeId(trade.id)}
+                          isSelected={selectedTradeId === trade.id}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Owner: keys not loaded */}
+              {isAuthenticated && !isUnlocked && isOwner && (
+                <div className="p-8 text-center space-y-3">
+                  <Lock className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                  <p className="text-sm font-medium">Unlock keys to view proposals</p>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/auth/unlock?next=/exchange/${id}`}>Unlock keys</Link>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pause/Resume dialog */}
       <Dialog open={showPauseDialog} onOpenChange={setShowPauseDialog}>
         <DialogContent>
           <DialogHeader>
@@ -339,7 +816,7 @@ export default function OfferDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation dialog */}
+      {/* Delete dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>

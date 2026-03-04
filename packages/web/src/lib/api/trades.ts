@@ -4,6 +4,7 @@ import type {
   TradeDetail,
   TradesResponse,
   TradesFilter,
+  CreateTradePayload,
   CompleteTradeResponse,
   Rating,
   RateTradePayload,
@@ -13,6 +14,7 @@ export function getTrades(filters: TradesFilter = {}): Promise<TradesResponse> {
   const params = new URLSearchParams();
   if (filters.role) params.set('role', filters.role);
   if (filters.status) params.set('status', filters.status);
+  if (filters.offer_id) params.set('offer_id', filters.offer_id);
   if (filters.page) params.set('page', String(filters.page));
   if (filters.limit) params.set('limit', String(filters.limit));
 
@@ -26,6 +28,10 @@ export function getTrade(id: string): Promise<TradeDetail> {
 
 export function createOffer(listing_id: string): Promise<Trade> {
   return post<Trade>('/trades', { listing_id });
+}
+
+export function createTrade(payload: CreateTradePayload): Promise<Trade> {
+  return post<Trade>('/trades', payload);
 }
 
 export function acceptTrade(id: string): Promise<Trade> {

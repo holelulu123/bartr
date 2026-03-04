@@ -170,8 +170,24 @@ function CreateListingForm() {
       if (cityName && isValidCity(cityName)) {
         setCity(cityName);
       }
-    } catch {
-      setGeoError('Could not detect location. Please allow location access.');
+    } catch (err) {
+      if (err instanceof GeolocationPositionError) {
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            setGeoError('Location access denied. Please allow location permission in your browser settings.');
+            break;
+          case err.POSITION_UNAVAILABLE:
+            setGeoError('Location unavailable. Your device could not determine your position.');
+            break;
+          case err.TIMEOUT:
+            setGeoError('Location request timed out. Please try again.');
+            break;
+          default:
+            setGeoError('Could not detect location. Please try again.');
+        }
+      } else {
+        setGeoError('Failed to look up your location. The geocoding service may be temporarily unavailable.');
+      }
     } finally {
       setGeoLoading(false);
     }

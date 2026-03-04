@@ -3,13 +3,13 @@ import type { FastifyInstance } from 'fastify';
 export default async function tradeRoutes(fastify: FastifyInstance) {
   // Create a trade offer (buyer initiates on a listing or exchange offer)
   fastify.post<{
-    Body: { listing_id?: string; offer_id?: string };
+    Body: { listing_id?: string; offer_id?: string; fiat_amount?: number; payment_method?: string };
   }>(
     '/trades',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const buyerId = request.user!.sub;
-      const { listing_id, offer_id } = request.body;
+      const { listing_id, offer_id, fiat_amount, payment_method } = request.body;
 
       if (!listing_id && !offer_id) {
         return reply.status(400).send({ error: 'listing_id or offer_id is required' });
@@ -62,7 +62,7 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
 
       // Exchange offer trade
       const offer = await fastify.pg.query(
-        'SELECT id, user_id, status FROM exchange_offers WHERE id = $1',
+        'SELECT id, user_id, status, min_amount, max_amount, payment_methods FROM exchange_offers WHERE id = $1',
         [offer_id],
       );
       if (offer.rows.length === 0) {
@@ -77,6 +77,27 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Cannot trade on your own offer' });
       }
 
+      // Validate fiat_amount and payment_method for exchange trades
+      if (fiat_amount === undefined || fiat_amount === null) {
+        return reply.status(400).send({ error: 'fiat_amount is required for exchange trades' });
+      }
+      if (typeof fiat_amount !== 'number' || fiat_amount <= 0) {
+        return reply.status(400).send({ error: 'fiat_amount must be a positive number' });
+      }
+      const offerMin = Number(offer.rows[0].min_amount) || 0;
+      const offerMax = Number(offer.rows[0].max_amount) || Infinity;
+      if (fiat_amount < offerMin || fiat_amount > offerMax) {
+        return reply.status(400).send({ error: `fiat_amount must be between ${offerMin} and ${offerMax}` });
+      }
+
+      if (!payment_method) {
+        return reply.status(400).send({ error: 'payment_method is required for exchange trades' });
+      }
+      const acceptedMethods: string[] = offer.rows[0].payment_methods || [];
+      if (!acceptedMethods.includes(payment_method)) {
+        return reply.status(400).send({ error: `payment_method must be one of: ${acceptedMethods.join(', ')}` });
+      }
+
       // Check for existing active trade
       const existingTrade = await fastify.pg.query(
         "SELECT id FROM trades WHERE offer_id = $1 AND buyer_id = $2 AND status IN ('offered', 'accepted')",
@@ -87,10 +108,10 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
       }
 
       const result = await fastify.pg.query(
-        `INSERT INTO trades (offer_id, buyer_id, seller_id, status)
-         VALUES ($1, $2, $3, 'offered')
-         RETURNING id, listing_id, offer_id, buyer_id, seller_id, status, created_at, updated_at`,
-        [offer_id, buyerId, sellerId],
+        `INSERT INTO trades (offer_id, buyer_id, seller_id, status, fiat_amount, payment_method)
+         VALUES ($1, $2, $3, 'offered', $4, $5)
+         RETURNING id, listing_id, offer_id, buyer_id, seller_id, status, fiat_amount, payment_method, created_at, updated_at`,
+        [offer_id, buyerId, sellerId, fiat_amount, payment_method],
       );
 
       await fastify.pg.query(
@@ -112,7 +133,7 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
       const { id } = request.params;
 
       const result = await fastify.pg.query(
-        `SELECT t.*,
+        `SELECT t.id, t.listing_id, t.offer_id, t.buyer_id, t.seller_id, t.status, t.fiat_amount, t.payment_method, t.created_at, t.updated_at,
                 l.title as listing_title,
                 CASE WHEN eo.id IS NOT NULL THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
                 bu.nickname as buyer_nickname,
@@ -146,13 +167,13 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
 
   // List my trades
   fastify.get<{
-    Querystring: { role?: string; status?: string; page?: string; limit?: string };
+    Querystring: { role?: string; status?: string; offer_id?: string; page?: string; limit?: string };
   }>(
     '/trades',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const userId = request.user!.sub;
-      const { role, status, page = '1', limit = '20' } = request.query;
+      const { role, status, offer_id, page = '1', limit = '20' } = request.query;
 
       const pageNum = Math.max(1, parseInt(page, 10) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
@@ -179,6 +200,11 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
         values.push(status);
       }
 
+      if (offer_id) {
+        conditions.push(`t.offer_id = $${paramIdx++}`);
+        values.push(offer_id);
+      }
+
       const where = `WHERE ${conditions.join(' AND ')}`;
 
       const countRes = await fastify.pg.query(
@@ -189,7 +215,7 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
 
       const listValues = [...values, limitNum, offset];
       const listResult = await fastify.pg.query(
-        `SELECT t.id, t.listing_id, t.offer_id, t.buyer_id, t.seller_id, t.status, t.created_at, t.updated_at,
+        `SELECT t.id, t.listing_id, t.offer_id, t.buyer_id, t.seller_id, t.status, t.fiat_amount, t.payment_method, t.created_at, t.updated_at,
                 l.title as listing_title,
                 CASE WHEN eo.id IS NOT NULL THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
                 bu.nickname as buyer_nickname,

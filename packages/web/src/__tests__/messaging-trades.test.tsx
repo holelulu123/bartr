@@ -283,7 +283,7 @@ describe('ChatPage — rendering', () => {
   it('shows error state on fetch error', () => {
     setupChat({ isError: true });
     render(<ChatPage />);
-    expect(screen.getByText(/thread not found/i)).toBeInTheDocument();
+    expect(screen.getByText(/failed to load messages/i)).toBeInTheDocument();
   });
 });
 

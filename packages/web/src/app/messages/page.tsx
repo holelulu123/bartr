@@ -48,7 +48,7 @@ function ThreadRow({
   unread,
   onRead,
 }: {
-  thread: { id: string; last_message_at: string | null; created_at: string; listing_title: string | null; last_sender_nickname: string | null };
+  thread: { id: string; last_message_at: string | null; created_at: string; listing_title: string | null; offer_summary: string | null; last_sender_nickname: string | null };
   otherNickname: string;
   unread: boolean;
   onRead: () => void;
@@ -91,9 +91,9 @@ function ThreadRow({
             )}
           </div>
         </div>
-        {thread.listing_title && (
+        {(thread.listing_title || thread.offer_summary) && (
           <p className="text-xs text-muted-foreground truncate leading-tight">
-            re: {thread.listing_title}
+            re: {thread.listing_title || thread.offer_summary}
           </p>
         )}
       </div>
