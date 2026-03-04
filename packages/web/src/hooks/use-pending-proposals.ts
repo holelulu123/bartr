@@ -19,7 +19,8 @@ export function usePendingProposals(enabled: boolean) {
 
   const [readAt, setReadAt] = useState(getStoredReadAt);
 
-  const proposals = data?.trades ?? [];
+  // Filter out trades whose offer was deleted (offer_summary becomes null)
+  const proposals = (data?.trades ?? []).filter((t) => t.offer_id && t.offer_summary);
   const hasNew = proposals.some(
     (t) => new Date(t.created_at) > readAt,
   );

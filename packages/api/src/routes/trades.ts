@@ -135,7 +135,7 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
       const result = await fastify.pg.query(
         `SELECT t.id, t.listing_id, t.offer_id, t.buyer_id, t.seller_id, t.status, t.fiat_amount, t.payment_method, t.created_at, t.updated_at,
                 l.title as listing_title,
-                CASE WHEN eo.id IS NOT NULL THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
+                CASE WHEN eo.id IS NOT NULL AND eo.status != 'removed' THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
                 bu.nickname as buyer_nickname,
                 su.nickname as seller_nickname,
                 COALESCE(
@@ -217,7 +217,7 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
       const listResult = await fastify.pg.query(
         `SELECT t.id, t.listing_id, t.offer_id, t.buyer_id, t.seller_id, t.status, t.fiat_amount, t.payment_method, t.created_at, t.updated_at,
                 l.title as listing_title,
-                CASE WHEN eo.id IS NOT NULL THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
+                CASE WHEN eo.id IS NOT NULL AND eo.status != 'removed' THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
                 bu.nickname as buyer_nickname,
                 su.nickname as seller_nickname
          FROM trades t

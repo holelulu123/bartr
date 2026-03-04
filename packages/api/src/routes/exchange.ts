@@ -278,7 +278,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         [id],
       );
 
-      if (result.rows.length === 0) {
+      if (result.rows.length === 0 || result.rows[0].status === 'removed') {
         return reply.status(404).send({ error: 'Offer not found' });
       }
 
