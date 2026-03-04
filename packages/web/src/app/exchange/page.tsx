@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { useOffers } from '@/hooks/use-exchange';
+import { useInfiniteOffers } from '@/hooks/use-exchange';
 import { useSupportedCoins, getFiatFlag } from '@/hooks/use-prices';
 import { useAuth } from '@/contexts/auth-context';
 import { OfferRow } from '@/components/offer-row';
@@ -62,8 +62,8 @@ export default function ExchangePage() {
     ...(country && { country_code: country }),
   };
 
-  const { data, isLoading, isError } = useOffers(filters);
-  const offers = data?.offers ?? [];
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteOffers(filters);
+  const offers = data?.pages?.flatMap((p) => p.offers) ?? [];
 
   return (
     <div className="max-w-[1500px] mx-auto px-4 py-6 space-y-6">
@@ -192,9 +192,9 @@ export default function ExchangePage() {
       </div>
 
       {/* Column headers */}
-      <div className="hidden md:grid items-center gap-3 px-4 py-2 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider grid-cols-[75px_1.2fr_1fr_180px_140px_1fr_90px]">
+      <div className="hidden md:grid items-center gap-3 px-4 py-2 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider grid-cols-[90px_1.2fr_1fr_180px_140px_1fr_90px]">
         <span>{offerType === 'buy' ? 'Buyer' : offerType === 'sell' ? 'Seller' : 'Type'}</span>
-        <span className="text-center">Trader</span>
+        <span>Trader</span>
         <span>Limit</span>
         <span>Price</span>
         <span>Payment</span>
@@ -228,11 +228,25 @@ export default function ExchangePage() {
           )}
         </div>
       ) : (
-        <div className="space-y-2">
-          {offers.map((offer) => (
-            <OfferRow key={offer.id} offer={offer} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-2">
+            {offers.map((offer) => (
+              <OfferRow key={offer.id} offer={offer} />
+            ))}
+          </div>
+
+          {hasNextPage && (
+            <div className="flex justify-center pt-4">
+              <Button
+                variant="outline"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? 'Loading…' : 'Load more'}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

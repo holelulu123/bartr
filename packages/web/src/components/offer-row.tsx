@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, Star, MessageSquare, Trash2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, Star, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
@@ -109,7 +109,7 @@ export function OfferRow({ offer }: OfferRowProps) {
   return (
     <div className={cn(
       'grid items-center gap-3 rounded-lg border px-4 py-3 border-l-[3px]',
-      'grid-cols-[75px_1.2fr_1fr_180px_140px_1fr_90px]',
+      'grid-cols-[90px_1.2fr_1fr_180px_140px_1fr_90px]',
       'max-md:grid-cols-[75px_1fr_180px_90px]',
       isBuy
         ? 'border-l-emerald-500 bg-emerald-500/[0.03] border-border'
@@ -134,13 +134,13 @@ export function OfferRow({ offer }: OfferRowProps) {
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <span className={cn('text-sm font-semibold', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
+        <span className={cn('text-sm font-semibold whitespace-nowrap', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
           {offer.crypto_currency}/{offer.fiat_currency}
         </span>
       </div>
 
       {/* Trader */}
-      <div className="hidden md:flex items-center gap-2 overflow-hidden justify-center">
+      <div className="hidden md:flex items-center gap-2 overflow-hidden">
         <Link href={`/user/${offer.seller_nickname}`} className="shrink-0">
           <MiniIdenticon seed={offer.seller_nickname} size={32} />
         </Link>
@@ -276,10 +276,10 @@ export function OfferRow({ offer }: OfferRowProps) {
       <div className="flex items-center gap-1.5">
         <Button asChild size="sm" variant="outline">
           <Link href={`/exchange/${offer.id}`}>
-            View
+            Offer
           </Link>
         </Button>
-        {isOwn ? (
+        {isOwn && (
           <Button
             size="sm"
             variant="ghost"
@@ -288,12 +288,6 @@ export function OfferRow({ offer }: OfferRowProps) {
             aria-label="Delete offer"
           >
             <Trash2 className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button asChild size="sm" variant="ghost" className="px-2 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10">
-            <Link href={`/messages?contact=${offer.seller_nickname}`}>
-              <MessageSquare className="h-4 w-4" />
-            </Link>
           </Button>
         )}
       </div>
