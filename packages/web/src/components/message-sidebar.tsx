@@ -6,12 +6,18 @@ import { ArrowLeft, MessageSquare, X } from 'lucide-react';
 import { useMessageSidebar } from '@/contexts/message-sidebar-context';
 import { useThreads, useCreateThread } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
+import { useCrypto } from '@/contexts/crypto-context';
 import { useUnreadThreads, isThreadUnread } from '@/hooks/use-unread-threads';
+import { useTradesForOffer, useAcceptTrade, useDeclineTrade } from '@/hooks/use-trades';
 import { UserAvatar } from '@/components/user-avatar';
 import { ChatPanel } from '@/components/chat-panel';
+import type { TradeAction } from '@/components/chat-panel';
 import { CryptoGuard } from '@/components/crypto-guard';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
+import { cn, fmtAmount } from '@/lib/utils';
+import { messages as messagesApi, users as usersApi } from '@/lib/api';
+import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
+import type { SettlementMethod } from '@bartr/shared';
 import type { MessageThread } from '@/lib/api';
 
 function timeAgo(dateStr: string): string {
@@ -239,6 +245,100 @@ function SidebarContent() {
     openThread(mostRecent.id);
   }
 
+  // Trade action for offer-linked threads (accept/decline in chat)
+  const offerId = activeThread?.offer_id ?? '';
+  const { data: tradesData } = useTradesForOffer(offerId);
+  const acceptTrade = useAcceptTrade();
+  const declineTrade = useDeclineTrade();
+  const createThreadForDecline = useCreateThread();
+  const { encrypt } = useCrypto();
+
+  const sidebarTradeAction: TradeAction | undefined = useMemo(() => {
+    if (!tradesData || !activeNickname || !offerId || !user) return undefined;
+    // Find the trade where the other person is the buyer and status is 'offered'
+    const trade = tradesData.trades.find(
+      (t) => t.buyer_nickname === activeNickname && t.seller_id === user.id,
+    );
+    if (!trade) return undefined;
+    return {
+      tradeId: trade.id,
+      status: trade.status,
+      isPending: acceptTrade.isPending || declineTrade.isPending,
+      onAccept: async (tradeId: string) => {
+        await acceptTrade.mutateAsync(tradeId);
+        // Send system accept message
+        const methodLabel = trade.payment_method
+          ? (SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method)
+          : '';
+        const parts = (trade.offer_summary ?? '').split(' ');
+        const [cryptoCurrency, fiatCurrency] = (parts[1] ?? '/').split('/');
+        const details = trade.fiat_amount
+          ? `${fmtAmount(trade.fiat_amount)} ${fiatCurrency || ''} for ${cryptoCurrency || ''}${methodLabel ? ` via ${methodLabel}` : ''}`
+          : '';
+        const autoMsg = `[SYSTEM] Accepted: ${details}`;
+        try {
+          const thread = await createThreadForDecline.mutateAsync({
+            recipient_nickname: activeNickname,
+            offer_id: offerId,
+          });
+          const { public_key } = await usersApi.getUserPublicKey(activeNickname);
+          const encrypted = await encrypt(autoMsg, public_key);
+          await messagesApi.sendMessage(thread.id, encrypted);
+        } catch { /* non-critical */ }
+      },
+      onDecline: async (tradeId: string) => {
+        await declineTrade.mutateAsync(tradeId);
+        // Send system decline message
+        const methodLabel = trade.payment_method
+          ? (SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method)
+          : '';
+        // Parse "BUY BTC/USD" → crypto=BTC, fiat=USD
+        const parts = (trade.offer_summary ?? '').split(' ');
+        const [cryptoCurrency, fiatCurrency] = (parts[1] ?? '/').split('/');
+        const details = trade.fiat_amount
+          ? `${fmtAmount(trade.fiat_amount)} ${fiatCurrency || ''} for ${cryptoCurrency || ''}${methodLabel ? ` via ${methodLabel}` : ''}`
+          : '';
+        const autoMsg = `[SYSTEM] Declined: ${details}`;
+        try {
+          const thread = await createThreadForDecline.mutateAsync({
+            recipient_nickname: activeNickname,
+            offer_id: offerId,
+          });
+          const { public_key } = await usersApi.getUserPublicKey(activeNickname);
+          const encrypted = await encrypt(autoMsg, public_key);
+          await messagesApi.sendMessage(thread.id, encrypted);
+        } catch { /* non-critical */ }
+      },
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tradesData, activeNickname, offerId, user?.id, acceptTrade.isPending, declineTrade.isPending]);
+
+  // Determine if chat is locked (offer-linked thread with non-accepted trade)
+  const sidebarChatLocked = useMemo(() => {
+    if (!tradesData || !offerId || !activeNickname || !user) return false;
+    // Find the trade for this offer between the two participants
+    const trade = tradesData.trades.find(
+      (t) =>
+        (t.buyer_nickname === activeNickname && t.seller_id === user.id) ||
+        (t.buyer_id === user.id && t.seller_nickname === activeNickname),
+    );
+    if (!trade) return false;
+    return trade.status !== 'accepted';
+  }, [tradesData, offerId, activeNickname, user?.id]);
+
+  const sidebarLockedMessage = useMemo(() => {
+    if (!tradesData || !offerId || !activeNickname || !user) return '';
+    const trade = tradesData.trades.find(
+      (t) =>
+        (t.buyer_nickname === activeNickname && t.seller_id === user.id) ||
+        (t.buyer_id === user.id && t.seller_nickname === activeNickname),
+    );
+    if (!trade) return '';
+    if (trade.status === 'declined') return 'This offer was declined.';
+    if (trade.seller_id === user.id) return 'Accept the offer to start chatting.';
+    return 'Waiting for the seller to accept your offer…';
+  }, [tradesData, offerId, activeNickname, user?.id]);
+
   // Conversation view
   if (activeNickname && activeThread) {
     return (
@@ -253,6 +353,9 @@ function SidebarContent() {
           threadId={activeThread.id}
           recipientNickname={activeNickname}
           className="flex-1 min-h-0"
+          tradeAction={sidebarTradeAction}
+          chatLocked={sidebarChatLocked}
+          chatLockedMessage={sidebarLockedMessage}
         />
       </div>
     );

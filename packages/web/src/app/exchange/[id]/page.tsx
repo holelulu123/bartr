@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -18,6 +18,7 @@ import { messages as messagesApi, users as usersApi } from '@/lib/api';
 import { CoinIcon } from '@/components/crypto-icons';
 import { ReputationBadge } from '@/components/reputation-badge';
 import { ChatPanel } from '@/components/chat-panel';
+import type { TradeAction } from '@/components/chat-panel';
 import { getCountryFlag, getCountryName } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,18 +40,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ApiError } from '@/lib/api/client';
-import { cn } from '@/lib/utils';
+import { cn, fmtAmount } from '@/lib/utils';
 import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
 import type { SettlementMethod } from '@bartr/shared';
 import type { TradeSummary } from '@/lib/api';
 
-function fmt(val: number | string | null | undefined, decimals = 2): string {
-  if (val === null || val === undefined) return '0';
-  const n = Number(val);
-  const formatted = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  if (decimals <= 2) return formatted.replace(/\.00$/, '');
-  return formatted;
-}
+const fmt = fmtAmount;
 
 function MiniIdenticon({ seed, size = 32 }: { seed: string; size?: number }) {
   const cells = 5;
@@ -426,6 +421,10 @@ export default function OfferDetailPage() {
   const { data: tradesData, refetch: refetchTrades } = useTradesForOffer(id);
   const updateMutation = useUpdateOffer(id);
   const deleteMutation = useDeleteOffer();
+  const acceptTradeMut = useAcceptTrade();
+  const declineTradeMut = useDeclineTrade();
+  const createThreadMut = useCreateThread();
+  const { encrypt } = useCrypto();
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPauseDialog, setShowPauseDialog] = useState(false);
@@ -434,6 +433,7 @@ export default function OfferDetailPage() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   // Selected trade for owner chat
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
+  const [ownerThreadId, setOwnerThreadId] = useState<string | null>(null);
 
   const isOwner = user?.id === offer?.user_id;
 
@@ -450,6 +450,96 @@ export default function OfferDetailPage() {
     if (!tradesData || !selectedTradeId) return null;
     return tradesData.trades.find((t) => t.id === selectedTradeId) ?? null;
   }, [tradesData, selectedTradeId]);
+
+  // Resolve thread ID when owner selects a trade proposal
+  useEffect(() => {
+    if (!selectedTrade || !isOwner || !offer) {
+      setOwnerThreadId(null);
+      return;
+    }
+    let cancelled = false;
+    createThreadMut
+      .mutateAsync({
+        recipient_nickname: selectedTrade.buyer_nickname,
+        offer_id: offer.id,
+      })
+      .then((thread) => {
+        if (!cancelled) setOwnerThreadId(thread.id);
+      })
+      .catch(() => { /* thread resolution failed */ });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTrade?.id, isOwner, offer?.id]);
+
+  // Resolve thread ID for buyer when revisiting the page (activeThreadId is lost on navigation)
+  useEffect(() => {
+    if (!myActiveTrade || isOwner || activeThreadId || !offer) return;
+    let cancelled = false;
+    createThreadMut
+      .mutateAsync({
+        recipient_nickname: offer.seller_nickname,
+        offer_id: offer.id,
+      })
+      .then((thread) => {
+        if (!cancelled) setActiveThreadId(thread.id);
+      })
+      .catch(() => { /* thread resolution failed */ });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myActiveTrade?.id, isOwner, activeThreadId, offer?.id]);
+
+  // Build tradeAction for the owner's ChatPanel (accept/decline buttons in chat)
+  const ownerTradeAction: TradeAction | undefined = useMemo(() => {
+    if (!selectedTrade || !isOwner || !offer) return undefined;
+    return {
+      tradeId: selectedTrade.id,
+      status: selectedTrade.status,
+      isPending: acceptTradeMut.isPending || declineTradeMut.isPending,
+      onAccept: async (tradeId: string) => {
+        await acceptTradeMut.mutateAsync(tradeId);
+        refetchTrades();
+        // Send system accept message
+        const methodLabel = selectedTrade.payment_method
+          ? (SETTLEMENT_METHOD_LABELS[selectedTrade.payment_method as SettlementMethod] ?? selectedTrade.payment_method)
+          : '';
+        const details = selectedTrade.fiat_amount
+          ? `${fmt(selectedTrade.fiat_amount)} ${offer.fiat_currency} for ${offer.crypto_currency}${methodLabel ? ` via ${methodLabel}` : ''}`
+          : '';
+        const autoMsg = `[SYSTEM] Accepted: ${details}`;
+        try {
+          const thread = await createThreadMut.mutateAsync({
+            recipient_nickname: selectedTrade.buyer_nickname,
+            offer_id: offer.id,
+          });
+          const { public_key } = await usersApi.getUserPublicKey(selectedTrade.buyer_nickname);
+          const encrypted = await encrypt(autoMsg, public_key);
+          await messagesApi.sendMessage(thread.id, encrypted);
+        } catch { /* non-critical */ }
+      },
+      onDecline: async (tradeId: string) => {
+        await declineTradeMut.mutateAsync(tradeId);
+        refetchTrades();
+        // Send system decline message
+        const methodLabel = selectedTrade.payment_method
+          ? (SETTLEMENT_METHOD_LABELS[selectedTrade.payment_method as SettlementMethod] ?? selectedTrade.payment_method)
+          : '';
+        const details = selectedTrade.fiat_amount
+          ? `${fmt(selectedTrade.fiat_amount)} ${offer.fiat_currency} for ${offer.crypto_currency}${methodLabel ? ` via ${methodLabel}` : ''}`
+          : '';
+        const autoMsg = `[SYSTEM] Declined: ${details}`;
+        try {
+          const thread = await createThreadMut.mutateAsync({
+            recipient_nickname: selectedTrade.buyer_nickname,
+            offer_id: offer.id,
+          });
+          const { public_key } = await usersApi.getUserPublicKey(selectedTrade.buyer_nickname);
+          const encrypted = await encrypt(autoMsg, public_key);
+          await messagesApi.sendMessage(thread.id, encrypted);
+        } catch { /* non-critical */ }
+      },
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTrade?.id, selectedTrade?.status, isOwner, offer?.id, offer?.fiat_currency, offer?.crypto_currency, acceptTradeMut.isPending, declineTradeMut.isPending]);
 
   if (isLoading) return <OfferDetailSkeleton />;
 
@@ -752,6 +842,8 @@ export default function OfferDetailPage() {
                   recipientNickname={chatRecipientNickname}
                   contextLabel={`${offer.offer_type} ${offer.crypto_currency}/${offer.fiat_currency}`}
                   className="h-[500px] lg:h-[calc(100vh-200px)] lg:max-h-[700px]"
+                  chatLocked={myActiveTrade?.status !== 'accepted'}
+                  chatLockedMessage={myActiveTrade?.status === 'declined' ? 'This offer was declined.' : 'Waiting for the seller to accept your offer…'}
                 />
               )}
 
@@ -788,9 +880,13 @@ export default function OfferDetailPage() {
                         {selectedTrade.payment_method && ` · ${SETTLEMENT_METHOD_LABELS[selectedTrade.payment_method as SettlementMethod] ?? selectedTrade.payment_method}`}
                       </div>
                       <ChatPanel
-                        threadId=""
+                        key={ownerThreadId || ''}
+                        threadId={ownerThreadId || ''}
                         recipientNickname={chatRecipientNickname}
                         className="flex-1 min-h-0"
+                        tradeAction={ownerTradeAction}
+                        chatLocked={selectedTrade.status !== 'accepted'}
+                        chatLockedMessage={selectedTrade.status === 'declined' ? 'This offer was declined.' : 'Accept the offer to start chatting.'}
                       />
                     </div>
                   ) : (

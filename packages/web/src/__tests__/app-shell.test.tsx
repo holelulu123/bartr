@@ -32,7 +32,7 @@ vi.mock('@/hooks/use-messages', () => ({
 
 // ── Mock usePendingProposals ─────────────────────────────────────────────────
 vi.mock('@/hooks/use-pending-proposals', () => ({
-  usePendingProposals: () => ({ proposals: [], hasNew: false, markAllRead: vi.fn() }),
+  usePendingProposals: () => ({ notifications: [], hasNew: false, markAllRead: vi.fn() }),
 }));
 
 // ── Mock useMessageSidebar ──────────────────────────────────────────────────

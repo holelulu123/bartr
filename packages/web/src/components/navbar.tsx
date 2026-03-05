@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+import { cn, fmtAmount } from '@/lib/utils';
 
 
 function timeAgo(iso: string): string {
@@ -57,7 +57,7 @@ export function Navbar() {
     user?.nickname ?? '',
   );
 
-  const { proposals, hasNew: hasNewProposals, markAllRead } = usePendingProposals(isAuthenticated);
+  const { notifications, hasNew: hasNewProposals, hasMore: hasMoreNotifs, loadMore: loadMoreNotifs, markAllRead } = usePendingProposals(isAuthenticated);
   const { isOpen: messagesOpen, openSidebar, closeSidebar: closeMessages } = useMessageSidebar();
 
   return (
@@ -129,31 +129,55 @@ export function Navbar() {
                 <DropdownMenuContent align="end" className="w-80">
                   <DropdownMenuLabel>Notifications</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {proposals.length === 0 ? (
+                  {notifications.length === 0 ? (
                     <div className="px-3 py-4 text-sm text-muted-foreground text-center">
-                      No pending proposals
+                      No notifications
                     </div>
                   ) : (
-                    proposals.map((t) => (
-                      <DropdownMenuItem key={t.id} asChild>
-                        <Link
-                          href={`/exchange/${t.offer_id}`}
-                          className="flex items-center gap-2 py-2"
-                        >
-                          <UserAvatar nickname={t.buyer_nickname} size={28} />
-                          <span className="text-sm flex-1">
-                            <span className="font-medium">{t.buyer_nickname}</span>{' '}
-                            offered you{t.fiat_amount != null ? ` ${t.fiat_amount} ${t.offer_summary?.split('/')[1] ?? ''}` : ''}{' '}
-                            on{' '}
-                            <span className="font-medium">{t.offer_summary?.replace(/^(buy|sell)\s+/i, '')}</span>{' '}
-                            offer
-                          </span>
-                          <span className="text-xs font-medium text-orange-500 shrink-0">
-                            {timeAgo(t.created_at)}
-                          </span>
-                        </Link>
-                      </DropdownMenuItem>
-                    ))
+                    <>
+                      {notifications.map((n) => {
+                        const t = n.trade;
+                        const pair = t.offer_summary?.replace(/^(buy|sell)\s+/i, '') ?? '';
+                        const amount = t.fiat_amount != null ? `${fmtAmount(t.fiat_amount)} ${t.offer_summary?.split('/')[1] ?? ''}` : '';
+                        let label: React.ReactNode;
+                        let otherNickname: string;
+                        if (n.type === 'incoming_offer') {
+                          otherNickname = t.buyer_nickname;
+                          label = <><span className="font-medium">{t.buyer_nickname}</span> offered you{amount ? ` ${amount}` : ''} on <span className="font-medium">{pair}</span></>;
+                        } else if (n.type === 'offer_accepted') {
+                          otherNickname = t.seller_nickname;
+                          label = <><span className="font-medium">{t.seller_nickname}</span> accepted your{amount ? ` ${amount}` : ''} offer on <span className="font-medium">{pair}</span></>;
+                        } else {
+                          otherNickname = t.seller_nickname;
+                          label = <><span className="font-medium">{t.seller_nickname}</span> declined your{amount ? ` ${amount}` : ''} offer on <span className="font-medium">{pair}</span></>;
+                        }
+                        return (
+                          <DropdownMenuItem key={n.id} asChild>
+                            <Link
+                              href={`/exchange/${t.offer_id}`}
+                              className="flex items-center gap-2 py-2"
+                            >
+                              <UserAvatar nickname={otherNickname} size={28} />
+                              <span className="text-sm flex-1">{label}</span>
+                              <span className={cn('text-xs font-medium shrink-0', n.type === 'offer_accepted' ? 'text-green-500' : n.type === 'offer_declined' ? 'text-red-500' : 'text-orange-500')}>
+                                {timeAgo(n.timestamp)}
+                              </span>
+                            </Link>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                      {hasMoreNotifs && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={(e) => { e.preventDefault(); loadMoreNotifs(); }}
+                            className="justify-center text-xs text-muted-foreground cursor-pointer py-2"
+                          >
+                            Load more
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>

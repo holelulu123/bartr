@@ -62,7 +62,7 @@ vi.mock('@/hooks/use-trades', () => ({
   useDeclineTrade: () => mockDeclineTradeMutation,
 }));
 
-const mockCreateThreadMutation = { mutateAsync: vi.fn(), isPending: false };
+const mockCreateThreadMutation = { mutateAsync: vi.fn().mockResolvedValue({ id: 'thread-1' }), isPending: false };
 vi.mock('@/hooks/use-messages', () => ({
   useCreateThread: () => mockCreateThreadMutation,
   useMessages: () => ({ data: null, isLoading: false, isError: false }),

@@ -117,6 +117,7 @@ const mockRateMutation = { mutateAsync: vi.fn(), isPending: false };
 vi.mock('@/hooks/use-trades', () => ({
   useTrade: (...args: unknown[]) => mockUseTrade(...args),
   useTrades: (...args: unknown[]) => mockUseTrades(...args),
+  useTradesForOffer: () => ({ data: undefined }),
   useAcceptTrade: () => mockAcceptMutation,
   useDeclineTrade: () => mockDeclineMutation,
   useCancelTrade: () => mockCancelMutation,
@@ -128,6 +129,9 @@ vi.mock('@/hooks/use-trades', () => ({
 vi.mock('@/lib/api', () => ({
   users: {
     getUserPublicKey: vi.fn().mockResolvedValue({ public_key: 'pk-base64' }),
+  },
+  messages: {
+    sendMessage: vi.fn().mockResolvedValue({}),
   },
 }));
 

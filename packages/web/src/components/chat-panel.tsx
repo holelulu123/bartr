@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, AlertCircle, ArrowLeftRight, XCircle } from 'lucide-react';
+import { Send, AlertCircle, ArrowLeftRight, XCircle, Check, X } from 'lucide-react';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
@@ -55,33 +55,76 @@ function DateSeparator({ date }: { date: string }) {
 
 const SYSTEM_PREFIX = '[SYSTEM] ';
 
-function SystemMessage({ msg, isOwn }: { msg: DecryptedMessage; isOwn: boolean }) {
+export interface TradeAction {
+  tradeId: string;
+  status: string;
+  onAccept: (tradeId: string) => void;
+  onDecline: (tradeId: string) => void;
+  isPending?: boolean;
+}
+
+function SystemMessage({ msg, isOwn, tradeAction }: { msg: DecryptedMessage; isOwn: boolean; tradeAction?: TradeAction }) {
   let text = msg.body.slice(SYSTEM_PREFIX.length);
   let icon = <ArrowLeftRight className="h-3.5 w-3.5 text-primary shrink-0" />;
+  let isOffer = false;
 
   // Replace neutral labels with directional ones
   if (text.startsWith('Offer: ')) {
+    isOffer = true;
     const details = text.slice('Offer: '.length);
     text = isOwn ? `Offer sent: ${details}` : `Offer received: ${details}`;
+  } else if (text.startsWith('Accepted: ')) {
+    icon = <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />;
+    text = 'Offer accepted — stay safe and trade wisely!';
   } else if (text.startsWith('Declined: ')) {
     icon = <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />;
     const details = text.slice('Declined: '.length);
     text = isOwn ? `You declined: ${details}` : `Offer declined: ${details}`;
   }
 
+  // Show accept/decline buttons only for the recipient (seller) on an "Offer received" message
+  // and only when the trade is still in 'offered' status
+  const showActions = isOffer && !isOwn && tradeAction?.status === 'offered';
+
   return (
     <div className="flex justify-center mb-3 px-4">
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 max-w-[85%]">
-        {icon}
-        <p className="text-xs text-muted-foreground">{text}</p>
+      <div className="rounded-lg border border-border bg-muted/50 px-3 py-1.5 max-w-[85%]">
+        <div className="flex items-center gap-2">
+          {icon}
+          <p className="text-xs text-muted-foreground whitespace-pre-wrap">{text}</p>
+        </div>
+        {showActions && tradeAction && (
+          <div className="flex gap-2 mt-2">
+            <Button
+              size="sm"
+              variant="default"
+              className="flex-1 h-6 text-[11px] px-2"
+              disabled={tradeAction.isPending}
+              onClick={() => tradeAction.onAccept(tradeAction.tradeId)}
+            >
+              <Check className="h-3 w-3 mr-1" />
+              Accept
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 h-6 text-[11px] px-2"
+              disabled={tradeAction.isPending}
+              onClick={() => tradeAction.onDecline(tradeAction.tradeId)}
+            >
+              <X className="h-3 w-3 mr-1" />
+              Decline
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-export function MessageBubble({ msg, isOwn }: { msg: DecryptedMessage; isOwn: boolean }) {
+export function MessageBubble({ msg, isOwn, tradeAction }: { msg: DecryptedMessage; isOwn: boolean; tradeAction?: TradeAction }) {
   if (!msg.decryptError && msg.body.startsWith(SYSTEM_PREFIX)) {
-    return <SystemMessage msg={msg} isOwn={isOwn} />;
+    return <SystemMessage msg={msg} isOwn={isOwn} tradeAction={tradeAction} />;
   }
 
   return (
@@ -140,9 +183,13 @@ export interface ChatPanelProps {
   recipientNickname: string;
   contextLabel?: string | null;
   className?: string;
+  tradeAction?: TradeAction;
+  /** When true, messages are visible but the input is disabled with a hint. */
+  chatLocked?: boolean;
+  chatLockedMessage?: string;
 }
 
-export function ChatPanel({ threadId, recipientNickname, contextLabel, className }: ChatPanelProps) {
+export function ChatPanel({ threadId, recipientNickname, contextLabel, className, tradeAction, chatLocked, chatLockedMessage }: ChatPanelProps) {
   const { user } = useAuth();
   const { decrypt, isUnlocked } = useCrypto();
 
@@ -249,6 +296,7 @@ export function ChatPanel({ threadId, recipientNickname, contextLabel, className
                 <MessageBubble
                   msg={msg}
                   isOwn={msg.sender_nickname === user?.nickname}
+                  tradeAction={tradeAction}
                 />
               </div>
             );
@@ -259,26 +307,34 @@ export function ChatPanel({ threadId, recipientNickname, contextLabel, className
 
       {/* Input area */}
       <div className="shrink-0 border-t border-border px-3 py-2.5">
-        {sendError && <p className="text-xs text-destructive mb-1.5">{sendError}</p>}
-        <div className="flex items-end gap-2">
-          <Textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message…"
-            disabled={sending}
-            rows={1}
-            className="resize-none min-h-[36px] max-h-28 flex-1 text-sm py-2"
-          />
-          <Button
-            onClick={doSend}
-            disabled={!text.trim() || sending}
-            size="icon"
-            className="shrink-0 h-9 w-9"
-          >
-            <Send className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        {chatLocked ? (
+          <p className="text-xs text-muted-foreground text-center py-1.5">
+            {chatLockedMessage || 'Chat is locked until the offer is accepted.'}
+          </p>
+        ) : (
+          <>
+            {sendError && <p className="text-xs text-destructive mb-1.5">{sendError}</p>}
+            <div className="flex items-end gap-2">
+              <Textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a message…"
+                disabled={sending}
+                rows={1}
+                className="resize-none min-h-[36px] max-h-28 flex-1 text-sm py-2"
+              />
+              <Button
+                onClick={doSend}
+                disabled={!text.trim() || sending}
+                size="icon"
+                className="shrink-0 h-9 w-9"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
