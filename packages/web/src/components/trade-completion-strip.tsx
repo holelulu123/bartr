@@ -40,7 +40,7 @@ const CRYPTO_HEX: Record<string, string> = {
   TON: '#0ea5e9',
 };
 
-const MIN_WAIT_MS = 90 * 60 * 1000; // 90 minutes
+const MIN_WAIT_MS = 0; // TODO: restore to 90 * 60 * 1000 (90 minutes) after testing
 
 function formatCountdown(ms: number): string {
   return `${Math.ceil(ms / 60_000)}m`;
@@ -84,21 +84,28 @@ export function TradeCompletionStrip({
     return () => clearInterval(interval);
   }, [tradeStatus]);
 
-  // Listen for glow-completion event fired by chat sidebar ticks
+  // Glow trigger — works for both same-page (event) and cross-page (sessionStorage)
   const triggerGlow = useCallback(() => {
+    sessionStorage.removeItem('glow-completion');
     clearTimeout(glowTimer.current);
     setGlowing(true);
     stripRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     glowTimer.current = setTimeout(() => setGlowing(false), 3000);
   }, []);
 
+  // Listen for custom event (same-page clicks)
   useEffect(() => {
     if (compact) return;
-    function handleGlow() {
+    window.addEventListener('glow-completion', triggerGlow);
+    return () => window.removeEventListener('glow-completion', triggerGlow);
+  }, [compact, triggerGlow]);
+
+  // Check sessionStorage on mount (cross-page navigation)
+  useEffect(() => {
+    if (compact) return;
+    if (sessionStorage.getItem('glow-completion')) {
       triggerGlow();
     }
-    window.addEventListener('glow-completion', handleGlow);
-    return () => window.removeEventListener('glow-completion', handleGlow);
   }, [compact, triggerGlow]);
 
   if (!user || (tradeStatus !== 'accepted' && tradeStatus !== 'completed')) return null;

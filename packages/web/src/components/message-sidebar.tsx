@@ -204,7 +204,10 @@ function HeaderCompletionTicks({ info }: { info: CompletionHeaderInfo }) {
   return (
     <Link
       href={`/exchange/${info.offerId}`}
-      onClick={() => window.dispatchEvent(new CustomEvent('glow-completion', { detail: info.offerId }))}
+      onClick={() => {
+        sessionStorage.setItem('glow-completion', '1');
+        window.dispatchEvent(new CustomEvent('glow-completion'));
+      }}
       className="group relative flex items-center p-1 rounded-md hover:bg-muted transition-colors"
     >
       <Check
