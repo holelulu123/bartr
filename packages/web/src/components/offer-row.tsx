@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, Star, Trash2, Lock } from 'lucide-react';
+import { ArrowUp, ArrowDown, Star, Trash2, Lock, Pause, Play } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
@@ -17,7 +17,7 @@ import {
 import { getCountryFlag, getCountryName } from '@/lib/countries';
 import { useAuth } from '@/contexts/auth-context';
 import { usePrices } from '@/hooks/use-prices';
-import { useDeleteOffer } from '@/hooks/use-exchange';
+import { useDeleteOffer, useUpdateOffer } from '@/hooks/use-exchange';
 import { cn } from '@/lib/utils';
 import type { ExchangeOffer } from '@/lib/api';
 import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
@@ -79,7 +79,9 @@ export function OfferRow({ offer }: OfferRowProps) {
   const { user } = useAuth();
   const { data: priceData } = usePrices();
   const deleteMutation = useDeleteOffer();
+  const updateMutation = useUpdateOffer(offer.id);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPauseDialog, setShowPauseDialog] = useState(false);
   const isOwn = user?.nickname === offer.seller_nickname;
   const isPrivateContract = !!offer.accepted_trade_status;
 
@@ -112,8 +114,8 @@ export function OfferRow({ offer }: OfferRowProps) {
       href={`/exchange/${offer.id}`}
       className={cn(
         'grid items-center gap-3 rounded-lg border px-4 py-3 border-l-[3px] transition-colors hover:bg-accent/50',
-        'grid-cols-[90px_1.2fr_1fr_180px_140px_1fr_40px]',
-        'max-md:grid-cols-[75px_1fr_180px_40px]',
+        'grid-cols-[90px_1.2fr_1fr_180px_140px_1fr_70px]',
+        'max-md:grid-cols-[75px_1fr_180px_70px]',
         isPrivateContract
           ? 'border-l-purple-500 bg-purple-500/[0.04] border-purple-500/20'
           : isBuy
@@ -294,6 +296,17 @@ export function OfferRow({ offer }: OfferRowProps) {
 
       {/* Action */}
       <div className="flex items-center gap-1.5">
+        {isOwn && !isPrivateContract && offer.status !== 'removed' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-2"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPauseDialog(true); }}
+            aria-label={offer.status === 'active' ? 'Pause offer' : 'Resume offer'}
+          >
+            {offer.status === 'active' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </Button>
+        )}
         {isOwn && (
           <Button
             size="sm"
@@ -329,6 +342,40 @@ export function OfferRow({ offer }: OfferRowProps) {
               }}
             >
               {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pause/Resume confirmation dialog */}
+      <Dialog open={showPauseDialog} onOpenChange={setShowPauseDialog}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>
+              {offer.status === 'active' ? 'Pause offer?' : 'Resume offer?'}
+            </DialogTitle>
+            <DialogDescription>
+              {offer.status === 'active'
+                ? `This will pause your ${offer.offer_type} offer for ${offer.crypto_currency}/${offer.fiat_currency}. It will no longer be visible to other users.`
+                : `This will resume your ${offer.offer_type} offer for ${offer.crypto_currency}/${offer.fiat_currency}. It will become visible to other users again.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPauseDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={updateMutation.isPending}
+              onClick={async () => {
+                const newStatus = offer.status === 'active' ? 'paused' : 'active';
+                await updateMutation.mutateAsync({ status: newStatus });
+                setShowPauseDialog(false);
+              }}
+            >
+              {updateMutation.isPending
+                ? (offer.status === 'active' ? 'Pausing…' : 'Resuming…')
+                : (offer.status === 'active' ? 'Pause' : 'Resume')}
             </Button>
           </DialogFooter>
         </DialogContent>
