@@ -212,7 +212,7 @@ export function Navbar() {
                   <DropdownMenuItem asChild>
                     <Link href="/dashboard/offers" className="flex items-center gap-2">
                       <ArrowLeftRight className="h-4 w-4" />
-                      My Offers
+                      My Contracts
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>

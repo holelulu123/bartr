@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, Plus, Trash2, Pause, Play } from 'lucide-react';
+import { ArrowUp, ArrowDown, Plus, Trash2, Pause, Play, Lock } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useOffers, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
 import { usePrices } from '@/hooks/use-prices';
@@ -38,12 +38,14 @@ function fmt(val: number | string | null | undefined, decimals = 2): string {
   return formatted;
 }
 
-type StatusFilter = 'all' | OfferStatus;
+type TabFilter = 'all' | 'active' | 'in_progress' | 'paused' | 'finished';
 
-const TABS: { value: StatusFilter; label: string }[] = [
+const TABS: { value: TabFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'active', label: 'Active' },
+  { value: 'in_progress', label: 'In Progress' },
   { value: 'paused', label: 'Paused' },
+  { value: 'finished', label: 'Finished' },
 ];
 
 const STATUS_COLORS: Record<OfferStatus, string> = {
@@ -52,10 +54,10 @@ const STATUS_COLORS: Record<OfferStatus, string> = {
   removed: 'bg-neutral-500/15 text-neutral-400 border-neutral-500/30',
 };
 
-export default function MyOffersDashboard() {
+export default function MyContractsDashboard() {
   const { user } = useAuth();
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [tab, setTab] = useState<TabFilter>('all');
   const [deleteTarget, setDeleteTarget] = useState<ExchangeOffer | null>(null);
   const [pauseTarget, setPauseTarget] = useState<ExchangeOffer | null>(null);
 
@@ -67,11 +69,17 @@ export default function MyOffersDashboard() {
   const deleteMutation = useDeleteOffer();
   const pauseMutation = useUpdateOffer(pauseTarget?.id ?? '');
 
-  // Client-side status filter (API filters by active status only for public browse)
   const allOffers = data?.offers ?? [];
-  const offers = statusFilter === 'all'
-    ? allOffers
-    : allOffers.filter((o) => o.status === statusFilter);
+
+  // Filter by tab
+  const offers = allOffers.filter((o) => {
+    if (tab === 'all') return true;
+    if (tab === 'finished') return o.accepted_trade_status === 'completed';
+    if (tab === 'in_progress') return o.accepted_trade_status === 'accepted';
+    if (tab === 'paused') return o.status === 'paused' && !o.accepted_trade_status;
+    // Active = active status, not yet accepted
+    return o.status === 'active' && !o.accepted_trade_status;
+  });
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -91,11 +99,11 @@ export default function MyOffersDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">My Offers</h1>
+          <h1 className="text-2xl font-bold">My Contracts</h1>
           {!isLoading && (
             <p className="text-sm text-muted-foreground mt-1">
-              {offers.length} {offers.length === 1 ? 'offer' : 'offers'}
-              {statusFilter !== 'all' && ` · ${statusFilter}`}
+              {offers.length} {offers.length === 1 ? 'contract' : 'contracts'}
+              {tab !== 'all' && ` · ${tab === 'in_progress' ? 'in progress' : tab}`}
             </p>
           )}
         </div>
@@ -107,22 +115,22 @@ export default function MyOffersDashboard() {
         </Button>
       </div>
 
-      {/* Status filter tabs */}
+      {/* Tab filter */}
       <div className="flex gap-1 border-b border-border">
-        {TABS.map((tab) => (
+        {TABS.map((t) => (
           <button
-            key={tab.value}
-            onClick={() => setStatusFilter(tab.value)}
+            key={t.value}
+            onClick={() => setTab(t.value)}
             className={cn(
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              statusFilter === tab.value
+              tab === t.value
                 ? 'border-primary text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
-            aria-selected={statusFilter === tab.value}
+            aria-selected={tab === t.value}
             role="tab"
           >
-            {tab.label}
+            {t.label}
           </button>
         ))}
       </div>
@@ -136,18 +144,10 @@ export default function MyOffersDashboard() {
         </div>
       ) : offers.length === 0 ? (
         <div className="py-20 text-center space-y-3">
-          <p className="text-lg font-medium">No offers found</p>
-          {statusFilter !== 'all' ? (
-            <p className="text-sm text-muted-foreground">
-              No {statusFilter} offers.{' '}
-              <button
-                className="underline text-primary hover:no-underline"
-                onClick={() => setStatusFilter('all')}
-              >
-                View all
-              </button>
-            </p>
-          ) : (
+          <p className="text-lg font-medium">
+            {tab === 'all' ? 'No contracts yet' : tab === 'in_progress' ? 'No contracts in progress' : tab === 'finished' ? 'No finished contracts' : tab === 'paused' ? 'No paused contracts' : 'No active contracts'}
+          </p>
+          {tab === 'all' || tab === 'active' ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 You haven&apos;t created any exchange offers yet.
@@ -156,12 +156,20 @@ export default function MyOffersDashboard() {
                 <Link href="/exchange/new">Create your first offer</Link>
               </Button>
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {tab === 'finished'
+                ? 'Completed contracts will appear here.'
+                : tab === 'in_progress'
+                  ? 'Accepted contracts will appear here.'
+                  : 'Paused contracts will appear here.'}
+            </p>
           )}
         </div>
       ) : (
         <div className="space-y-2">
           {offers.map((offer) => (
-            <OfferRow
+            <ContractRow
               key={offer.id}
               offer={offer}
               onDelete={() => setDeleteTarget(offer)}
@@ -228,7 +236,7 @@ export default function MyOffersDashboard() {
   );
 }
 
-function OfferRow({
+function ContractRow({
   offer,
   onDelete,
   onTogglePause,
@@ -239,6 +247,9 @@ function OfferRow({
 }) {
   const isBuy = offer.offer_type === 'buy';
   const { data: priceData } = usePrices();
+  const isPrivateContract = !!offer.accepted_trade_status;
+  const isFinished = offer.accepted_trade_status === 'completed';
+  const isInProgress = offer.accepted_trade_status === 'accepted';
 
   // Compute effective price
   let coinPrice: number | undefined;
@@ -259,31 +270,40 @@ function OfferRow({
   const isFixedAmount = minFiat === maxFiat && minFiat > 0;
 
   return (
-    <div className={cn(
-      'grid items-center gap-4 rounded-lg border px-4 py-3 border-l-[3px]',
-      'grid-cols-[70px_1fr_160px_120px_80px]',
-      'max-md:grid-cols-[60px_1fr_80px]',
-      isBuy
-        ? 'border-l-emerald-500 bg-emerald-500/[0.03] border-border'
-        : 'border-l-red-400 bg-red-400/[0.03] border-border',
-      offer.status === 'paused' && 'opacity-60',
-    )}>
+    <Link
+      href={`/exchange/${offer.id}`}
+      className={cn(
+        'grid items-center gap-4 rounded-lg border px-4 py-3 border-l-[3px] transition-colors hover:bg-accent/50',
+        'grid-cols-[70px_1fr_160px_100px_80px]',
+        'max-md:grid-cols-[60px_1fr_80px]',
+        isPrivateContract
+          ? 'border-l-purple-500 bg-purple-500/[0.04] border-purple-500/20'
+          : isBuy
+            ? 'border-l-emerald-500 bg-emerald-500/[0.03] border-border'
+            : 'border-l-red-400 bg-red-400/[0.03] border-border',
+        offer.status === 'paused' && !isPrivateContract && 'opacity-60',
+      )}>
       {/* Type + pair */}
       <div className="space-y-1">
-        <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
-          {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
-          {isBuy ? 'Buy' : 'Sell'}
-        </Badge>
-        <Link href={`/exchange/${offer.id}`} className="block">
-          <p className={cn('text-sm font-semibold hover:underline', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
-            {offer.crypto_currency}/{offer.fiat_currency}
-          </p>
-        </Link>
+        {isPrivateContract ? (
+          <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 border-purple-500/40 text-purple-400 bg-purple-500/10">
+            <Lock className="h-2.5 w-2.5" />
+            {isInProgress ? 'Active' : 'Done'}
+          </Badge>
+        ) : (
+          <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
+            {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
+            {isBuy ? 'Buy' : 'Sell'}
+          </Badge>
+        )}
+        <p className={cn('text-sm font-semibold', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
+          {offer.crypto_currency}/{offer.fiat_currency}
+        </p>
       </div>
 
       {/* Amount + crypto equivalent + status + settlement */}
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <p className="text-[15px] font-bold leading-tight">
             {isFixedAmount
               ? `${fmt(minFiat)} ${offer.fiat_currency}`
@@ -291,14 +311,21 @@ function OfferRow({
                 ? `${fmt(minFiat)} – ${fmt(maxFiat)} ${offer.fiat_currency}`
                 : 'Any amount'}
           </p>
-          <span
-            className={cn(
-              'inline-flex items-center rounded-full border px-2 py-0 text-[11px] font-medium capitalize',
-              STATUS_COLORS[offer.status],
-            )}
-          >
-            {offer.status}
-          </span>
+          {!isPrivateContract && (
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full border px-2 py-0 text-[11px] font-medium capitalize',
+                STATUS_COLORS[offer.status],
+              )}
+            >
+              {offer.status}
+            </span>
+          )}
+          {isPrivateContract && offer.accepted_buyer_nickname && (
+            <span className="text-xs text-purple-400">
+              with {offer.accepted_buyer_nickname}
+            </span>
+          )}
         </div>
         {effectivePrice !== undefined && (offer.min_amount || offer.max_amount) && (
           <p className="text-xs text-muted-foreground leading-tight mt-0.5">
@@ -327,26 +354,26 @@ function OfferRow({
       </div>
 
       {/* Settlement methods */}
-      <div className="hidden md:flex flex-wrap gap-1 overflow-hidden">
+      <div className="hidden md:flex flex-wrap gap-0.5 overflow-hidden">
         {offer.payment_methods.slice(0, 2).map((pm) => (
-          <Badge key={pm} variant="outline" className="text-xs px-1.5 py-0">
+          <span key={pm} className="inline-block rounded border border-border text-[10px] text-muted-foreground px-1.5 py-0 leading-relaxed whitespace-nowrap">
             {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
-          </Badge>
+          </span>
         ))}
         {offer.payment_methods.length > 2 && (
-          <Badge variant="outline" className="text-xs px-1.5 py-0">
+          <span className="inline-block rounded border border-border text-[10px] text-muted-foreground px-1.5 py-0 leading-relaxed whitespace-nowrap">
             +{offer.payment_methods.length - 2}
-          </Badge>
+          </span>
         )}
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-1 justify-end">
-        {offer.status !== 'removed' && (
+        {!isFinished && !isInProgress && offer.status !== 'removed' && !isPrivateContract && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={onTogglePause}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onTogglePause(); }}
             className="h-8 w-8 p-0"
             aria-label={offer.status === 'active' ? 'Pause offer' : 'Resume offer'}
           >
@@ -357,16 +384,18 @@ function OfferRow({
             )}
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDelete}
-          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-          aria-label="Delete offer"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        {!isFinished && !isInProgress && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
+            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+            aria-label="Delete offer"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </div>
-    </div>
+    </Link>
   );
 }

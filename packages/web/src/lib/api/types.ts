@@ -329,6 +329,8 @@ export interface ExchangeOffer {
   seller_rating_avg: number;
   seller_tier: string;
   seller_trade_count: number;
+  accepted_trade_status?: 'accepted' | 'completed' | null;
+  accepted_buyer_nickname?: string | null;
 }
 
 export interface CreateOfferPayload {

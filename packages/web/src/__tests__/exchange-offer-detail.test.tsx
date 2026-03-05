@@ -42,8 +42,9 @@ vi.mock('@/hooks/use-exchange', () => ({
   useDeleteOffer: () => mockDeleteMutation,
 }));
 
+const mockUseUser = vi.fn().mockReturnValue({ data: null });
 vi.mock('@/hooks/use-users', () => ({
-  useUser: () => ({ data: null }),
+  useUser: (...args: unknown[]) => mockUseUser(...args),
 }));
 
 vi.mock('@/hooks/use-prices', () => ({
@@ -52,14 +53,16 @@ vi.mock('@/hooks/use-prices', () => ({
 
 const mockCreateTradeMutation = { mutateAsync: vi.fn(), isPending: false };
 const mockTradesForOffer = { data: null, refetch: vi.fn() };
-const mockAcceptTradeMutation = { mutate: vi.fn(), isPending: false };
-const mockDeclineTradeMutation = { mutate: vi.fn(), isPending: false };
+const mockAcceptTradeMutation = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
+const mockDeclineTradeMutation = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
+const mockRateTradeMutation = { mutateAsync: vi.fn(), isPending: false, isError: false, error: null };
 
 vi.mock('@/hooks/use-trades', () => ({
   useCreateExchangeTrade: () => mockCreateTradeMutation,
   useTradesForOffer: () => mockTradesForOffer,
   useAcceptTrade: () => mockAcceptTradeMutation,
   useDeclineTrade: () => mockDeclineTradeMutation,
+  useRateTrade: () => mockRateTradeMutation,
 }));
 
 const mockCreateThreadMutation = { mutateAsync: vi.fn().mockResolvedValue({ id: 'thread-1' }), isPending: false };
@@ -67,14 +70,6 @@ vi.mock('@/hooks/use-messages', () => ({
   useCreateThread: () => mockCreateThreadMutation,
   useMessages: () => ({ data: null, isLoading: false, isError: false }),
   useSendMessage: () => ({ mutateAsync: vi.fn() }),
-}));
-
-vi.mock('@/components/chat-panel', () => ({
-  ChatPanel: ({ threadId, recipientNickname }: { threadId: string; recipientNickname: string }) => (
-    <div data-testid="chat-panel" data-thread-id={threadId} data-recipient={recipientNickname}>
-      ChatPanel
-    </div>
-  ),
 }));
 
 vi.mock('@/components/crypto-icons', () => ({
@@ -106,6 +101,14 @@ vi.mock('@/components/ui/select', () => ({
 
 vi.mock('@/components/reputation-badge', () => ({
   ReputationBadge: () => <span>ReputationBadge</span>,
+}));
+
+vi.mock('@/components/half-star-picker', () => ({
+  HalfStarPicker: ({ value, readOnly }: { value: number; readOnly?: boolean }) => (
+    <div data-testid="half-star-picker" data-value={value} data-readonly={readOnly}>
+      Stars: {value}
+    </div>
+  ),
 }));
 
 vi.mock('@/lib/countries', () => ({
@@ -183,6 +186,7 @@ afterEach(() => {
   mockIsUnlocked = false;
   mockParams = { id: 'offer-1' };
   mockTradesForOffer.data = null;
+  mockUseUser.mockReturnValue({ data: null });
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -259,9 +263,9 @@ describe('OfferDetailPage — authenticated buyer, keys not unlocked', () => {
     mockIsUnlocked = false;
   });
 
-  it('shows "Unlock keys to chat" prompt', () => {
+  it('shows "Unlock keys to trade" prompt', () => {
     render(<OfferDetailPage />);
-    expect(screen.getByText(/unlock keys to chat/i)).toBeInTheDocument();
+    expect(screen.getByText(/unlock keys to trade/i)).toBeInTheDocument();
   });
 });
 
@@ -284,9 +288,9 @@ describe('OfferDetailPage — authenticated buyer, no active trade', () => {
     expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
-  it('renders "Make an offer to start chatting" placeholder', () => {
+  it('renders "Submit your trade proposal" placeholder', () => {
     render(<OfferDetailPage />);
-    expect(screen.getByText(/make an offer to start chatting/i)).toBeInTheDocument();
+    expect(screen.getByText(/submit your trade proposal/i)).toBeInTheDocument();
   });
 
   it('shows Make offer button', () => {
@@ -315,6 +319,19 @@ describe('OfferDetailPage — authenticated buyer with active trade', () => {
   it('shows active trade summary', () => {
     render(<OfferDetailPage />);
     expect(screen.getByText(/your active trade/i)).toBeInTheDocument();
+  });
+
+  it('shows seller profile card in right panel', () => {
+    render(<OfferDetailPage />);
+    // TradeProfileCard renders the seller nickname in right panel
+    const links = screen.getAllByText('seller_nick');
+    expect(links.length).toBeGreaterThanOrEqual(2); // left panel + right panel profile card
+  });
+
+  it('shows greyed rating section', () => {
+    render(<OfferDetailPage />);
+    expect(screen.getByText(/rate this trade/i)).toBeInTheDocument();
+    expect(screen.getByText(/complete the trade to leave a rating/i)).toBeInTheDocument();
   });
 });
 
@@ -345,6 +362,13 @@ describe('OfferDetailPage — owner view', () => {
     mockTradesForOffer.data = { trades: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } };
     render(<OfferDetailPage />);
     expect(screen.getByText(/trade proposals/i)).toBeInTheDocument();
+  });
+
+  it('shows safety warnings when no proposals', () => {
+    mockTradesForOffer.data = { trades: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } };
+    render(<OfferDetailPage />);
+    expect(screen.getByText(/safety reminders/i)).toBeInTheDocument();
+    expect(screen.getByText(/always verify payment/i)).toBeInTheDocument();
   });
 
   it('shows trade proposal with accept/decline buttons', () => {

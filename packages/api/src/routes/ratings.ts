@@ -13,8 +13,8 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
       const { tradeId } = request.params;
       const { score, comment } = request.body;
 
-      if (!score || score < 1 || score > 5 || !Number.isInteger(score)) {
-        return reply.status(400).send({ error: 'Score must be an integer between 1 and 5' });
+      if (score === undefined || score === null || typeof score !== 'number' || score < 0 || score > 5 || (score * 2) % 1 !== 0) {
+        return reply.status(400).send({ error: 'Score must be between 0 and 5 in 0.5 increments' });
       }
 
       if (comment && comment.length > 500) {
@@ -62,7 +62,9 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
       // Recalculate reputation for the rated user
       await recalculateReputation(fastify, toUserId);
 
-      return reply.status(201).send(result.rows[0]);
+      const row = result.rows[0];
+      row.score = parseFloat(row.score);
+      return reply.status(201).send(row);
     },
   );
 
@@ -102,8 +104,9 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
       [userId, limitNum, offset],
     );
 
+    const ratings = ratingsRes.rows.map((r) => ({ ...r, score: parseFloat(r.score) }));
     return reply.send({
-      ratings: ratingsRes.rows,
+      ratings,
       pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     });
   });

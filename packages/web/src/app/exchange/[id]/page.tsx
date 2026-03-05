@@ -1,24 +1,23 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, ArrowUp, ArrowDown, Star, Pause, Play, Trash2,
-  Lock, LogIn, MessageSquare, Check, X,
+  Lock, LogIn, MessageSquare, Check, X, ShieldAlert,
 } from 'lucide-react';
 import { useOffer, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
 import { useUser } from '@/hooks/use-users';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
 import { usePrices } from '@/hooks/use-prices';
-import { useCreateExchangeTrade, useTradesForOffer, useAcceptTrade, useDeclineTrade } from '@/hooks/use-trades';
+import { useCreateExchangeTrade, useTradesForOffer, useAcceptTrade, useDeclineTrade, useRateTrade } from '@/hooks/use-trades';
 import { useCreateThread } from '@/hooks/use-messages';
 import { messages as messagesApi, users as usersApi } from '@/lib/api';
 import { CoinIcon } from '@/components/crypto-icons';
 import { ReputationBadge } from '@/components/reputation-badge';
-import { ChatPanel } from '@/components/chat-panel';
-import type { TradeAction } from '@/components/chat-panel';
+import { HalfStarPicker } from '@/components/half-star-picker';
 import { getCountryFlag, getCountryName } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -90,6 +89,110 @@ function OfferDetailSkeleton() {
           <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Trade Profile Card ──────────────────────────────────────────────────────
+
+function TradeProfileCard({ nickname }: { nickname: string }) {
+  const { data: profile } = useUser(nickname);
+
+  return (
+    <div className="p-4 space-y-3">
+      <div className="flex items-center gap-3">
+        <Link href={`/user/${nickname}`} className="shrink-0">
+          <MiniIdenticon seed={nickname} size={40} />
+        </Link>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/user/${nickname}`}
+              className="text-sm font-medium hover:underline truncate"
+            >
+              {nickname}
+            </Link>
+            {profile && <ReputationBadge tier={profile.reputation.tier} />}
+          </div>
+          {profile && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <HalfStarPicker value={profile.reputation.rating_avg} readOnly size={16} />
+              <span className="text-sm text-muted-foreground">
+                {profile.reputation.rating_avg.toFixed(1)}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                · Score: {profile.reputation.composite_score}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Rating Section ──────────────────────────────────────────────────────────
+
+function RatingSection({ tradeId, tradeStatus }: { tradeId: string; tradeStatus: string }) {
+  const [score, setScore] = useState(2.5);
+  const [comment, setComment] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const rateMutation = useRateTrade();
+
+  const isCompleted = tradeStatus === 'completed';
+
+  async function handleSubmit() {
+    await rateMutation.mutateAsync({
+      tradeId,
+      payload: { score, comment: comment || undefined },
+    });
+    setSubmitted(true);
+  }
+
+  return (
+    <div className={cn('p-4 border-t border-border space-y-3', !isCompleted && 'opacity-50')}>
+      <h4 className="text-sm font-semibold">Rate this trade</h4>
+
+      {!isCompleted && (
+        <p className="text-xs text-muted-foreground">Complete the trade to leave a rating</p>
+      )}
+
+      {isCompleted && submitted && (
+        <p className="text-xs text-green-500">Rating submitted. Thank you!</p>
+      )}
+
+      {isCompleted && !submitted && (
+        <>
+          <div className="flex items-center gap-2">
+            <HalfStarPicker value={score} onChange={setScore} size={24} />
+            <span className="text-sm text-muted-foreground">{score.toFixed(1)}</span>
+          </div>
+          <textarea
+            placeholder="Optional comment..."
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            rows={2}
+            maxLength={500}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            disabled={!isCompleted}
+          />
+          <Button
+            size="sm"
+            className="w-full"
+            onClick={handleSubmit}
+            disabled={rateMutation.isPending}
+          >
+            {rateMutation.isPending ? 'Submitting...' : 'Submit rating'}
+          </Button>
+          {rateMutation.isError && (
+            <p className="text-xs text-destructive">
+              {rateMutation.error instanceof ApiError && rateMutation.error.body && typeof rateMutation.error.body === 'object' && 'error' in rateMutation.error.body
+                ? String((rateMutation.error.body as { error: string }).error)
+                : 'Failed to submit rating'}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -407,6 +510,133 @@ function MakeOfferForm({
   );
 }
 
+// ── Selected Trade Detail (owner view) ───────────────────────────────────────
+
+function SelectedTradeDetail({
+  trade,
+  fiatCurrency,
+  cryptoCurrency,
+  offerId,
+  onBack,
+  onTradeUpdated,
+}: {
+  trade: TradeSummary;
+  fiatCurrency: string;
+  cryptoCurrency: string;
+  offerId: string;
+  onBack: () => void;
+  onTradeUpdated: () => void;
+}) {
+  const acceptTrade = useAcceptTrade();
+  const declineTrade = useDeclineTrade();
+  const createThread = useCreateThread();
+  const { encrypt } = useCrypto();
+
+  async function handleAccept() {
+    await acceptTrade.mutateAsync(trade.id);
+    onTradeUpdated();
+    // Send system accept message
+    const methodLabel = trade.payment_method
+      ? (SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method)
+      : '';
+    const details = trade.fiat_amount
+      ? `${fmt(trade.fiat_amount)} ${fiatCurrency} for ${cryptoCurrency}${methodLabel ? ` via ${methodLabel}` : ''}`
+      : '';
+    const autoMsg = `[SYSTEM] Accepted: ${details}`;
+    try {
+      const thread = await createThread.mutateAsync({
+        recipient_nickname: trade.buyer_nickname,
+        offer_id: offerId,
+      });
+      const { public_key } = await usersApi.getUserPublicKey(trade.buyer_nickname);
+      const encrypted = await encrypt(autoMsg, public_key);
+      await messagesApi.sendMessage(thread.id, encrypted);
+    } catch { /* non-critical */ }
+  }
+
+  async function handleDecline() {
+    await declineTrade.mutateAsync(trade.id);
+    onTradeUpdated();
+    // Send system decline message
+    const methodLabel = trade.payment_method
+      ? (SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method)
+      : '';
+    const details = trade.fiat_amount
+      ? `${fmt(trade.fiat_amount)} ${fiatCurrency} for ${cryptoCurrency}${methodLabel ? ` via ${methodLabel}` : ''}`
+      : '';
+    const autoMsg = `[SYSTEM] Declined: ${details}`;
+    try {
+      const thread = await createThread.mutateAsync({
+        recipient_nickname: trade.buyer_nickname,
+        offer_id: offerId,
+      });
+      const { public_key } = await usersApi.getUserPublicKey(trade.buyer_nickname);
+      const encrypted = await encrypt(autoMsg, public_key);
+      await messagesApi.sendMessage(thread.id, encrypted);
+    } catch { /* non-critical */ }
+  }
+
+  return (
+    <div className="flex flex-col">
+      <button
+        className="px-4 py-2 text-xs text-muted-foreground hover:text-foreground border-b border-border text-left shrink-0"
+        onClick={onBack}
+      >
+        <ArrowLeft className="h-3 w-3 inline mr-1" />
+        Back to proposals
+      </button>
+      <TradeProfileCard nickname={trade.buyer_nickname} />
+      <div className="px-4 pb-4 space-y-2">
+        <div className="rounded-lg border border-border p-3 space-y-1">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Amount</span>
+            <span className="font-medium">
+              {trade.fiat_amount ? `${fmt(trade.fiat_amount)} ${fiatCurrency}` : '--'}
+            </span>
+          </div>
+          {trade.payment_method && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Method</span>
+              <span className="font-medium">
+                {SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Status</span>
+            <Badge variant="outline" className="text-xs">{trade.status}</Badge>
+          </div>
+        </div>
+        {trade.status === 'offered' && (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="default"
+              className="flex-1 h-8 text-xs"
+              disabled={acceptTrade.isPending || declineTrade.isPending}
+              onClick={handleAccept}
+            >
+              <Check className="h-3 w-3 mr-1" />
+              Accept
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 h-8 text-xs"
+              disabled={acceptTrade.isPending || declineTrade.isPending}
+              onClick={handleDecline}
+            >
+              <X className="h-3 w-3 mr-1" />
+              Decline
+            </Button>
+          </div>
+        )}
+      </div>
+      <RatingSection tradeId={trade.id} tradeStatus={trade.status} />
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function OfferDetailPage() {
@@ -421,19 +651,12 @@ export default function OfferDetailPage() {
   const { data: tradesData, refetch: refetchTrades } = useTradesForOffer(id);
   const updateMutation = useUpdateOffer(id);
   const deleteMutation = useDeleteOffer();
-  const acceptTradeMut = useAcceptTrade();
-  const declineTradeMut = useDeclineTrade();
-  const createThreadMut = useCreateThread();
-  const { encrypt } = useCrypto();
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPauseDialog, setShowPauseDialog] = useState(false);
 
-  // Active trade + thread state (for buyer after making an offer)
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  // Selected trade for owner chat
+  // Selected trade for owner detail view
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
-  const [ownerThreadId, setOwnerThreadId] = useState<string | null>(null);
 
   const isOwner = user?.id === offer?.user_id;
 
@@ -441,105 +664,15 @@ export default function OfferDetailPage() {
   const myActiveTrade = useMemo(() => {
     if (!tradesData || isOwner) return null;
     return tradesData.trades.find(
-      (t) => t.buyer_id === user?.id && ['offered', 'accepted'].includes(t.status),
+      (t) => t.buyer_id === user?.id && ['offered', 'accepted', 'completed'].includes(t.status),
     ) ?? null;
   }, [tradesData, user?.id, isOwner]);
 
-  // Selected trade (for owner to view chat)
+  // Selected trade (for owner to view detail)
   const selectedTrade = useMemo(() => {
     if (!tradesData || !selectedTradeId) return null;
     return tradesData.trades.find((t) => t.id === selectedTradeId) ?? null;
   }, [tradesData, selectedTradeId]);
-
-  // Resolve thread ID when owner selects a trade proposal
-  useEffect(() => {
-    if (!selectedTrade || !isOwner || !offer) {
-      setOwnerThreadId(null);
-      return;
-    }
-    let cancelled = false;
-    createThreadMut
-      .mutateAsync({
-        recipient_nickname: selectedTrade.buyer_nickname,
-        offer_id: offer.id,
-      })
-      .then((thread) => {
-        if (!cancelled) setOwnerThreadId(thread.id);
-      })
-      .catch(() => { /* thread resolution failed */ });
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTrade?.id, isOwner, offer?.id]);
-
-  // Resolve thread ID for buyer when revisiting the page (activeThreadId is lost on navigation)
-  useEffect(() => {
-    if (!myActiveTrade || isOwner || activeThreadId || !offer) return;
-    let cancelled = false;
-    createThreadMut
-      .mutateAsync({
-        recipient_nickname: offer.seller_nickname,
-        offer_id: offer.id,
-      })
-      .then((thread) => {
-        if (!cancelled) setActiveThreadId(thread.id);
-      })
-      .catch(() => { /* thread resolution failed */ });
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myActiveTrade?.id, isOwner, activeThreadId, offer?.id]);
-
-  // Build tradeAction for the owner's ChatPanel (accept/decline buttons in chat)
-  const ownerTradeAction: TradeAction | undefined = useMemo(() => {
-    if (!selectedTrade || !isOwner || !offer) return undefined;
-    return {
-      tradeId: selectedTrade.id,
-      status: selectedTrade.status,
-      isPending: acceptTradeMut.isPending || declineTradeMut.isPending,
-      onAccept: async (tradeId: string) => {
-        await acceptTradeMut.mutateAsync(tradeId);
-        refetchTrades();
-        // Send system accept message
-        const methodLabel = selectedTrade.payment_method
-          ? (SETTLEMENT_METHOD_LABELS[selectedTrade.payment_method as SettlementMethod] ?? selectedTrade.payment_method)
-          : '';
-        const details = selectedTrade.fiat_amount
-          ? `${fmt(selectedTrade.fiat_amount)} ${offer.fiat_currency} for ${offer.crypto_currency}${methodLabel ? ` via ${methodLabel}` : ''}`
-          : '';
-        const autoMsg = `[SYSTEM] Accepted: ${details}`;
-        try {
-          const thread = await createThreadMut.mutateAsync({
-            recipient_nickname: selectedTrade.buyer_nickname,
-            offer_id: offer.id,
-          });
-          const { public_key } = await usersApi.getUserPublicKey(selectedTrade.buyer_nickname);
-          const encrypted = await encrypt(autoMsg, public_key);
-          await messagesApi.sendMessage(thread.id, encrypted);
-        } catch { /* non-critical */ }
-      },
-      onDecline: async (tradeId: string) => {
-        await declineTradeMut.mutateAsync(tradeId);
-        refetchTrades();
-        // Send system decline message
-        const methodLabel = selectedTrade.payment_method
-          ? (SETTLEMENT_METHOD_LABELS[selectedTrade.payment_method as SettlementMethod] ?? selectedTrade.payment_method)
-          : '';
-        const details = selectedTrade.fiat_amount
-          ? `${fmt(selectedTrade.fiat_amount)} ${offer.fiat_currency} for ${offer.crypto_currency}${methodLabel ? ` via ${methodLabel}` : ''}`
-          : '';
-        const autoMsg = `[SYSTEM] Declined: ${details}`;
-        try {
-          const thread = await createThreadMut.mutateAsync({
-            recipient_nickname: selectedTrade.buyer_nickname,
-            offer_id: offer.id,
-          });
-          const { public_key } = await usersApi.getUserPublicKey(selectedTrade.buyer_nickname);
-          const encrypted = await encrypt(autoMsg, public_key);
-          await messagesApi.sendMessage(thread.id, encrypted);
-        } catch { /* non-critical */ }
-      },
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTrade?.id, selectedTrade?.status, isOwner, offer?.id, offer?.fiat_currency, offer?.crypto_currency, acceptTradeMut.isPending, declineTradeMut.isPending]);
 
   if (isLoading) return <OfferDetailSkeleton />;
 
@@ -555,7 +688,7 @@ export default function OfferDetailPage() {
   }
 
   const isBuy = offer.offer_type === 'buy';
-  const stars = sellerProfile ? Math.round(sellerProfile.reputation.rating_avg) : 0;
+  const stars = sellerProfile ? sellerProfile.reputation.rating_avg : 0;
 
   // Compute effective price
   let coinPrice: number | undefined;
@@ -576,27 +709,16 @@ export default function OfferDetailPage() {
   const isFixedAmount = minFiat === maxFiat && minFiat > 0;
 
   // Trade created callback
-  function handleTradeCreated(_tradeId: string, threadId: string) {
-    setActiveThreadId(threadId);
+  function handleTradeCreated(_tradeId: string, _threadId: string) {
     refetchTrades();
   }
-
-  // Determine right panel chat thread recipient
-  const chatRecipientNickname = isOwner
-    ? selectedTrade?.buyer_nickname ?? null
-    : offer.seller_nickname;
-
-  // Determine the thread ID for chat (buyer side: from activeThreadId or find from myActiveTrade)
-  const chatThreadId = isOwner
-    ? null // Owner selects from proposals
-    : activeThreadId;
 
   const trades = tradesData?.trades ?? [];
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-6">
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* ── Left Panel (lg:w-3/5) ─────────────────────────────────── */}
+        {/* -- Left Panel (lg:w-3/5) -- */}
         <div className="lg:w-3/5 space-y-6">
           {/* Header */}
           <div>
@@ -637,13 +759,8 @@ export default function OfferDetailPage() {
                   {sellerProfile && <ReputationBadge tier={sellerProfile.reputation.tier} />}
                 </div>
                 {sellerProfile && (
-                  <div className="flex items-center gap-0.5" aria-label={`Rating: ${sellerProfile.reputation.rating_avg.toFixed(1)} out of 5`}>
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <Star
-                        key={n}
-                        className={cn('h-4 w-4', n <= stars ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/40')}
-                      />
-                    ))}
+                  <div className="flex items-center gap-1" aria-label={`Rating: ${sellerProfile.reputation.rating_avg.toFixed(1)} out of 5`}>
+                    <HalfStarPicker value={stars} readOnly size={16} />
                     <span className="text-sm text-muted-foreground ml-1">
                       {sellerProfile.reputation.rating_avg.toFixed(1)}
                     </span>
@@ -795,7 +912,7 @@ export default function OfferDetailPage() {
           )}
         </div>
 
-        {/* ── Right Panel (lg:w-2/5) ─────────────────────────────────── */}
+        {/* -- Right Panel (lg:w-2/5) -- */}
         <div className="lg:w-2/5">
           <div className="lg:sticky lg:top-6">
             <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -814,9 +931,9 @@ export default function OfferDetailPage() {
               {isAuthenticated && !isUnlocked && (
                 <div className="p-8 text-center space-y-3">
                   <Lock className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                  <p className="text-sm font-medium">Unlock keys to chat</p>
+                  <p className="text-sm font-medium">Unlock keys to trade</p>
                   <p className="text-xs text-muted-foreground">
-                    Your encryption keys need to be unlocked before you can send messages.
+                    Your encryption keys need to be unlocked before you can trade.
                   </p>
                   <Button asChild variant="outline" size="sm">
                     <Link href={`/auth/unlock?next=/exchange/${id}`}>Unlock keys</Link>
@@ -824,32 +941,50 @@ export default function OfferDetailPage() {
                 </div>
               )}
 
-              {/* Buyer: no trade yet */}
-              {isAuthenticated && isUnlocked && !isOwner && !myActiveTrade && !chatThreadId && (
+              {/* Buyer: no trade yet — prompt */}
+              {isAuthenticated && isUnlocked && !isOwner && !myActiveTrade && (
                 <div className="p-8 text-center space-y-2">
                   <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                  <p className="text-sm font-medium">Make an offer to start chatting</p>
+                  <p className="text-sm font-medium">Submit your trade proposal</p>
                   <p className="text-xs text-muted-foreground">
-                    Submit your trade proposal using the form on the left.
+                    Use the form on the left to make an offer.
                   </p>
                 </div>
               )}
 
-              {/* Buyer: has active trade — show chat */}
-              {isAuthenticated && isUnlocked && !isOwner && (myActiveTrade || chatThreadId) && chatRecipientNickname && (
-                <ChatPanel
-                  threadId={chatThreadId || ''}
-                  recipientNickname={chatRecipientNickname}
-                  contextLabel={`${offer.offer_type} ${offer.crypto_currency}/${offer.fiat_currency}`}
-                  className="h-[500px] lg:h-[calc(100vh-200px)] lg:max-h-[700px]"
-                  chatLocked={myActiveTrade?.status !== 'accepted'}
-                  chatLockedMessage={myActiveTrade?.status === 'declined' ? 'This offer was declined.' : 'Waiting for the seller to accept your offer…'}
-                />
+              {/* Buyer: has active trade — show seller profile + proposal details + rating */}
+              {isAuthenticated && isUnlocked && !isOwner && myActiveTrade && (
+                <>
+                  <TradeProfileCard nickname={offer.seller_nickname} />
+                  <div className="px-4 pb-4 space-y-2">
+                    <div className="rounded-lg border border-border p-3 space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Amount</span>
+                        <span className="font-medium">
+                          {myActiveTrade.fiat_amount ? `${fmt(myActiveTrade.fiat_amount)} ${offer.fiat_currency}` : '--'}
+                        </span>
+                      </div>
+                      {myActiveTrade.payment_method && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Method</span>
+                          <span className="font-medium">
+                            {SETTLEMENT_METHOD_LABELS[myActiveTrade.payment_method as SettlementMethod] ?? myActiveTrade.payment_method}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Status</span>
+                        <Badge variant="outline" className="text-xs">{myActiveTrade.status}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <RatingSection tradeId={myActiveTrade.id} tradeStatus={myActiveTrade.status} />
+                </>
               )}
 
-              {/* Owner: trade proposals list */}
+              {/* Owner: trade proposals */}
               {isAuthenticated && isUnlocked && isOwner && (
-                <div className="flex flex-col h-[500px] lg:h-[calc(100vh-200px)] lg:max-h-[700px]">
+                <div className="flex flex-col">
                   <div className="px-4 py-3 border-b border-border shrink-0">
                     <h3 className="font-semibold text-sm">
                       Trade proposals {trades.length > 0 && `(${trades.length})`}
@@ -857,41 +992,35 @@ export default function OfferDetailPage() {
                   </div>
 
                   {trades.length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center p-6">
-                      <div className="text-center space-y-2">
-                        <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                        <p className="text-sm text-muted-foreground">No proposals yet</p>
+                    /* No proposals — safety warnings */
+                    <div className="p-6 space-y-4">
+                      <div className="flex items-start gap-3 text-sm text-muted-foreground">
+                        <ShieldAlert className="h-5 w-5 shrink-0 text-yellow-500 mt-0.5" />
+                        <div className="space-y-2">
+                          <p className="font-medium text-foreground">Safety reminders</p>
+                          <ul className="space-y-1.5 text-xs list-disc list-inside">
+                            <li>Always verify payment before releasing crypto</li>
+                            <li>Never share your private keys or recovery phrase</li>
+                            <li>Use the messaging system for all trade communication</li>
+                            <li>Report suspicious activity immediately</li>
+                          </ul>
+                        </div>
                       </div>
+                      <p className="text-xs text-muted-foreground text-center">No proposals yet</p>
                     </div>
-                  ) : selectedTrade && chatRecipientNickname ? (
-                    /* Owner: selected trade — show chat */
-                    <div className="flex-1 flex flex-col min-h-0">
-                      <button
-                        className="px-4 py-2 text-xs text-muted-foreground hover:text-foreground border-b border-border text-left shrink-0"
-                        onClick={() => setSelectedTradeId(null)}
-                      >
-                        <ArrowLeft className="h-3 w-3 inline mr-1" />
-                        Back to proposals
-                      </button>
-                      <div className="px-3 py-2 border-b border-border shrink-0 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{selectedTrade.buyer_nickname}</span>
-                        {' · '}
-                        {selectedTrade.fiat_amount ? `${fmt(selectedTrade.fiat_amount)} ${offer.fiat_currency}` : '--'}
-                        {selectedTrade.payment_method && ` · ${SETTLEMENT_METHOD_LABELS[selectedTrade.payment_method as SettlementMethod] ?? selectedTrade.payment_method}`}
-                      </div>
-                      <ChatPanel
-                        key={ownerThreadId || ''}
-                        threadId={ownerThreadId || ''}
-                        recipientNickname={chatRecipientNickname}
-                        className="flex-1 min-h-0"
-                        tradeAction={ownerTradeAction}
-                        chatLocked={selectedTrade.status !== 'accepted'}
-                        chatLockedMessage={selectedTrade.status === 'declined' ? 'This offer was declined.' : 'Accept the offer to start chatting.'}
-                      />
-                    </div>
+                  ) : selectedTrade ? (
+                    /* Owner: selected trade — show buyer profile + details + rating */
+                    <SelectedTradeDetail
+                      trade={selectedTrade}
+                      fiatCurrency={offer.fiat_currency}
+                      cryptoCurrency={offer.crypto_currency}
+                      offerId={offer.id}
+                      onBack={() => setSelectedTradeId(null)}
+                      onTradeUpdated={() => refetchTrades()}
+                    />
                   ) : (
                     /* Owner: proposals list */
-                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    <div className="overflow-y-auto p-3 space-y-2 max-h-[500px]">
                       {trades.map((trade) => (
                         <TradeProposalRow
                           key={trade.id}
@@ -905,17 +1034,6 @@ export default function OfferDetailPage() {
                       ))}
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Owner: keys not loaded */}
-              {isAuthenticated && !isUnlocked && isOwner && (
-                <div className="p-8 text-center space-y-3">
-                  <Lock className="h-8 w-8 mx-auto text-muted-foreground/40" />
-                  <p className="text-sm font-medium">Unlock keys to view proposals</p>
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/auth/unlock?next=/exchange/${id}`}>Unlock keys</Link>
-                  </Button>
                 </div>
               )}
             </div>

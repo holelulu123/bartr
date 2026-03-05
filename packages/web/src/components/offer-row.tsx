@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, Star, Trash2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, Star, Trash2, Lock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
@@ -81,6 +81,7 @@ export function OfferRow({ offer }: OfferRowProps) {
   const deleteMutation = useDeleteOffer();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const isOwn = user?.nickname === offer.seller_nickname;
+  const isPrivateContract = !!offer.accepted_trade_status;
 
   let coinPrice: number | undefined;
   if (priceData) {
@@ -107,33 +108,55 @@ export function OfferRow({ offer }: OfferRowProps) {
   const tradeCount = Number(offer.seller_trade_count) || 0;
 
   return (
-    <div className={cn(
-      'grid items-center gap-3 rounded-lg border px-4 py-3 border-l-[3px]',
-      'grid-cols-[90px_1.2fr_1fr_180px_140px_1fr_90px]',
-      'max-md:grid-cols-[75px_1fr_180px_90px]',
-      isBuy
-        ? 'border-l-emerald-500 bg-emerald-500/[0.03] border-border'
-        : 'border-l-red-400 bg-red-400/[0.03] border-border',
-    )}>
+    <Link
+      href={`/exchange/${offer.id}`}
+      className={cn(
+        'grid items-center gap-3 rounded-lg border px-4 py-3 border-l-[3px] transition-colors hover:bg-accent/50',
+        'grid-cols-[90px_1.2fr_1fr_180px_140px_1fr_40px]',
+        'max-md:grid-cols-[75px_1fr_180px_40px]',
+        isPrivateContract
+          ? 'border-l-purple-500 bg-purple-500/[0.04] border-purple-500/20'
+          : isBuy
+            ? 'border-l-emerald-500 bg-emerald-500/[0.03] border-border'
+            : 'border-l-red-400 bg-red-400/[0.03] border-border',
+      )}>
       {/* Type + pair */}
       <div className="flex flex-col items-start gap-1">
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="cursor-help">
-                <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
-                  {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
-                  {isBuy ? 'Buy' : 'Sell'}
-                </Badge>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {isBuy
-                ? `${offer.seller_nickname} wants to buy ${offer.crypto_currency} with ${offer.fiat_currency}`
-                : `${offer.seller_nickname} wants to sell ${offer.crypto_currency} for ${offer.fiat_currency}`}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        {isPrivateContract ? (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help">
+                  <Badge variant="outline" className="gap-1 text-[13px] px-2 py-0 -ml-2 border-purple-500/40 text-purple-400 bg-purple-500/10">
+                    <Lock className="h-3.5 w-3.5" />
+                    Contract
+                  </Badge>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Private contract between you and {isOwn ? offer.accepted_buyer_nickname : offer.seller_nickname}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help">
+                  <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
+                    {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
+                    {isBuy ? 'Buy' : 'Sell'}
+                  </Badge>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {isBuy
+                  ? `${offer.seller_nickname} wants to buy ${offer.crypto_currency} with ${offer.fiat_currency}`
+                  : `${offer.seller_nickname} wants to sell ${offer.crypto_currency} for ${offer.fiat_currency}`}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         <span className={cn('text-sm font-semibold whitespace-nowrap', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
           {offer.crypto_currency}/{offer.fiat_currency}
         </span>
@@ -141,16 +164,13 @@ export function OfferRow({ offer }: OfferRowProps) {
 
       {/* Trader */}
       <div className="hidden md:flex items-center gap-2 overflow-hidden">
-        <Link href={`/user/${offer.seller_nickname}`} className="shrink-0">
+        <span className="shrink-0">
           <MiniIdenticon seed={offer.seller_nickname} size={32} />
-        </Link>
+        </span>
         <div className="min-w-0 overflow-hidden">
-          <Link
-            href={`/user/${offer.seller_nickname}`}
-            className="text-base font-semibold hover:underline block truncate"
-          >
+          <span className="text-base font-semibold block truncate">
             {offer.seller_nickname}
-          </Link>
+          </span>
           {(offer.country_code || offer.city) && (
             <p className="text-sm text-muted-foreground truncate">
               {offer.country_code && getCountryFlag(offer.country_code)}{' '}
@@ -274,17 +294,12 @@ export function OfferRow({ offer }: OfferRowProps) {
 
       {/* Action */}
       <div className="flex items-center gap-1.5">
-        <Button asChild size="sm" variant="outline">
-          <Link href={`/exchange/${offer.id}`}>
-            {isOwn ? 'View' : 'Offer'}
-          </Link>
-        </Button>
         {isOwn && (
           <Button
             size="sm"
             variant="ghost"
             className="px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => setShowDeleteDialog(true)}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDeleteDialog(true); }}
             aria-label="Delete offer"
           >
             <Trash2 className="h-4 w-4" />
@@ -294,7 +309,7 @@ export function OfferRow({ offer }: OfferRowProps) {
 
       {/* Delete confirmation dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Delete offer?</DialogTitle>
             <DialogDescription>
@@ -318,6 +333,6 @@ export function OfferRow({ offer }: OfferRowProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Link>
   );
 }

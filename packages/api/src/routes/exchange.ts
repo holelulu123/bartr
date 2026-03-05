@@ -194,14 +194,28 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
       const values: (string | number)[] = [];
       let paramIdx = 1;
 
+      const currentUserId = request.user?.sub;
+
       if (user_id) {
-        // When fetching a user's own offers, show active + paused (removed are permanently gone)
-        conditions.push(`eo.user_id = $${paramIdx++}`);
+        // Show offers the user created (active/paused) OR where the user is the accepted buyer
+        conditions.push(`(eo.user_id = $${paramIdx} OR EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.buyer_id = $${paramIdx} AND t.status IN ('accepted', 'completed')))`);
         values.push(user_id);
+        paramIdx++;
         conditions.push(`eo.status != 'removed'`);
       } else {
-        // Public browse: only show active offers
+        // Public browse: show active offers without an accepted/completed trade,
+        // PLUS private contracts where current user is a participant
         conditions.push(`eo.status = 'active'`);
+        if (currentUserId) {
+          conditions.push(`(
+            NOT EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed'))
+            OR EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed') AND (t.buyer_id = $${paramIdx} OR eo.user_id = $${paramIdx}))
+          )`);
+          values.push(currentUserId);
+          paramIdx++;
+        } else {
+          conditions.push(`NOT EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed'))`);
+        }
       }
 
       if (offer_type && VALID_OFFER_TYPES.includes(offer_type)) {
@@ -242,7 +256,9 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         `SELECT eo.*, u.nickname as seller_nickname,
                 COALESCE(rs.rating_avg, 0) as seller_rating_avg,
                 COALESCE(rs.tier, 'new') as seller_tier,
-                (SELECT COUNT(*) FROM trades t WHERE (t.buyer_id = eo.user_id OR t.seller_id = eo.user_id) AND t.status = 'completed')::int as seller_trade_count
+                (SELECT COUNT(*) FROM trades t WHERE (t.buyer_id = eo.user_id OR t.seller_id = eo.user_id) AND t.status = 'completed')::int as seller_trade_count,
+                (SELECT t.status FROM trades t WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed') LIMIT 1) as accepted_trade_status,
+                (SELECT bu.nickname FROM trades t JOIN users bu ON bu.id = t.buyer_id WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed') LIMIT 1) as accepted_buyer_nickname
          FROM exchange_offers eo
          JOIN users u ON u.id = eo.user_id
          LEFT JOIN reputation_scores rs ON rs.user_id = eo.user_id
@@ -260,10 +276,12 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
   );
 
   // GET /exchange/offers/:id — single offer with seller info
+  // After a trade is accepted, only the offer owner and the accepted buyer can view it.
   fastify.get<{ Params: { id: string } }>(
     '/exchange/offers/:id',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
+      const userId = request.user!.sub;
       const { id } = request.params;
 
       const result = await fastify.pg.query(
@@ -282,7 +300,23 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'Offer not found' });
       }
 
-      return reply.send(result.rows[0]);
+      const offer = result.rows[0];
+
+      // Check if there's an accepted or completed trade on this offer
+      const acceptedTrade = await fastify.pg.query(
+        `SELECT buyer_id FROM trades WHERE offer_id = $1 AND status IN ('accepted', 'completed') LIMIT 1`,
+        [id],
+      );
+
+      if (acceptedTrade.rows.length > 0) {
+        const isOwner = offer.user_id === userId;
+        const isAcceptedBuyer = acceptedTrade.rows[0].buyer_id === userId;
+        if (!isOwner && !isAcceptedBuyer) {
+          return reply.status(404).send({ error: 'Offer not found' });
+        }
+      }
+
+      return reply.send(offer);
     },
   );
 

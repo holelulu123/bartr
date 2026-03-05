@@ -184,7 +184,7 @@ describe('Rating & Reputation routes', () => {
       expect(res.statusCode).toBe(409);
     });
 
-    it('rejects invalid score', async () => {
+    it('rejects invalid score (out of range)', async () => {
       const seller = await createTestUser('badscore_s');
       const buyer = await createTestUser('badscore_b');
       const tradeId = await createCompletedTrade(seller, buyer);
@@ -198,6 +198,58 @@ describe('Rating & Reputation routes', () => {
       });
 
       expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('0.5 increments');
+    });
+
+    it('accepts score of 0', async () => {
+      const seller = await createTestUser('zero_s');
+      const buyer = await createTestUser('zero_b');
+      const tradeId = await createCompletedTrade(seller, buyer);
+      const buyerToken = await getToken(buyer);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/trades/${tradeId}/rate`,
+        headers: { authorization: `Bearer ${buyerToken}` },
+        payload: { score: 0 },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(parseFloat(res.json().score)).toBe(0);
+    });
+
+    it('accepts half-star score (2.5)', async () => {
+      const seller = await createTestUser('half_s');
+      const buyer = await createTestUser('half_b');
+      const tradeId = await createCompletedTrade(seller, buyer);
+      const buyerToken = await getToken(buyer);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/trades/${tradeId}/rate`,
+        headers: { authorization: `Bearer ${buyerToken}` },
+        payload: { score: 2.5 },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(parseFloat(res.json().score)).toBe(2.5);
+    });
+
+    it('rejects non-half-star score (3.3)', async () => {
+      const seller = await createTestUser('bad33_s');
+      const buyer = await createTestUser('bad33_b');
+      const tradeId = await createCompletedTrade(seller, buyer);
+      const buyerToken = await getToken(buyer);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/trades/${tradeId}/rate`,
+        headers: { authorization: `Bearer ${buyerToken}` },
+        payload: { score: 3.3 },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('0.5 increments');
     });
 
     it('rejects non-participant', async () => {
