@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 const API_URL = process.env.API_URL || 'http://localhost:4000';
 
-export const HEALTH_SESSION_COOKIE = 'health_session';
+export const HEALTH_SESSION_COOKIE = 'admin_session';
 
 export function apiHealthUrl(path: string): string {
   return `${API_URL}${path}`;

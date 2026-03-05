@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 
 // Routes accessible without authentication
-const PUBLIC_PATHS = ['/', '/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover', '/register/email', '/about', '/tips', '/privacy', '/health'];
+const PUBLIC_PATHS = ['/', '/login', '/register', '/donate', '/auth/callback', '/auth/unlock', '/auth/recover', '/register/email', '/about', '/tips', '/privacy', '/admin'];
 
 // Routes accessible to authenticated-but-unverified users (in addition to PUBLIC_PATHS)
 const UNVERIFIED_PATHS = ['/auth/verify-email'];

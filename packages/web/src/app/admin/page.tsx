@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useHealthStatus, useSystemMetrics, useMetricHistory, useResendQuota, useApiPerformance, useInfraMetrics, useGrowthData, healthKeys } from '@/hooks/use-health';
-import { health as healthApi } from '@/lib/api';
+import { admin as adminApi } from '@/lib/api';
 import { ServiceCard } from '@/components/health/service-card';
 import { StatCard } from '@/components/health/stat-card';
 import { QuotaBar } from '@/components/health/quota-bar';
@@ -59,7 +59,7 @@ function CpuChart({ cores, hours }: { cores: number; hours: number }) {
     queryKey: healthKeys.history('cpu:all', hours),
     queryFn: async () => {
       const results = await Promise.all(
-        Array.from({ length: cores }, (_, i) => healthApi.getMetricHistory(`cpu:${i}`, hours)),
+        Array.from({ length: cores }, (_, i) => adminApi.getMetricHistory(`cpu:${i}`, hours)),
       );
       return results;
     },
@@ -105,7 +105,7 @@ function HealthLoginForm({ onSuccess }: { onSuccess: () => void }) {
     setSubmitting(true);
 
     try {
-      const res = await fetch('/hproxy/health/login', {
+      const res = await fetch('/hproxy/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ privateKey }),
@@ -134,7 +134,7 @@ function HealthLoginForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center">
       <form onSubmit={handleSubmit} className="w-full max-w-lg space-y-4 rounded-lg border border-neutral-800 bg-neutral-900 p-6">
-        <h1 className="text-xl font-bold tracking-tight">Health Dashboard</h1>
+        <h1 className="text-xl font-bold tracking-tight">Admin Dashboard</h1>
         <p className="text-sm text-neutral-400">Paste your private key to unlock.</p>
 
         <div>
@@ -235,7 +235,7 @@ function HealthDashboard() {
   const { data: pgConnsHistory } = useMetricHistory('pg_conns', hours);
 
   const handleLogout = async () => {
-    await fetch('/hproxy/health/logout', { method: 'POST' });
+    await fetch('/hproxy/admin/logout', { method: 'POST' });
     window.location.reload();
   };
 
@@ -255,7 +255,7 @@ function HealthDashboard() {
       {/* ── 1. Overview ────────────────────────────────────────────────────── */}
       <section>
         <div className="flex items-center gap-3 mb-6">
-          <h1 className="text-2xl font-bold tracking-tight">System Health</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
           <span className={`inline-block h-3 w-3 rounded-full ${statusColor}`} />
           <span className="text-sm text-neutral-400 capitalize">{health?.status ?? 'unknown'}</span>
           <span className="ml-auto text-xs text-neutral-500">
@@ -411,7 +411,7 @@ export default function HealthPage() {
 
   const checkAuth = useCallback(async () => {
     try {
-      const res = await fetch('/hproxy/health', { cache: 'no-store' });
+      const res = await fetch('/hproxy/admin', { cache: 'no-store' });
       setIsAuthed(res.status !== 401);
     } catch {
       setIsAuthed(false);

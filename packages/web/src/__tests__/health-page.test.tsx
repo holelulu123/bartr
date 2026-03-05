@@ -63,7 +63,7 @@ const mockGrowth: GrowthData = {
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  usePathname: () => '/health',
+  usePathname: () => '/admin',
   useSearchParams: () => ({ get: () => null }),
 }));
 
@@ -147,15 +147,15 @@ afterEach(() => {
 
 describe('Health page', () => {
   it('renders the page heading', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /system health/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /admin dashboard/i })).toBeInTheDocument();
     });
   });
 
   it('renders service cards', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       expect(screen.getByText('Database')).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe('Health page', () => {
   });
 
   it('renders stat cards with correct values', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       expect(screen.getByText('Total Users')).toBeInTheDocument();
@@ -179,7 +179,7 @@ describe('Health page', () => {
   });
 
   it('renders live system metrics', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       expect(screen.getByText('CPU (avg)')).toBeInTheDocument();
@@ -191,7 +191,7 @@ describe('Health page', () => {
   });
 
   it('renders time range buttons', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       expect(screen.getByText('1h')).toBeInTheDocument();
@@ -204,7 +204,7 @@ describe('Health page', () => {
   });
 
   it('renders resend quota bar', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       expect(screen.getByText('Resend Email Quota')).toBeInTheDocument();
@@ -213,7 +213,7 @@ describe('Health page', () => {
   });
 
   it('shows version and uptime in header', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       expect(screen.getByText(/v0\.0\.1/)).toBeInTheDocument();
@@ -222,7 +222,7 @@ describe('Health page', () => {
   });
 
   it('renders section headings', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       expect(screen.getByText('Machine Resources')).toBeInTheDocument();
@@ -234,7 +234,7 @@ describe('Health page', () => {
   });
 
   it('renders API performance cards', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       expect(screen.getByText('p50 Response')).toBeInTheDocument();
@@ -246,7 +246,7 @@ describe('Health page', () => {
   });
 
   it('renders infrastructure cards', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       // "Redis Memory" appears as both a card label and chart title
@@ -257,7 +257,7 @@ describe('Health page', () => {
   });
 
   it('renders growth time range buttons', async () => {
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
       expect(screen.getByText('30d')).toBeInTheDocument();
@@ -273,7 +273,7 @@ describe('Health page – login gate', () => {
     vi.resetModules();
     vi.doMock('next/navigation', () => ({
       useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-      usePathname: () => '/health',
+      usePathname: () => '/admin',
       useSearchParams: () => ({ get: () => null }),
     }));
     vi.doMock('next/dynamic', () => ({
@@ -299,7 +299,7 @@ describe('Health page – login gate', () => {
       useQuery: () => ({ data: [], isLoading: false }),
     }));
     vi.doMock('@/lib/api', () => ({
-      health: {
+      admin: {
         getMetricHistory: vi.fn().mockResolvedValue([]),
       },
     }));
@@ -325,10 +325,10 @@ describe('Health page – login gate', () => {
       useAuth: () => ({ isAuthenticated: false, isLoading: false }),
     }));
 
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /health dashboard/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /admin dashboard/i })).toBeInTheDocument();
     });
     expect(screen.getByLabelText(/private key/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /unlock/i })).toBeInTheDocument();
@@ -343,7 +343,7 @@ describe('Health page – loading state', () => {
     vi.resetModules();
     vi.doMock('next/navigation', () => ({
       useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-      usePathname: () => '/health',
+      usePathname: () => '/admin',
       useSearchParams: () => ({ get: () => null }),
     }));
     vi.doMock('next/dynamic', () => ({
@@ -369,7 +369,7 @@ describe('Health page – loading state', () => {
       useQuery: () => ({ data: [], isLoading: false }),
     }));
     vi.doMock('@/lib/api', () => ({
-      health: {
+      admin: {
         getMetricHistory: vi.fn().mockResolvedValue([]),
       },
     }));
@@ -395,7 +395,7 @@ describe('Health page – loading state', () => {
       useAuth: () => ({ isAuthenticated: false, isLoading: false }),
     }));
 
-    const { default: HealthPage } = await import('@/app/health/page');
+    const { default: HealthPage } = await import('@/app/admin/page');
     const { container } = render(<HealthPage />);
     expect(container.querySelector('.animate-spin')).toBeTruthy();
   });
