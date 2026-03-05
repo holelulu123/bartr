@@ -85,7 +85,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
       return reply.send({
         ...user.rows[0],
-        email_verification_required: !!env.resendApiKey,
+        email_verification_required: !!env.brevoApiKey,
       });
     },
   );
@@ -141,7 +141,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     await storeRefreshToken(fastify, user.id, refreshToken);
     await fastify.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [user.id]);
 
-    if (env.resendApiKey) {
+    if (env.brevoApiKey) {
       // Send verification email (fire-and-forget)
       const code = generateVerificationCode();
       const codeHash = hashCode(code);

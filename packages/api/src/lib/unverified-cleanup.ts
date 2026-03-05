@@ -13,7 +13,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
  */
 export function startUnverifiedCleanup(app: FastifyInstance) {
   // No email service configured — verification is disabled, nothing to clean up
-  if (!env.resendApiKey) return;
+  if (!env.brevoApiKey) return;
 
   timer = setInterval(async () => {
     try {

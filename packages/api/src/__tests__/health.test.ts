@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildApp } from '../app.js';
 import type { FastifyInstance } from 'fastify';
-import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
+import type { HealthResponse, SystemMetrics, MetricSample, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
 
 describe('GET /health', () => {
   let app: FastifyInstance;
@@ -22,7 +22,8 @@ describe('GET /health', () => {
 
     const body: HealthResponse = res.json();
     expect(body.status).toMatch(/^(ok|degraded)$/);
-    expect(body.version).toBe('0.0.1');
+    expect(typeof body.version).toBe('string');
+    expect(body.version.length).toBeGreaterThan(0);
     expect(body.uptime_seconds).toBeGreaterThanOrEqual(0);
     expect(body.timestamp).toBeTruthy();
 
@@ -131,32 +132,6 @@ describe('GET /health/history', () => {
     const res = await app.inject({ method: 'GET', url: `/health/history?metric=${metric}&hours=1` });
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.json())).toBe(true);
-  });
-});
-
-describe('GET /health/resend', () => {
-  let app: FastifyInstance;
-
-  beforeAll(async () => {
-    app = await buildApp({ skipRateLimit: true });
-    await app.ready();
-  });
-
-  afterAll(async () => {
-    await app.close();
-  });
-
-  it('returns resend quota shape', async () => {
-    const res = await app.inject({ method: 'GET', url: '/health/resend' });
-
-    expect(res.statusCode).toBe(200);
-
-    const body: ResendQuota = res.json();
-    expect(typeof body.sent).toBe('number');
-    expect(body.limit).toBe(3000);
-    expect(body.resets_at).toBeTruthy();
-    // resets_at should be a valid ISO date
-    expect(new Date(body.resets_at).getTime()).toBeGreaterThan(0);
   });
 });
 

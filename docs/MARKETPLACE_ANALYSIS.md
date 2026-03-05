@@ -125,7 +125,7 @@ that no one uses.
 | CDN (Cloudflare free tier) | $0 |
 | SSL certificate (Let's Encrypt) | $0 |
 | Email service for Gmail OAuth callbacks | $0 (Google handles it) |
-| Transactional email (alerts, notifications) | $0–10/month (Resend/Mailgun free tier) |
+| Transactional email (alerts, notifications) | $0–10/month (Brevo free tier) |
 | Backups (object storage) | $2–5/month |
 
 ### Realistic Monthly Budget

@@ -64,7 +64,7 @@ export default fp(async (fastify) => {
 
   fastify.decorate('requireEmailVerified', async (request: FastifyRequest, reply: FastifyReply) => {
     // No email service configured — skip verification check entirely
-    if (!env.resendApiKey) return;
+    if (!env.brevoApiKey) return;
 
     // Must run after authenticate (request.user is set)
     if (!request.user) {

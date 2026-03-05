@@ -16,12 +16,12 @@ V2 was written before E2E encryption and auth pages existed. V3 reflects current
 - Fastify 5, PostgreSQL, Redis, MinIO
 - Auth: email/password only (Google OAuth removed), argon2id, JWT (15m access / 7d refresh, rotation)
 - Email field: AES-256-GCM encrypted at rest
-- Email verification: conditional on `RESEND_API_KEY` — auto-verifies in dev, 6-digit OTP in prod
+- Email verification: conditional on `BREVO_API_KEY` — auto-verifies in dev, 6-digit OTP in prod
 - Messages: server-blind — stores and returns base64 ciphertext only, never decrypts
 - E2E key storage: `public_key`, `private_key_blob`, `recovery_key_blob` on `users` table
 - All endpoints: listings, trades, ratings, users, messages, moderation, exchange offers, prices
 - Migration runner: runs on API boot, `schema_migrations` tracking table, 14 idempotent migrations
-- Unverified user cleanup: auto-deletes after 5 minutes (when Resend enabled)
+- Unverified user cleanup: auto-deletes after 5 minutes (when Brevo enabled)
 - **192 tests** (28 unit + 164 integration requiring Docker)
 
 ### Frontend (packages/web) — Full feature set
@@ -31,7 +31,7 @@ V2 was written before E2E encryption and auth pages existed. V3 reflects current
 - E2E crypto library: X25519 keypair generation, PBKDF2 key wrapping, recovery key, ECDH message encrypt/decrypt
 - CryptoProvider: in-memory private key, register/unlock/encrypt/decrypt/lock
 - Auth pages: `/login`, `/register`, `/register/email`, `/auth/callback`, `/auth/unlock`, `/auth/recover`, `/auth/verify-email`
-- Email verification: 6-digit OTP input, countdown timer, resend with cooldown, auto-logout on expiry
+- Email verification: 6-digit OTP input, countdown timer, resend with cooldown (Brevo transactional API)
 - GlobalAuthGuard: hard-gates unverified users to `/auth/verify-email` (when `email_verification_required`)
 - P2P Exchange: `/exchange`, `/exchange/new`, `/exchange/[id]` with live price feed
 - Marketplace: `/market` (browse), `/listings/[id]` (detail), `/market/new` (create), `/listings/[id]/edit`
@@ -74,7 +74,7 @@ V2 was written before E2E encryption and auth pages existed. V3 reflects current
 | 13.1 — Admin role | user_role ENUM, role in JWT, requireAdmin hook, /admin/* gated |
 | 13.2 — Content security | EXIF stripping (sharp), magic bytes validation |
 | 13.5 — Remove Google OAuth | Removed Google routes, env vars, frontend buttons — email-only auth |
-| 13.6 — Email verification | Full stack: Resend plugin, 6-digit OTP, verify/resend endpoints, /auth/verify-email page, GlobalAuthGuard hard-gate, unverified user auto-cleanup, conditional on RESEND_API_KEY |
+| 13.6 — Email verification | Full stack: Brevo transactional API, 6-digit OTP, verify/resend endpoints, /auth/verify-email page, GlobalAuthGuard hard-gate, unverified user auto-cleanup, conditional on BREVO_API_KEY |
 | 13.7 — Registration UX | Password strength bar, English-only + complexity validation, live match indicator |
 | 13.8 — MinIO integration tests | Image upload/delete: JPEG/PNG/WebP, reject invalid, max 5, avatar replace |
 | 13.9 — E2E API integration tests | Full flows: auth, listings CRUD, messaging, trades, profiles, edge cases |
@@ -93,7 +93,7 @@ V2 was written before E2E encryption and auth pages existed. V3 reflects current
 - [ ] JWT_SECRET: real random 256-bit secret
 - [ ] ENCRYPTION_KEY: real 32-byte hex key
 - [ ] DB/Redis/MinIO: strong passwords, not dev defaults
-- [ ] RESEND_API_KEY: real Resend key (enables email verification)
+- [ ] BREVO_API_KEY: real Brevo key (enables email verification)
 
 ## Phase 13.4 — HTTPS / TLS
 - [ ] Point domain to VPS
@@ -127,7 +127,7 @@ All core features are implemented.
 Remaining work is production deployment prep.
 
 Priority order:
-1. Phase 13.3 — Production secrets (generate real secrets, set RESEND_API_KEY)
+1. Phase 13.3 — Production secrets (generate real secrets, set BREVO_API_KEY)
 2. Phase 13.4 — HTTPS / TLS (domain + Certbot)
 3. Phase 14   — Launch checklist (responsive, a11y, SEO, backups)
 ```

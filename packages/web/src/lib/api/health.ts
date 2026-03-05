@@ -1,4 +1,4 @@
-import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
+import type { HealthResponse, SystemMetrics, MetricSample, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
 
 export async function getHealth(): Promise<HealthResponse> {
   const res = await fetch('/hproxy/admin', { cache: 'no-store' });
@@ -12,11 +12,6 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
 
 export async function getMetricHistory(metric: string, hours: number): Promise<MetricSample[]> {
   const res = await fetch(`/hproxy/admin/history?metric=${encodeURIComponent(metric)}&hours=${hours}`, { cache: 'no-store' });
-  return res.json();
-}
-
-export async function getResendQuota(): Promise<ResendQuota> {
-  const res = await fetch('/hproxy/admin/resend', { cache: 'no-store' });
   return res.json();
 }
 

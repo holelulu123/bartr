@@ -130,12 +130,6 @@ export interface MetricSample {
   value: number;
 }
 
-export interface ResendQuota {
-  sent: number;
-  limit: number;
-  resets_at: string;
-}
-
 export interface ApiPerformanceMetrics {
   resp_time_p50: number;
   resp_time_p95: number;

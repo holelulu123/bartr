@@ -255,7 +255,6 @@ How much storage does one average user consume across their entire lifecycle?
 | GET | /health | — | Rich health check (services, stats, latencies) |
 | GET | /health/system | — | Live system metrics snapshot (CPU, RAM, disk, net) |
 | GET | /health/history | — | Time-series metric history from Redis |
-| GET | /health/resend | — | Resend email quota status |
 | POST | /auth/register/email | — | Email+password registration |
 | POST | /auth/login/email | — | Email+password login |
 | POST | /auth/refresh | — | Rotate refresh token |
@@ -467,7 +466,7 @@ Monitoring is built into the API process — no Grafana, Prometheus, or exporter
 | Metrics collector | Runs every 5s inside the API process (Node.js `os` + `/proc` + `fs.statfsSync`) |
 | Storage | Redis ZSETs with 14-day retention (~10 MB per metric, ~100 MB total for ~10 metrics) |
 | Dashboard | `/health` page in the web app (recharts, public, no auth) |
-| Endpoints | `/health/system` (live snapshot), `/health/history` (time-series), `/health/resend` (email quota) |
+| Endpoints | `/health/system` (live snapshot), `/health/history` (time-series) |
 
 ### Collected metrics
 

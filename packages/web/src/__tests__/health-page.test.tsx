@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
-import type { HealthResponse, SystemMetrics, ResendQuota, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
+import type { HealthResponse, SystemMetrics, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
 
 // ── Mock data ─────────────────────────────────────────────────────────────
 
@@ -33,12 +33,6 @@ const mockSystem: SystemMetrics = {
   net_tx_bytes_sec: 3000,
   load_avg: [1.5, 1.2, 0.8],
   uptime_seconds: 3661,
-};
-
-const mockResend: ResendQuota = {
-  sent: 150,
-  limit: 3000,
-  resets_at: '2026-04-01T00:00:00.000Z',
 };
 
 const mockApiPerf: ApiPerformanceMetrics = {
@@ -113,7 +107,6 @@ vi.mock('@/hooks/use-health', () => ({
     status: ['health'],
     system: ['health', 'system'],
     history: (metric: string, hours: number) => ['health', 'history', metric, hours],
-    resend: ['health', 'resend'],
     apiPerformance: ['health', 'api-performance'],
     infra: ['health', 'infra'],
     growth: (days: number) => ['health', 'growth', days],
@@ -121,7 +114,6 @@ vi.mock('@/hooks/use-health', () => ({
   useHealthStatus: () => ({ data: mockHealth, isLoading: false }),
   useSystemMetrics: () => ({ data: mockSystem }),
   useMetricHistory: () => ({ data: [] }),
-  useResendQuota: () => ({ data: mockResend }),
   useApiPerformance: () => ({ data: mockApiPerf }),
   useInfraMetrics: () => ({ data: mockInfra }),
   useGrowthData: () => ({ data: mockGrowth }),
@@ -296,7 +288,7 @@ describe('Health page – login gate', () => {
         status: ['health'],
         system: ['health', 'system'],
         history: (metric: string, hours: number) => ['health', 'history', metric, hours],
-        resend: ['health', 'resend'],
+
         apiPerformance: ['health', 'api-performance'],
         infra: ['health', 'infra'],
         growth: (days: number) => ['health', 'growth', days],
@@ -304,7 +296,7 @@ describe('Health page – login gate', () => {
       useHealthStatus: () => ({ data: undefined, isLoading: false }),
       useSystemMetrics: () => ({ data: undefined }),
       useMetricHistory: () => ({ data: [] }),
-      useResendQuota: () => ({ data: undefined }),
+
       useApiPerformance: () => ({ data: undefined }),
       useInfraMetrics: () => ({ data: undefined }),
       useGrowthData: () => ({ data: undefined }),
@@ -366,7 +358,7 @@ describe('Health page – loading state', () => {
         status: ['health'],
         system: ['health', 'system'],
         history: (metric: string, hours: number) => ['health', 'history', metric, hours],
-        resend: ['health', 'resend'],
+
         apiPerformance: ['health', 'api-performance'],
         infra: ['health', 'infra'],
         growth: (days: number) => ['health', 'growth', days],
@@ -374,7 +366,7 @@ describe('Health page – loading state', () => {
       useHealthStatus: () => ({ data: undefined, isLoading: true }),
       useSystemMetrics: () => ({ data: undefined }),
       useMetricHistory: () => ({ data: [] }),
-      useResendQuota: () => ({ data: undefined }),
+
       useApiPerformance: () => ({ data: undefined }),
       useInfraMetrics: () => ({ data: undefined }),
       useGrowthData: () => ({ data: undefined }),

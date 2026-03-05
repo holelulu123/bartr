@@ -11,7 +11,7 @@ Last updated: 2026-03-02
 | VPS (server) | Hetzner Cloud | https://www.hetzner.com/cloud |
 | Domain | Porkbun | https://porkbun.com |
 | SSL Certificate | Let's Encrypt / Porkbun (free) | — |
-| Transactional Email | Resend | https://resend.com |
+| Transactional Email | Brevo | https://brevo.com |
 | Backups (future) | Backblaze B2 | — |
 
 ---
@@ -38,25 +38,25 @@ Included free with domain (Porkbun):
 
 **Free** — Porkbun includes one, and Let's Encrypt provides unlimited free certificates with auto-renewal every 90 days.
 
-### Transactional Email: Resend
+### Transactional Email: Brevo
 
 Used for email verification codes on registration. One email per signup + occasional resends.
 
-| Plan | Price/mo | Emails/mo | Daily Limit | Overage | Notes |
-|------|----------|-----------|-------------|---------|-------|
-| **Free** | $0 | 3,000 | 100/day | — | 1 domain, 1-day retention |
-| **Pro** | $20 | 50,000 | Unlimited | $0.90/1K | 10 domains, 3-day retention |
-| **Scale** | $90 | 100,000 | Unlimited | $0.90/1K | 1,000 domains, 7-day retention |
+| Plan | Price/mo | Emails/mo | Daily Limit | Notes |
+|------|----------|-----------|-------------|-------|
+| **Free** | $0 | 9,000 | 300/day | Brevo branding, 1 sender |
+| **Starter** | $9 | 5,000 | Unlimited | No daily cap, no branding |
+| **Business** | $18 | 10,000 | Unlimited | A/B testing, advanced stats |
 
-**Our usage**: Each new user triggers 1 verification email (~1 resend on average = ~2 emails/signup). The free tier covers **~1,500 new registrations/month** (100/day cap). At 1.5x growth this lasts until ~Month 8 (~1,700 users). The Pro tier ($20/mo) then covers up to ~25,000 registrations/month — enough through Year 2+.
+**Our usage**: Each new user triggers 1 verification email (~1 resend on average = ~2 emails/signup). The free tier covers **~4,500 new registrations/month** (300/day cap). At 1.5x growth this lasts until ~Month 10 (~3,844 users). The Starter tier ($9/mo) then covers up to ~2,500 registrations/month without daily caps — enough through Year 2+.
 
-| Month | New Users | Emails (est.) | Resend Plan | Cost/mo |
-|-------|-----------|---------------|-------------|---------|
-| 1-7 | ≤1,139 | ≤2,278 | Free | $0 |
-| 8-14 | 1,709–19,463 | 3,418–38,926 | Pro | $20 |
-| 15+ | 29,194+ | 58,388+ | Scale | $90 |
+| Month | New Users | Emails (est.) | Brevo Plan | Cost/mo |
+|-------|-----------|---------------|------------|---------|
+| 1-10 | ≤3,844 | ≤7,688 | Free | $0 |
+| 11-15 | 5,767–29,194 | 11,534–58,388 | Starter | $9 |
+| 16+ | 43,791+ | 87,582+ | Business | $18 |
 
-> **Note**: Conservative growth (20% MoM) stays on the free tier for 18+ months.
+> **Note**: Conservative growth (20% MoM) stays on the free tier for 24+ months.
 
 ---
 
@@ -132,8 +132,8 @@ Used for email verification codes on registration. One email per signup + occasi
 
 Using post-April 2026 Hetzner pricing (~35% markup on current prices).
 
-| Month | Users | Hetzner Plan | Server/mo | Volume/mo | Domain/mo | Resend/mo | **Total/mo** |
-|-------|-------|-------------|-----------|-----------|-----------|-----------|-------------|
+| Month | Users | Hetzner Plan | Server/mo | Volume/mo | Domain/mo | Brevo/mo | **Total/mo** |
+|-------|-------|-------------|-----------|-----------|-----------|----------|-------------|
 | 1 | 100 | CX23 (2C/4G/40G) | €4.71 | — | $0.34 | $0 (free) | **~€5.03** |
 | 2 | 150 | CX23 | €4.71 | — | $0.34 | $0 | **~€5.03** |
 | 3 | 225 | CX23 | €4.71 | — | $0.34 | $0 | **~€5.03** |
@@ -141,13 +141,13 @@ Using post-April 2026 Hetzner pricing (~35% markup on current prices).
 | 5 | 506 | CX23 | €4.71 | — | $0.34 | $0 | **~€5.03** |
 | 6 | 759 | CX23 | €4.71 | — | $0.34 | $0 | **~€5.03** |
 | 7 | 1,139 | CX33 (4C/8G/80G) | €7.41 | — | $0.34 | $0 | **~€7.73** |
-| 8 | 1,709 | CX33 | €7.41 | — | $0.34 | $20 (Pro) | **~€26** |
-| 9 | 2,563 | CX33 | €7.41 | — | $0.34 | $20 | **~€26** |
-| 10 | 3,844 | CX33 | €7.41 | — | $0.34 | $20 | **~€26** |
-| 11 | 5,767 | CX43 (8C/16G/160G) | €12.81 | — | $0.34 | $20 | **~€31** |
-| 12 | 8,650 | CX43 | €12.81 | — | $0.34 | $20 | **~€31** |
+| 8 | 1,709 | CX33 | €7.41 | — | $0.34 | $0 | **~€7.73** |
+| 9 | 2,563 | CX33 | €7.41 | — | $0.34 | $0 | **~€7.73** |
+| 10 | 3,844 | CX33 | €7.41 | — | $0.34 | $0 | **~€7.73** |
+| 11 | 5,767 | CX43 (8C/16G/160G) | €12.81 | — | $0.34 | $9 (Starter) | **~€21** |
+| 12 | 8,650 | CX43 | €12.81 | — | $0.34 | $9 | **~€21** |
 
-**Year 1 Total: ~€87** (server) + **$4.12** (domain) + **~$100** (Resend, 5 months Pro) = **~€183 / ~$199**
+**Year 1 Total: ~€87** (server) + **$4.12** (domain) + **~$18** (Brevo, 2 months Starter) = **~€105 / ~$114**
 
 ---
 
@@ -155,28 +155,28 @@ Using post-April 2026 Hetzner pricing (~35% markup on current prices).
 
 Domain renewal: $5.15/year ($0.43/month). Infrastructure inflation: +5%.
 
-| Month | Users | Hetzner Plan | Server/mo | Volume/mo | Domain/mo | Resend/mo | **Total/mo** |
-|-------|-------|-------------|-----------|-----------|-----------|-----------|-------------|
-| 13 | 12,975 | CX43 | €13.45 | €2.50 (50G) | $0.43 | $20 (Pro) | **~€35** |
-| 14 | 19,463 | CX53 (16C/32G/320G) | €23.61 | €2.50 | $0.43 | $20 | **~€44** |
-| 15 | 29,194 | CX53 | €23.61 | €5.00 (100G) | $0.43 | $90 (Scale) | **~€94** |
-| 16 | 43,791 | CX53 | €23.61 | €7.50 (150G) | $0.43 | $90 | **~€96** |
-| 17 | 65,687 | CX53 + 2nd VPS | €47.22 | €10.00 | $0.43 | $90 | **~€122** |
-| 18 | 98,530 | Multi-server | €70.00 | €15.00 | $0.43 | $90 | **~€150** |
+| Month | Users | Hetzner Plan | Server/mo | Volume/mo | Domain/mo | Brevo/mo | **Total/mo** |
+|-------|-------|-------------|-----------|-----------|-----------|----------|-------------|
+| 13 | 12,975 | CX43 | €13.45 | €2.50 (50G) | $0.43 | $9 (Starter) | **~€25** |
+| 14 | 19,463 | CX53 (16C/32G/320G) | €23.61 | €2.50 | $0.43 | $9 | **~€34** |
+| 15 | 29,194 | CX53 | €23.61 | €5.00 (100G) | $0.43 | $18 (Business) | **~€43** |
+| 16 | 43,791 | CX53 | €23.61 | €7.50 (150G) | $0.43 | $18 | **~€45** |
+| 17 | 65,687 | CX53 + 2nd VPS | €47.22 | €10.00 | $0.43 | $18 | **~€71** |
+| 18 | 98,530 | Multi-server | €70.00 | €15.00 | $0.43 | $18 | **~€99** |
 
-**Year 2 Total: ~€450** (server) + **$5.15** (domain) + **~$500** (Resend) = **~€910** (est.)
+**Year 2 Total: ~€450** (server) + **$5.15** (domain) + **~$90** (Brevo) = **~€530** (est.)
 
 ---
 
 ## 7. Multi-Year Cost Summary
 
-| Year | Users (end) | Avg Monthly Cost | Annual Total | Domain | Resend | **Grand Total** |
-|------|-------------|-----------------|-------------|--------|--------|----------------|
-| 1 | ~8,650 | ~€15 | ~€87 | $4.12 | ~$100 | **~€183** |
-| 2 | ~98,530 | ~€76 | ~€450 | $5.15 | ~$500 | **~€910** |
-| 3 | ~1.1M+ | ~€240 | ~€1,800 | $5.41 | ~$1,080 | **~€2,870** |
-| 4 | Plateau | ~€290 | ~€2,400 | $5.68 | ~$1,080 | **~€3,470** |
-| 5 | Plateau | ~€300 | ~€2,520 | $5.96 | ~$1,080 | **~€3,590** |
+| Year | Users (end) | Avg Monthly Cost | Annual Total | Domain | Brevo | **Grand Total** |
+|------|-------------|-----------------|-------------|--------|-------|----------------|
+| 1 | ~8,650 | ~€9 | ~€87 | $4.12 | ~$18 | **~€105** |
+| 2 | ~98,530 | ~€53 | ~€450 | $5.15 | ~$90 | **~€530** |
+| 3 | ~1.1M+ | ~€200 | ~€1,800 | $5.41 | ~$216 | **~€2,010** |
+| 4 | Plateau | ~€250 | ~€2,400 | $5.68 | ~$216 | **~€2,610** |
+| 5 | Plateau | ~€260 | ~€2,520 | $5.96 | ~$216 | **~€2,730** |
 
 > Year 3+ assumes growth slows significantly and plateaus. 1.5x monthly growth is unsustainable long-term — realistic marketplaces plateau at 10-50K active users.
 
@@ -213,16 +213,16 @@ The 1.5x growth model is **optimistic**. Here's what it looks like with more con
 
 ### Conservative: 20% monthly growth (more realistic for a niche marketplace)
 
-| Month | Users | Plan | Resend | Monthly Cost |
-|-------|-------|------|--------|-------------|
+| Month | Users | Plan | Brevo | Monthly Cost |
+|-------|-------|------|-------|-------------|
 | 1 | 100 | CX23 | Free | ~€5 |
 | 6 | 249 | CX23 | Free | ~€5 |
 | 12 | 619 | CX23 | Free | ~€5 |
 | 18 | 1,541 | CX33 | Free | ~€8 |
-| 24 | 3,834 | CX33 | Pro ($20) | ~€26 |
-| 36 | 23,738 | CX43 | Pro ($20) | ~€32 |
+| 24 | 3,834 | CX33 | Free | ~€8 |
+| 36 | 23,738 | CX43 | Starter ($9) | ~€22 |
 
-**Year 1 total: ~€60.** You stay on the cheapest VPS plan and the free Resend tier the entire first year.
+**Year 1 total: ~€60.** You stay on the cheapest VPS plan and the free Brevo tier the entire first year.
 
 ---
 
@@ -342,10 +342,10 @@ Monthly Revenue (€) — All Scenarios
 | bartr.vip domain | $4.12 (~€3.80) | First year |
 | Hetzner CX23 | €4.71 | Monthly |
 | SSL certificate | Free | Auto-renews |
-| Resend (email verification) | Free (first 7 months) | Monthly |
-| **Total to launch** | **~€8.50 first month** | |
-| **Total Year 1** | **~€183 / ~$199** | |
+| Brevo (email verification) | Free (first 10 months) | Monthly |
+| **Total to launch** | **~€5 first month** | |
+| **Total Year 1** | **~€105 / ~$114** | |
 
-That's less than **€8/month** for the first 7 months (free Resend tier covers up to ~1,500 signups/month). Once growth exceeds the free tier, Resend Pro adds $20/month.
+That's ~**€5/month** for the first 10 months (free Brevo tier covers 300 emails/day = ~4,500 registrations/month). Once growth exceeds the free tier, Brevo Starter adds just $9/month.
 
-Even in the **bear case** (conservative 20% growth), you stay on the free Resend tier for 18+ months and total out-of-pocket before profitability is only ~€70.
+Even in the **bear case** (conservative 20% growth), you stay on the free Brevo tier for 24+ months and total out-of-pocket before profitability is only ~€70.
