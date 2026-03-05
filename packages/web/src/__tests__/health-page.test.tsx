@@ -15,7 +15,7 @@ const mockHealth: HealthResponse = {
     minio: { ok: true, latency_ms: 5 },
   },
   price_feed: { last_update: new Date().toISOString(), stale: false },
-  stats: { users: 42, active_offers: 7, trades_today: 3, contracts_created: 15 },
+  stats: { users: 42, active_offers: 7, trades_today: 3, contracts_created: 15, active_users: 5 },
 };
 
 const mockSystem: SystemMetrics = {
@@ -194,11 +194,10 @@ describe('Health page', () => {
     const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
-      expect(screen.getByText('1h')).toBeInTheDocument();
+      expect(screen.getAllByText('1h').length).toBeGreaterThanOrEqual(1);
     });
-    expect(screen.getByText('6h')).toBeInTheDocument();
-    expect(screen.getByText('24h')).toBeInTheDocument();
-    // "7d" and "14d" appear in both machine resources and growth time ranges
+    expect(screen.getAllByText('6h').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('24h').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('7d').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('14d').length).toBeGreaterThanOrEqual(1);
   });

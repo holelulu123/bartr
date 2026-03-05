@@ -244,6 +244,15 @@ async function collectInfra(redis: Redis, pg: Pool) {
     pipeline.zremrangebyscore('metrics:pg_conns', '-inf', cutoff.toString());
   } catch { /* ignore */ }
 
+  // Active users (last_active within 15 minutes)
+  try {
+    const res = await pg.query("SELECT count(*)::int AS c FROM users WHERE last_active > NOW() - INTERVAL '15 minutes'");
+    const active = res.rows[0].c;
+    latestBuffer.set('active_users', active);
+    pipeline.zadd('metrics:active_users', now.toString(), `${now}|${active}`);
+    pipeline.zremrangebyscore('metrics:active_users', '-inf', cutoff.toString());
+  } catch { /* ignore */ }
+
   await pipeline.exec();
 }
 

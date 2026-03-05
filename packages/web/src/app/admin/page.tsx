@@ -234,6 +234,9 @@ function HealthDashboard() {
   const { data: redisMemHistory } = useMetricHistory('redis_mem', hours);
   const { data: pgConnsHistory } = useMetricHistory('pg_conns', hours);
 
+  // Active users history
+  const { data: activeUsersHistory } = useMetricHistory('active_users', hours);
+
   const handleLogout = async () => {
     await fetch('/hproxy/admin/logout', { method: 'POST' });
     window.location.reload();
@@ -276,15 +279,35 @@ function HealthDashboard() {
           <ServiceCard name="Price Feed" ok={!health?.price_feed.stale} latency_ms={0} />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatCard label="Total Users" value={health?.stats.users ?? 0} />
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+              </span>
+              <p className="text-xs text-neutral-500 uppercase tracking-wider">Active Users</p>
+            </div>
+            <p className="text-2xl font-bold mt-1">{health?.stats.active_users ?? 0}</p>
+            <p className="text-xs text-neutral-500 mt-1">last 15 min</p>
+          </div>
           <StatCard label="Contracts Created" value={health?.stats.contracts_created ?? 0} />
           <StatCard label="Active Offers" value={health?.stats.active_offers ?? 0} />
           <StatCard label="Trades Today" value={health?.stats.trades_today ?? 0} />
         </div>
       </section>
 
-      {/* ── 2. Machine Resources ───────────────────────────────────────────── */}
+      {/* ── 2. Active Users ────────────────────────────────────────────────── */}
+      <section>
+        <SectionHeading title="Active Users" subtitle="Users active in the last 15 minutes" />
+        <TimeRangeSelector value={hours} onChange={setHours} ranges={TIME_RANGES} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MetricChart title="Active Users Over Time" data={activeUsersHistory ?? []} unit="count" color="#3b82f6" />
+        </div>
+      </section>
+
+      {/* ── 3. Machine Resources ───────────────────────────────────────────── */}
       <section>
         <SectionHeading title="Machine Resources" subtitle="CPU, RAM, disk, and network utilization" />
 
