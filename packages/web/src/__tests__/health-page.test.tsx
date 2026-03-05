@@ -15,7 +15,7 @@ const mockHealth: HealthResponse = {
     minio: { ok: true, latency_ms: 5 },
   },
   price_feed: { last_update: new Date().toISOString(), stale: false },
-  stats: { users: 42, active_offers: 7, trades_today: 3, contracts_created: 15, active_users: 5 },
+  stats: { users: 42, active_offers: 7, trades_today: 3, contracts_created: 15, active_users: 5, total_messages: 128, total_listings: 20, active_listings: 12, active_contracts: 7, successful_contracts: 4 },
 };
 
 const mockSystem: SystemMetrics = {
@@ -57,6 +57,7 @@ const mockGrowth: GrowthData = {
   users: [{ date: '2026-03-01', count: 5 }, { date: '2026-03-02', count: 3 }],
   listings: [{ date: '2026-03-01', count: 10 }],
   messages: [{ date: '2026-03-01', count: 25 }],
+  contracts: [{ date: '2026-03-01', count: 4 }],
 };
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
@@ -172,10 +173,8 @@ describe('Health page', () => {
       expect(screen.getByText('Total Users')).toBeInTheDocument();
     });
     expect(screen.getByText('42')).toBeInTheDocument();
-    expect(screen.getByText('Active Offers')).toBeInTheDocument();
-    expect(screen.getByText('7')).toBeInTheDocument();
-    expect(screen.getByText('Trades Today')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('Active Contracts')).toBeInTheDocument();
+    expect(screen.getByText('Successful Contracts')).toBeInTheDocument();
   });
 
   it('renders live system metrics', async () => {
@@ -202,15 +201,6 @@ describe('Health page', () => {
     expect(screen.getAllByText('14d').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders resend quota bar', async () => {
-    const { default: HealthPage } = await import('@/app/admin/page');
-    render(<HealthPage />);
-    await waitFor(() => {
-      expect(screen.getByText('Resend Email Quota')).toBeInTheDocument();
-    });
-    expect(screen.getByText(/150/)).toBeInTheDocument();
-  });
-
   it('shows version and uptime in header', async () => {
     const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
@@ -229,7 +219,6 @@ describe('Health page', () => {
     expect(screen.getByText('API Performance')).toBeInTheDocument();
     expect(screen.getByText('Infrastructure')).toBeInTheDocument();
     expect(screen.getByText('Growth')).toBeInTheDocument();
-    expect(screen.getByText('Email')).toBeInTheDocument();
   });
 
   it('renders API performance cards', async () => {

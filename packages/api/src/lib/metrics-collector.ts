@@ -88,15 +88,23 @@ function parseDiskStats(): { reads: number; writes: number } | null {
     const content = fs.readFileSync(`${HOST_PROC}/diskstats`, 'utf-8');
     let totalReads = 0;
     let totalWrites = 0;
+    let driveCount = 0;
     for (const line of content.trim().split('\n')) {
       const parts = line.trim().split(/\s+/);
       const name = parts[2];
-      if (!name || /\d+$/.test(name)) continue;
-      if (!/^(sd|vd|nvme|xvd)/.test(name)) continue;
+      if (!name) continue;
+      // Match whole disks: sda, vda, xvda, nvme0n1 — skip partitions: sda1, nvme0n1p1
+      if (/^(sd|vd|xvd)[a-z]$/.test(name) || /^nvme\d+n\d+$/.test(name)) {
+        // match
+      } else {
+        continue;
+      }
       totalReads += parseInt(parts[5], 10) * 512;
       totalWrites += parseInt(parts[9], 10) * 512;
+      driveCount++;
     }
-    return { reads: totalReads, writes: totalWrites };
+    if (driveCount === 0) return null;
+    return { reads: totalReads / driveCount, writes: totalWrites / driveCount };
   } catch {
     return null;
   }

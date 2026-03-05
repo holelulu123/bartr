@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useHealthStatus, useSystemMetrics, useMetricHistory, useResendQuota, useApiPerformance, useInfraMetrics, useGrowthData, healthKeys } from '@/hooks/use-health';
+import { useHealthStatus, useSystemMetrics, useMetricHistory, useApiPerformance, useInfraMetrics, useGrowthData, healthKeys } from '@/hooks/use-health';
 import { admin as adminApi } from '@/lib/api';
 import { ServiceCard } from '@/components/health/service-card';
 import { StatCard } from '@/components/health/stat-card';
-import { QuotaBar } from '@/components/health/quota-bar';
 import { MetricChart, MultiLineChart } from '@/components/health/metric-chart';
 import { DailyBarChart } from '@/components/health/daily-bar-chart';
 import type { MetricSample } from '@bartr/shared';
@@ -211,7 +210,6 @@ function HealthDashboard() {
   const [growthDays, setGrowthDays] = useState(30);
   const { data: health, isLoading: healthLoading } = useHealthStatus();
   const { data: system } = useSystemMetrics();
-  const { data: resend } = useResendQuota();
   const { data: apiPerf } = useApiPerformance();
   const { data: infra } = useInfraMetrics();
   const { data: growth } = useGrowthData(growthDays);
@@ -279,32 +277,6 @@ function HealthDashboard() {
           <ServiceCard name="Price Feed" ok={!health?.price_feed.stale} latency_ms={0} />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <StatCard label="Total Users" value={health?.stats.users ?? 0} />
-          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
-              </span>
-              <p className="text-xs text-neutral-500 uppercase tracking-wider">Active Users</p>
-            </div>
-            <p className="text-2xl font-bold mt-1">{health?.stats.active_users ?? 0}</p>
-            <p className="text-xs text-neutral-500 mt-1">last 15 min</p>
-          </div>
-          <StatCard label="Contracts Created" value={health?.stats.contracts_created ?? 0} />
-          <StatCard label="Active Offers" value={health?.stats.active_offers ?? 0} />
-          <StatCard label="Trades Today" value={health?.stats.trades_today ?? 0} />
-        </div>
-      </section>
-
-      {/* ── 2. Active Users ────────────────────────────────────────────────── */}
-      <section>
-        <SectionHeading title="Active Users" subtitle="Users active in the last 15 minutes" />
-        <TimeRangeSelector value={hours} onChange={setHours} ranges={TIME_RANGES} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <MetricChart title="Active Users Over Time" data={activeUsersHistory ?? []} unit="count" color="#3b82f6" />
-        </div>
       </section>
 
       {/* ── 3. Machine Resources ───────────────────────────────────────────── */}
@@ -410,22 +382,51 @@ function HealthDashboard() {
       <section>
         <SectionHeading title="Growth" subtitle="Daily registrations, listings, and messages" />
 
-        <TimeRangeSelector value={growthDays} onChange={setGrowthDays} ranges={GROWTH_RANGES} />
+        <div className="grid grid-cols-3 gap-3 mb-2">
+          <StatCard label="Total Users" value={health?.stats.users ?? 0} />
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+              </span>
+              <p className="text-xs text-neutral-500 uppercase tracking-wider">Active Users</p>
+            </div>
+            <p className="text-2xl font-bold mt-1">{health?.stats.active_users ?? 0}</p>
+            <p className="text-xs text-neutral-500 mt-1">last 15 min</p>
+          </div>
+          <StatCard label="Total Messages" value={health?.stats.total_messages ?? 0} />
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-2">
+          <StatCard label="Total Listings" value={health?.stats.total_listings ?? 0} />
+          <StatCard label="Total Contracts" value={health?.stats.contracts_created ?? 0} />
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-2">
+          <StatCard label="Active Listings" value={health?.stats.active_listings ?? 0} />
+          <StatCard label="Active Contracts" value={health?.stats.active_contracts ?? 0} />
+        </div>
+        <div className="grid grid-cols-1 gap-3 mb-4">
+          <StatCard label="Successful Contracts" value={health?.stats.successful_contracts ?? 0} />
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="flex items-center gap-4 mb-2">
+          <span className="text-xs text-neutral-500">Active Users range:</span>
+          <TimeRangeSelector value={hours} onChange={setHours} ranges={TIME_RANGES} />
+        </div>
+        <MetricChart title="Active Users Over Time" data={activeUsersHistory ?? []} unit="count" color="#3b82f6" />
+
+        <div className="flex items-center gap-4 mt-6 mb-2">
+          <span className="text-xs text-neutral-500">Daily charts range:</span>
+          <TimeRangeSelector value={growthDays} onChange={setGrowthDays} ranges={GROWTH_RANGES} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <DailyBarChart title="User Registrations" data={growth?.users ?? []} color="#3b82f6" />
-          <DailyBarChart title="Listings Created" data={growth?.listings ?? []} color="#10b981" />
           <DailyBarChart title="Messages Sent" data={growth?.messages ?? []} color="#f97316" />
+          <DailyBarChart title="Listings Created" data={growth?.listings ?? []} color="#10b981" />
+          <DailyBarChart title="Contracts Created" data={growth?.contracts ?? []} color="#a855f7" />
         </div>
       </section>
 
-      {/* ── 6. Email ───────────────────────────────────────────────────────── */}
-      {resend && (
-        <section>
-          <SectionHeading title="Email" subtitle="Resend API usage and quota" />
-          <QuotaBar sent={resend.sent} limit={resend.limit} resets_at={resend.resets_at} />
-        </section>
-      )}
     </div>
   );
 }

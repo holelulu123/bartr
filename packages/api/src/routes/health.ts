@@ -70,19 +70,34 @@ export default async function healthRoutes(fastify: FastifyInstance) {
     let tradesToday = 0;
     let contractsCreated = 0;
     let activeUsers = 0;
+    let totalMessages = 0;
+    let totalListings = 0;
+    let activeListings = 0;
+    let activeContracts = 0;
+    let successfulContracts = 0;
     try {
-      const [uRes, oRes, tRes, cRes, auRes] = await Promise.all([
+      const [uRes, oRes, tRes, cRes, auRes, mRes, lRes, alRes, acRes, scRes] = await Promise.all([
         fastify.pg.query('SELECT COUNT(*)::int AS c FROM users'),
         fastify.pg.query("SELECT COUNT(*)::int AS c FROM exchange_offers WHERE status = 'active'"),
         fastify.pg.query("SELECT COUNT(*)::int AS c FROM trades WHERE created_at >= CURRENT_DATE"),
         fastify.pg.query('SELECT COUNT(*)::int AS c FROM exchange_offers'),
         fastify.pg.query("SELECT COUNT(*)::int AS c FROM users WHERE last_active > NOW() - INTERVAL '15 minutes'"),
+        fastify.pg.query('SELECT COUNT(*)::int AS c FROM messages'),
+        fastify.pg.query('SELECT COUNT(*)::int AS c FROM listings'),
+        fastify.pg.query("SELECT COUNT(*)::int AS c FROM listings WHERE status = 'active'"),
+        fastify.pg.query("SELECT COUNT(*)::int AS c FROM exchange_offers WHERE status = 'active'"),
+        fastify.pg.query("SELECT COUNT(*)::int AS c FROM trades WHERE status = 'completed'"),
       ]);
       users = uRes.rows[0].c;
       activeOffers = oRes.rows[0].c;
       tradesToday = tRes.rows[0].c;
       contractsCreated = cRes.rows[0].c;
       activeUsers = auRes.rows[0].c;
+      totalMessages = mRes.rows[0].c;
+      totalListings = lRes.rows[0].c;
+      activeListings = alRes.rows[0].c;
+      activeContracts = acRes.rows[0].c;
+      successfulContracts = scRes.rows[0].c;
     } catch { /* ignore */ }
 
     const allOk = dbResult.ok && redisResult.ok;
@@ -99,7 +114,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
         minio: minioResult,
       },
       price_feed: { last_update: lastUpdate, stale },
-      stats: { users, active_offers: activeOffers, trades_today: tradesToday, contracts_created: contractsCreated, active_users: activeUsers },
+      stats: { users, active_offers: activeOffers, trades_today: tradesToday, contracts_created: contractsCreated, active_users: activeUsers, total_messages: totalMessages, total_listings: totalListings, active_listings: activeListings, active_contracts: activeContracts, successful_contracts: successfulContracts },
     };
 
     const statusCode = response.status === 'ok' ? 200 : response.status === 'degraded' ? 200 : 503;
@@ -221,7 +236,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
     const days = Math.min(Math.max(parseInt(daysParam || '30', 10), 1), 365);
 
     try {
-      const [usersRes, listingsRes, messagesRes] = await Promise.all([
+      const [usersRes, listingsRes, messagesRes, contractsRes] = await Promise.all([
         fastify.pg.query(
           `SELECT DATE(created_at) AS date, COUNT(*)::int AS count
            FROM users WHERE created_at >= NOW() - $1::int * INTERVAL '1 day'
@@ -240,6 +255,12 @@ export default async function healthRoutes(fastify: FastifyInstance) {
            GROUP BY DATE(created_at) ORDER BY date`,
           [days],
         ),
+        fastify.pg.query(
+          `SELECT DATE(created_at) AS date, COUNT(*)::int AS count
+           FROM exchange_offers WHERE created_at >= NOW() - $1::int * INTERVAL '1 day'
+           GROUP BY DATE(created_at) ORDER BY date`,
+          [days],
+        ),
       ]);
 
       const toDaily = (rows: Array<{ date: string; count: number }>) =>
@@ -249,6 +270,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
         users: toDaily(usersRes.rows),
         listings: toDaily(listingsRes.rows),
         messages: toDaily(messagesRes.rows),
+        contracts: toDaily(contractsRes.rows),
       };
 
       return reply.send(response);

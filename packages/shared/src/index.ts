@@ -100,6 +100,11 @@ export interface HealthResponse {
     trades_today: number;
     contracts_created: number;
     active_users: number;
+    total_messages: number;
+    total_listings: number;
+    active_listings: number;
+    active_contracts: number;
+    successful_contracts: number;
   };
 }
 
@@ -152,6 +157,7 @@ export interface GrowthData {
   users: DailyCount[];
   listings: DailyCount[];
   messages: DailyCount[];
+  contracts: DailyCount[];
 }
 
 // ── Fiat currencies ─────────────────────────────────────────────────────────
