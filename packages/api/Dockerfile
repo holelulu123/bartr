@@ -12,10 +12,14 @@ RUN pnpm install --frozen-lockfile
 
 # ── build ─────────────────────────────────────────────────────────
 FROM base AS build
+RUN apk add --no-cache git
 COPY --from=deps /app/ ./
 COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY packages/api packages/api
+COPY .git .git
+RUN git describe --tags --abbrev=0 2>/dev/null > VERSION || echo "" > VERSION
+RUN rm -rf .git
 # Build shared first (api depends on it at compile time)
 RUN pnpm --filter @bartr/shared build
 RUN pnpm --filter @bartr/api build
@@ -40,6 +44,7 @@ COPY --from=build /app/packages/shared/package.json ./packages/shared/
 # Copy compiled API (dist only, no .ts source)
 COPY --from=build /app/packages/api/dist ./packages/api/dist
 COPY --from=build /app/packages/api/package.json ./packages/api/
+COPY --from=build /app/VERSION ./VERSION
 
 # Copy migration SQL files (runtime: migration runner reads ../../db/migrations from cwd)
 COPY db/migrations ./db/migrations

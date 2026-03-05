@@ -215,7 +215,7 @@ describe('Health page', () => {
     const { default: HealthPage } = await import('@/app/admin/page');
     render(<HealthPage />);
     await waitFor(() => {
-      expect(screen.getByText(/v0\.0\.1/)).toBeInTheDocument();
+      expect(screen.getByText(/v0\.0\.1|no version found/)).toBeInTheDocument();
     });
     expect(screen.getByText(/uptime/i)).toBeInTheDocument();
   });

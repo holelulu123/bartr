@@ -1,10 +1,28 @@
 import os from 'node:os';
 import fs from 'node:fs';
+import { execSync } from 'node:child_process';
 import type { FastifyInstance } from 'fastify';
 import type { HealthResponse, SystemMetrics, MetricSample, ResendQuota, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
 import { getLatestSample } from '../lib/metrics-collector.js';
 
 const startedAt = Date.now();
+
+function resolveVersion(): string {
+  // 1. Try VERSION file (written during Docker build)
+  for (const p of ['/app/VERSION', 'VERSION']) {
+    try {
+      const v = fs.readFileSync(p, 'utf-8').trim();
+      if (v) return v;
+    } catch { /* ignore */ }
+  }
+  // 2. Try git describe (works in local dev)
+  try {
+    return execSync('git describe --tags --abbrev=0', { encoding: 'utf-8' }).trim();
+  } catch { /* ignore */ }
+  return 'no version found';
+}
+
+const APP_VERSION = resolveVersion();
 const PRICE_STALE_MS = 10 * 60_000; // 10 minutes
 
 const VALID_METRICS = new Set([
@@ -72,7 +90,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
 
     const response: HealthResponse = {
       status: allOk ? (minioOk ? 'ok' : 'degraded') : 'error',
-      version: '0.0.1',
+      version: APP_VERSION,
       uptime_seconds: Math.floor((Date.now() - startedAt) / 1000),
       timestamp: now.toISOString(),
       services: {

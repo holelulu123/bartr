@@ -262,7 +262,7 @@ function HealthDashboard() {
           <span className={`inline-block h-3 w-3 rounded-full ${statusColor}`} />
           <span className="text-sm text-neutral-400 capitalize">{health?.status ?? 'unknown'}</span>
           <span className="ml-auto text-xs text-neutral-500">
-            v{health?.version} &middot; uptime {formatUptime(health?.uptime_seconds ?? 0)}
+            {health?.version && health.version !== 'no version found' ? `v${health.version}` : 'no version found'} &middot; uptime {formatUptime(health?.uptime_seconds ?? 0)}
           </span>
           <button
             onClick={handleLogout}
