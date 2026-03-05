@@ -1,16 +1,28 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Star, Calendar, Clock, Package, ArrowUpDown } from 'lucide-react';
+import { Star, Calendar, Clock, Package, ArrowUpDown, ArrowUp, ArrowDown, Lock, Trash2, Pause, Play } from 'lucide-react';
 import { useUser, useUserRatings } from '@/hooks/use-users';
 import { useListings } from '@/hooks/use-listings';
-import { useOffers } from '@/hooks/use-exchange';
+import { useOffers, useDeleteOffer, useUpdateOffer } from '@/hooks/use-exchange';
+import { usePrices } from '@/hooks/use-prices';
 import { useAuth } from '@/contexts/auth-context';
-import { OfferRow } from '@/components/offer-row';
 import { ReputationBadge } from '@/components/reputation-badge';
 import { Badge } from '@/components/ui/badge';
-// Clock is used inside ActiveStatus component
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
+import type { SettlementMethod } from '@bartr/shared';
+import type { ExchangeOffer } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -116,6 +128,240 @@ const PAYMENT_LABELS: Record<string, string> = {
   btc: 'BTC', eth: 'ETH', usdt: 'USDT', usdc: 'USDC', cash: 'Cash', bank_transfer: 'Bank',
 };
 
+const CRYPTO_COLORS: Record<string, string> = {
+  BTC: 'text-orange-500',
+  ETH: 'text-indigo-400',
+  SOL: 'text-fuchsia-500',
+  XRP: 'text-slate-400',
+  USDT: 'text-emerald-500',
+  USDC: 'text-blue-400',
+};
+
+function fmtNum(val: number | string | null | undefined, decimals = 2): string {
+  if (val === null || val === undefined) return '0';
+  const n = Number(val);
+  const formatted = n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  if (decimals <= 2) return formatted.replace(/\.00$/, '');
+  return formatted;
+}
+
+function CompactOfferRow({ offer }: { offer: ExchangeOffer }) {
+  const isBuy = offer.offer_type === 'buy';
+  const isPrivate = !!offer.accepted_trade_status;
+  const { user } = useAuth();
+  const { data: priceData } = usePrices();
+  const deleteMutation = useDeleteOffer();
+  const updateMutation = useUpdateOffer(offer.id);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPauseDialog, setShowPauseDialog] = useState(false);
+  const isOwn = user?.nickname === offer.seller_nickname;
+
+  let coinPrice: number | undefined;
+  if (priceData) {
+    const cryptoPrices = priceData[offer.crypto_currency];
+    if (cryptoPrices && typeof cryptoPrices !== 'string') {
+      coinPrice = cryptoPrices[offer.fiat_currency];
+    }
+  }
+
+  const effectivePrice = offer.rate_type === 'fixed'
+    ? Number(offer.fixed_price) || undefined
+    : coinPrice !== undefined
+      ? coinPrice * (1 + (Number(offer.margin_percent) || 0) / 100)
+      : undefined;
+
+  const minFiat = Number(offer.min_amount) || 0;
+  const maxFiat = Number(offer.max_amount) || 0;
+  const minCrypto = effectivePrice ? minFiat / effectivePrice : undefined;
+  const maxCrypto = effectivePrice ? maxFiat / effectivePrice : undefined;
+  const isFixed = minFiat === maxFiat && minFiat > 0;
+
+  return (
+    <Link
+      href={`/exchange/${offer.id}`}
+      className={cn(
+        'grid items-center gap-3 rounded-lg border px-4 py-3 border-l-[3px] transition-colors hover:bg-accent/50',
+        'grid-cols-[80px_1fr_160px_120px_60px]',
+        isPrivate
+          ? 'border-l-purple-500 bg-purple-500/[0.04] border-purple-500/20'
+          : isBuy
+            ? 'border-l-emerald-500 bg-emerald-500/[0.03] border-border'
+            : 'border-l-red-400 bg-red-400/[0.03] border-border',
+      )}
+    >
+      {/* Type + pair stacked */}
+      <div className="flex flex-col items-start gap-1">
+        {isPrivate ? (
+          <Badge variant="outline" className="gap-1 text-xs px-1.5 py-0 border-purple-500/40 text-purple-400 bg-purple-500/10">
+            <Lock className="h-3 w-3" />
+            Contract
+          </Badge>
+        ) : (
+          <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-xs px-1.5 py-0.5">
+            {isBuy ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />}
+            {isBuy ? 'Buy' : 'Sell'}
+          </Badge>
+        )}
+        <span className={cn('text-sm font-semibold whitespace-nowrap', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
+          {offer.crypto_currency}/{offer.fiat_currency}
+        </span>
+      </div>
+
+      {/* Limits: fiat + crypto equiv */}
+      <div className="min-w-0">
+        <p className="text-base font-bold leading-tight whitespace-nowrap">
+          {isFixed
+            ? `${fmtNum(minFiat)} ${offer.fiat_currency}`
+            : minFiat || maxFiat
+              ? `${fmtNum(minFiat)} – ${fmtNum(maxFiat)} ${offer.fiat_currency}`
+              : 'Any amount'}
+        </p>
+        {effectivePrice !== undefined && (minFiat || maxFiat) && (
+          <p className="text-xs text-muted-foreground leading-tight mt-0.5 whitespace-nowrap">
+            {isFixed
+              ? `${fmtNum(minCrypto!, 6)} ${offer.crypto_currency}`
+              : `${fmtNum(minCrypto!, 6)} – ${fmtNum(maxCrypto!, 6)} ${offer.crypto_currency}`}
+          </p>
+        )}
+      </div>
+
+      {/* Price + source + margin */}
+      <div>
+        <p className="text-base font-bold leading-tight whitespace-nowrap">
+          {effectivePrice !== undefined ? `${fmtNum(effectivePrice)} ${offer.fiat_currency}` : '--'}
+        </p>
+        {offer.rate_type === 'market' && (
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-xs text-muted-foreground capitalize">{offer.price_source}</span>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button type="button" className="rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0 text-xs font-bold cursor-help whitespace-nowrap" onClick={(e) => e.preventDefault()}>
+                    {Number(offer.margin_percent) > 0 ? '+' : ''}{offer.margin_percent}%
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {Number(offer.margin_percent) === 0 ? 'Market price' : `${Math.abs(Number(offer.margin_percent))}% ${Number(offer.margin_percent) > 0 ? 'above' : 'below'} market`}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
+        {offer.rate_type === 'fixed' && coinPrice !== undefined && effectivePrice !== undefined && (
+          (() => {
+            const pct = ((effectivePrice / coinPrice - 1) * 100);
+            const sign = pct >= 0 ? '+' : '';
+            return (
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-xs text-muted-foreground">Fixed</span>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" className={cn(
+                        'rounded px-1.5 py-0 text-xs font-bold cursor-help whitespace-nowrap',
+                        pct >= 0 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/15 text-red-600 dark:text-red-400',
+                      )} onClick={(e) => e.preventDefault()}>
+                        {sign}{pct.toFixed(1)}%
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      Fixed price is {Math.abs(pct).toFixed(1)}% {pct >= 0 ? 'above' : 'below'} market
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            );
+          })()
+        )}
+      </div>
+
+      {/* Settlement methods */}
+      <div className="flex flex-wrap gap-1 overflow-hidden">
+        {offer.payment_methods.slice(0, 2).map((pm) => (
+          <span key={pm} className="text-xs text-muted-foreground whitespace-nowrap">
+            {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
+          </span>
+        ))}
+        {offer.payment_methods.length > 2 && (
+          <span className="text-xs text-muted-foreground">+{offer.payment_methods.length - 2}</span>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1">
+        {isOwn && !isPrivate && offer.status !== 'removed' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-2"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPauseDialog(true); }}
+            aria-label={offer.status === 'active' ? 'Pause offer' : 'Resume offer'}
+          >
+            {offer.status === 'active' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </Button>
+        )}
+        {isOwn && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDeleteDialog(true); }}
+            aria-label="Delete offer"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+
+      {/* Delete dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Delete offer?</DialogTitle>
+            <DialogDescription>
+              This will permanently remove your {offer.offer_type} offer for {offer.crypto_currency}/{offer.fiat_currency}. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={async () => { await deleteMutation.mutateAsync(offer.id); setShowDeleteDialog(false); }}
+            >
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pause/Resume dialog */}
+      <Dialog open={showPauseDialog} onOpenChange={setShowPauseDialog}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>{offer.status === 'active' ? 'Pause offer?' : 'Resume offer?'}</DialogTitle>
+            <DialogDescription>
+              {offer.status === 'active'
+                ? `This will pause your ${offer.offer_type} offer for ${offer.crypto_currency}/${offer.fiat_currency}.`
+                : `This will resume your ${offer.offer_type} offer for ${offer.crypto_currency}/${offer.fiat_currency}.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPauseDialog(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={updateMutation.isPending}
+              onClick={async () => { await updateMutation.mutateAsync({ status: offer.status === 'active' ? 'paused' : 'active' }); setShowPauseDialog(false); }}
+            >
+              {updateMutation.isPending ? (offer.status === 'active' ? 'Pausing…' : 'Resuming…') : (offer.status === 'active' ? 'Pause' : 'Resume')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Link>
+  );
+}
+
 export default function UserProfilePage() {
   const { nickname } = useParams<{ nickname: string }>();
   const { user: me } = useAuth();
@@ -129,6 +375,17 @@ export default function UserProfilePage() {
   );
 
   const isOwnProfile = me?.nickname === nickname;
+
+  // Filter offers: only those created by this user, hide private contracts from unauthorized viewers
+  const visibleOffers = (offersData?.offers ?? []).filter((offer) => {
+    // Only show offers created by this profile user
+    if (offer.user_id !== profile?.id) return false;
+    // Private contracts (in-progress): only visible to owner or accepted buyer
+    if (offer.accepted_trade_status) {
+      return isOwnProfile || me?.nickname === offer.accepted_buyer_nickname;
+    }
+    return true;
+  });
 
   if (isLoading) {
     return (
@@ -239,18 +496,18 @@ export default function UserProfilePage() {
         </Card>
       )}
 
-      {/* Exchange offers */}
-      {offersData && offersData.offers.length > 0 && (
+      {/* Active contracts — only offers created by this user */}
+      {visibleOffers.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <ArrowUpDown className="h-4 w-4" />
-              Exchange offers
+              {profile.nickname} Active Contracts
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {offersData.offers.map((offer) => (
-              <OfferRow key={offer.id} offer={offer} />
+            {visibleOffers.map((offer) => (
+              <CompactOfferRow key={offer.id} offer={offer} />
             ))}
           </CardContent>
         </Card>
