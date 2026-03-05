@@ -49,6 +49,7 @@ const fmt = fmtAmount;
 function MiniIdenticon({ seed, size = 32 }: { seed: string; size?: number }) {
   const cells = 5;
   const cellSize = size / cells;
+  if (!seed) return null;
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = Math.imul(31, hash) + seed.charCodeAt(i);

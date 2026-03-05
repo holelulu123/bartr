@@ -47,6 +47,8 @@ function Identicon({ seed, size = 80 }: { seed: string; size?: number }) {
   const cells = 5;
   const cellSize = size / cells;
 
+  if (!seed) return null;
+
   // Generate a numeric hash from the seed string
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
