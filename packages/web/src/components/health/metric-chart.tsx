@@ -36,9 +36,22 @@ const Line = dynamic(
   { ssr: false },
 );
 
-function formatTime(ts: number): string {
+function formatTickDate(ts: number): string {
   const d = new Date(ts);
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${mm}-${dd}-${yyyy}`;
+}
+
+function formatTooltipDate(ts: number): string {
+  const d = new Date(ts);
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const min = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${mm}-${dd}-${yyyy} ${hh}:${min}`;
 }
 
 function formatBytes(bytes: number): string {
@@ -79,6 +92,8 @@ export function MetricChart({ title, data, unit = 'percent', color = '#f97316', 
   const domain: [number, number] | undefined =
     yMax != null ? [0, yMax] : unit === 'percent' ? [0, 100] : undefined;
 
+  const xInterval = data.length <= 5 ? 0 : Math.floor(data.length / 5);
+
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
       <p className="text-sm font-medium mb-3">{title}</p>
@@ -87,13 +102,15 @@ export function MetricChart({ title, data, unit = 'percent', color = '#f97316', 
       ) : (
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data}>
+            <AreaChart data={data} margin={{ bottom: 5 }}>
               <XAxis
                 dataKey="timestamp"
-                tickFormatter={formatTime}
-                tick={{ fill: '#737373', fontSize: 10 }}
+                tickFormatter={formatTickDate}
+                tick={{ fill: '#737373', fontSize: 9 }}
                 axisLine={false}
                 tickLine={false}
+                height={30}
+                interval={xInterval}
               />
               <YAxis
                 domain={domain}
@@ -104,7 +121,7 @@ export function MetricChart({ title, data, unit = 'percent', color = '#f97316', 
                 width={60}
               />
               <Tooltip
-                labelFormatter={(ts: number) => new Date(ts).toLocaleString('en-US', { timeZone: 'UTC' })}
+                labelFormatter={(ts: number) => formatTooltipDate(ts)}
                 formatter={(v: number) => [formatValue(v), title]}
                 contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
               />
@@ -150,6 +167,7 @@ export function MultiLineChart({ title, series, unit = 'percent', yMax }: MultiL
   const data = Array.from(merged.values()).sort((a, b) => a.timestamp - b.timestamp);
 
   const hasData = series.some((s) => s.data.length > 0);
+  const xInterval = data.length <= 5 ? 0 : Math.floor(data.length / 5);
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
@@ -159,13 +177,15 @@ export function MultiLineChart({ title, series, unit = 'percent', yMax }: MultiL
       ) : (
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
+            <LineChart data={data} margin={{ bottom: 5 }}>
               <XAxis
                 dataKey="timestamp"
-                tickFormatter={formatTime}
-                tick={{ fill: '#737373', fontSize: 10 }}
+                tickFormatter={formatTickDate}
+                tick={{ fill: '#737373', fontSize: 9 }}
                 axisLine={false}
                 tickLine={false}
+                height={30}
+                interval={xInterval}
               />
               <YAxis
                 domain={domain}
@@ -176,7 +196,7 @@ export function MultiLineChart({ title, series, unit = 'percent', yMax }: MultiL
                 width={60}
               />
               <Tooltip
-                labelFormatter={(ts: number) => new Date(ts).toLocaleString('en-US', { timeZone: 'UTC' })}
+                labelFormatter={(ts: number) => formatTooltipDate(ts)}
                 formatter={(v: number, name: string) => [formatValue(v), name]}
                 contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, fontSize: 12 }}
               />

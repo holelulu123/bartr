@@ -18,6 +18,7 @@ import moderationRoutes from './routes/moderation.js';
 import ratingRoutes from './routes/ratings.js';
 import exchangeRoutes from './routes/exchange.js';
 import priceRoutes from './routes/prices.js';
+import { recordRequest } from './lib/api-metrics-buffer.js';
 import { startMetricsCollector } from './lib/metrics-collector.js';
 import { startUnverifiedCleanup } from './lib/unverified-cleanup.js';
 
@@ -25,6 +26,13 @@ const app = Fastify({ logger: true });
 
 await app.register(cors, { origin: true, credentials: true });
 await app.register(cookie);
+
+// Record response times for API performance metrics (exclude /health to avoid noise)
+app.addHook('onResponse', async (request, reply) => {
+  if (!request.url.startsWith('/health')) {
+    recordRequest(reply.elapsedTime, reply.statusCode);
+  }
+});
 await app.register(dbPlugin);
 await app.register(redisPlugin);
 await app.register(minioPlugin);

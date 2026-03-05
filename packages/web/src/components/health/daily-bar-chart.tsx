@@ -30,7 +30,10 @@ const ResponsiveContainer = dynamic(
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00Z');
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${mm}-${dd}-${yyyy}`;
 }
 
 interface DailyBarChartProps {
@@ -48,13 +51,15 @@ export function DailyBarChart({ title, data, color = '#f97316' }: DailyBarChartP
       ) : (
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
+            <BarChart data={data} margin={{ bottom: 5 }}>
               <XAxis
                 dataKey="date"
                 tickFormatter={formatDate}
-                tick={{ fill: '#737373', fontSize: 10 }}
+                tick={{ fill: '#737373', fontSize: 9 }}
                 axisLine={false}
                 tickLine={false}
+                height={30}
+                interval={Math.max(0, Math.floor(data.length / 5) - 1)}
               />
               <YAxis
                 allowDecimals={false}
