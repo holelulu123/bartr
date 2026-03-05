@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Info, ShieldCheck, Moon, Sun, User, Package, BarChart2, Settings, LogOut, Bell } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
 import { useMessageSidebar } from '@/contexts/message-sidebar-context';
 import { useThreads } from '@/hooks/use-messages';
-import { useUnreadThreads } from '@/hooks/use-unread-threads';
+import { useUnreadThreads, isThreadUnread } from '@/hooks/use-unread-threads';
 import { usePendingProposals } from '@/hooks/use-pending-proposals';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
@@ -58,7 +58,35 @@ export function Navbar() {
   );
 
   const { notifications, hasNew: hasNewProposals, hasMore: hasMoreNotifs, loadMore: loadMoreNotifs, markAllRead } = usePendingProposals(isAuthenticated);
-  const { isOpen: messagesOpen, openSidebar, closeSidebar: closeMessages } = useMessageSidebar();
+  const { isOpen: messagesOpen, openSidebar, openThread, closeSidebar: closeMessages } = useMessageSidebar();
+
+  // Auto-open chat when a new unread thread appears (new message from someone)
+  const threads = threadsData?.threads ?? [];
+  const myNick = user?.nickname ?? '';
+  const unreadThreadIds = useMemo(() => {
+    return new Set(threads.filter((t) => isThreadUnread(t, myNick)).map((t) => t.id));
+  }, [threads, myNick]);
+
+  const prevUnreadIds = useRef<Set<string>>(unreadThreadIds);
+  useEffect(() => {
+    // Find thread IDs that are newly unread (weren't in previous set)
+    const newlyUnread = [...unreadThreadIds].filter((id) => !prevUnreadIds.current.has(id));
+    prevUnreadIds.current = unreadThreadIds;
+
+    if (newlyUnread.length > 0) {
+      // Open the most recently active new unread thread
+      const newest = threads
+        .filter((t) => newlyUnread.includes(t.id))
+        .sort((a, b) => {
+          const aTime = a.last_message_at ?? a.created_at;
+          const bTime = b.last_message_at ?? b.created_at;
+          return bTime > aTime ? 1 : bTime < aTime ? -1 : 0;
+        })[0];
+      if (newest) {
+        openThread(newest.id);
+      }
+    }
+  }, [unreadThreadIds, threads, openThread]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

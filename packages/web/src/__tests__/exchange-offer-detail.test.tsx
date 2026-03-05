@@ -73,6 +73,19 @@ vi.mock('@/hooks/use-messages', () => ({
   useSendMessage: () => ({ mutateAsync: vi.fn() }),
 }));
 
+vi.mock('@/contexts/message-sidebar-context', () => ({
+  useMessageSidebar: () => ({
+    isOpen: false,
+    selectedThreadId: null,
+    pendingContact: null,
+    openSidebar: vi.fn(),
+    closeSidebar: vi.fn(),
+    openThread: vi.fn(),
+    openContact: vi.fn(),
+    clearSelection: vi.fn(),
+  }),
+}));
+
 vi.mock('@/components/crypto-icons', () => ({
   CoinIcon: () => <span>CoinIcon</span>,
 }));

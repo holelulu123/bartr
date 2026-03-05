@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, ArrowUp, ArrowDown, Star, Pause, Play, Trash2,
-  Lock, LogIn, MessageSquare, Check, X, ShieldAlert,
+  Lock, LogIn, MessageSquare, Megaphone, Check, X, ShieldAlert,
 } from 'lucide-react';
 import { useOffer, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
 import { useUser } from '@/hooks/use-users';
@@ -38,6 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useMessageSidebar } from '@/contexts/message-sidebar-context';
 import { ApiError } from '@/lib/api/client';
 import { cn, fmtAmount } from '@/lib/utils';
 import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
@@ -585,6 +586,7 @@ function SelectedTradeDetail({
   const declineTrade = useDeclineTrade();
   const createThread = useCreateThread();
   const { encrypt } = useCrypto();
+  const { openContact } = useMessageSidebar();
 
   async function handleAccept() {
     await acceptTrade.mutateAsync(trade.id);
@@ -690,6 +692,28 @@ function SelectedTradeDetail({
             </Button>
           </div>
         )}
+        {(trade.status === 'accepted' || trade.status === 'completed') && (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 h-8 text-xs"
+              onClick={() => openContact(trade.buyer_nickname)}
+            >
+              <MessageSquare className="h-3 w-3 mr-1" />
+              Message
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="flex-1 h-8 text-xs"
+              onClick={() => window.open(`/report?user=${trade.buyer_nickname}&trade=${trade.id}`, '_blank')}
+            >
+              <Megaphone className="h-3 w-3 mr-1" />
+              Report
+            </Button>
+          </div>
+        )}
       </div>
       <RatingSection tradeId={trade.id} tradeStatus={trade.status} tradeUpdatedAt={trade.updated_at} counterpartyId={trade.buyer_id} counterpartyNickname={trade.buyer_nickname} />
     </div>
@@ -703,6 +727,7 @@ export default function OfferDetailPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const { isUnlocked } = useCrypto();
+  const { openContact } = useMessageSidebar();
 
   const { data: offer, isLoading, isError } = useOffer(id);
   const { data: sellerProfile } = useUser(offer?.seller_nickname ?? '');
@@ -1043,6 +1068,28 @@ export default function OfferDetailPage() {
                         <Badge variant="outline" className="text-xs">{myActiveTrade.status}</Badge>
                       </div>
                     </div>
+                    {(myActiveTrade.status === 'accepted' || myActiveTrade.status === 'completed') && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-8 text-xs"
+                          onClick={() => openContact(offer.seller_nickname)}
+                        >
+                          <MessageSquare className="h-3 w-3 mr-1" />
+                          Message
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="flex-1 h-8 text-xs"
+                          onClick={() => window.open(`/report?user=${offer.seller_nickname}&trade=${myActiveTrade.id}`, '_blank')}
+                        >
+                          <Megaphone className="h-3 w-3 mr-1" />
+                          Report
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <RatingSection tradeId={myActiveTrade.id} tradeStatus={myActiveTrade.status} tradeUpdatedAt={myActiveTrade.updated_at} counterpartyId={offer.user_id} counterpartyNickname={offer.seller_nickname} />
                 </>
