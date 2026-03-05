@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 
 interface MessageSidebarState {
   isOpen: boolean;
@@ -15,10 +15,32 @@ interface MessageSidebarState {
 
 const MessageSidebarContext = createContext<MessageSidebarState | null>(null);
 
+function readSession<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const v = sessionStorage.getItem(key);
+    return v !== null ? JSON.parse(v) : fallback;
+  } catch { return fallback; }
+}
+
 export function MessageSidebarProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [pendingContact, setPendingContact] = useState<{ nickname: string; listingId?: string } | null>(null);
+
+  // Restore from sessionStorage after hydration
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    const savedOpen = readSession('sidebar-open', false);
+    const savedThread = readSession<string | null>('sidebar-thread', null);
+    if (savedOpen) setIsOpen(true);
+    if (savedThread) setSelectedThreadId(savedThread);
+  }, []);
+
+  useEffect(() => { sessionStorage.setItem('sidebar-open', JSON.stringify(isOpen)); }, [isOpen]);
+  useEffect(() => { sessionStorage.setItem('sidebar-thread', JSON.stringify(selectedThreadId)); }, [selectedThreadId]);
 
   const openSidebar = useCallback(() => {
     setIsOpen(true);
