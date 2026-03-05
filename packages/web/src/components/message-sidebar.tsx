@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, MessageSquare, X } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, MessageSquare, X } from 'lucide-react';
 import { useMessageSidebar } from '@/contexts/message-sidebar-context';
 import { useThreads, useCreateThread } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
@@ -11,7 +11,8 @@ import { useUnreadThreads, isThreadUnread } from '@/hooks/use-unread-threads';
 import { useTradesForOffer, useAcceptTrade, useDeclineTrade } from '@/hooks/use-trades';
 import { UserAvatar } from '@/components/user-avatar';
 import { ChatPanel } from '@/components/chat-panel';
-import type { TradeAction, TradeCompletionInfo } from '@/components/chat-panel';
+import type { TradeAction } from '@/components/chat-panel';
+import { useTradeCompletions } from '@/hooks/use-trades';
 import { CryptoGuard } from '@/components/crypto-guard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, fmtAmount } from '@/lib/utils';
@@ -152,11 +153,81 @@ function ThreadRow({
   );
 }
 
-function SidebarChatHeader({ nickname, offerId, onBack, onClose }: {
+const HEADER_CRYPTO_COLORS: Record<string, string> = {
+  BTC: 'text-orange-500',
+  ETH: 'text-violet-500',
+  USDT: 'text-emerald-500',
+  USDC: 'text-blue-400',
+  SOL: 'text-fuchsia-500',
+  XRP: 'text-blue-600',
+  TRX: 'text-red-500',
+  TON: 'text-sky-500',
+};
+
+interface CompletionHeaderInfo {
+  tradeId: string;
+  tradeStatus: string;
+  buyerId: string;
+  sellerId: string;
+  cryptoCurrency: string;
+  offerId: string;
+  onCompleted?: () => void;
+}
+
+function HeaderCompletionTicks({ info }: { info: CompletionHeaderInfo }) {
+  const { user } = useAuth();
+  const { data: completions } = useTradeCompletions(
+    info.tradeStatus === 'accepted' || info.tradeStatus === 'completed' ? info.tradeId : '',
+  );
+
+  if (!user || !completions) return null;
+  if (info.tradeStatus !== 'accepted' && info.tradeStatus !== 'completed') return null;
+
+  const isBuyer = user.id === info.buyerId;
+  const myConfirmed = isBuyer ? completions.buyer_confirmed : completions.seller_confirmed;
+  const bothConfirmed = completions.buyer_confirmed && completions.seller_confirmed;
+  const check1Active = completions.buyer_confirmed || completions.seller_confirmed;
+  const check2Active = bothConfirmed;
+
+  if (myConfirmed) return null;
+
+  const acceptedAt = new Date(completions.accepted_at).getTime();
+  const remaining = acceptedAt + 90 * 60 * 1000 - Date.now();
+  const timerActive = remaining > 0 && info.tradeStatus === 'accepted';
+
+  const cryptoColor = HEADER_CRYPTO_COLORS[info.cryptoCurrency] ?? 'text-primary';
+
+  const tooltipText = timerActive
+    ? `The trade could be completed in ${Math.ceil(remaining / 60_000)} minutes`
+    : 'Complete the trade';
+
+  return (
+    <Link
+      href={`/exchange/${info.offerId}`}
+      onClick={() => window.dispatchEvent(new CustomEvent('glow-completion', { detail: info.offerId }))}
+      className="group relative flex items-center p-1 rounded-md hover:bg-muted transition-colors"
+    >
+      <Check
+        className={cn('h-6 w-6', check1Active ? cryptoColor : 'text-muted-foreground/40')}
+        strokeWidth={3}
+      />
+      <Check
+        className={cn('h-6 w-6 -ml-0.5', check2Active ? cryptoColor : 'text-muted-foreground/40')}
+        strokeWidth={3}
+      />
+      <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-[11px] text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-75 pointer-events-none z-50">
+        {tooltipText}
+      </span>
+    </Link>
+  );
+}
+
+function SidebarChatHeader({ nickname, offerId, onBack, onClose, completionInfo }: {
   nickname: string;
   offerId: string | null;
   onBack: () => void;
   onClose: () => void;
+  completionInfo?: CompletionHeaderInfo;
 }) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
@@ -174,6 +245,7 @@ function SidebarChatHeader({ nickname, offerId, onBack, onClose }: {
           {nickname}
         </Link>
       </div>
+      {completionInfo && <HeaderCompletionTicks info={completionInfo} />}
       {offerId && (
         <Link
           href={`/exchange/${offerId}`}
@@ -361,8 +433,8 @@ function SidebarContent() {
     return 'Waiting for the seller to accept your offer\u2026';
   }, [tradesData, offerId, activeNickname, user?.id]);
 
-  // Trade completion info for the chat strip
-  const sidebarTradeCompletion: TradeCompletionInfo | undefined = useMemo(() => {
+  // Trade completion info for the header checkmarks
+  const completionHeaderInfo: CompletionHeaderInfo | undefined = useMemo(() => {
     if (!tradesData || !activeNickname || !offerId || !user || !activeThread) return undefined;
     const trade = tradesData.trades.find(
       (t) =>
@@ -378,6 +450,7 @@ function SidebarContent() {
       buyerId: trade.buyer_id,
       sellerId: trade.seller_id,
       cryptoCurrency: crypto,
+      offerId,
       onCompleted: async () => {
         const autoMsg = `[SYSTEM] Completed: ${user.nickname}`;
         try {
@@ -403,6 +476,7 @@ function SidebarContent() {
           offerId={activeThread.offer_id}
           onBack={clearSelection}
           onClose={closeSidebar}
+          completionInfo={completionHeaderInfo}
         />
         <ChatPanel
           key={activeThread.id}
@@ -412,7 +486,6 @@ function SidebarContent() {
           tradeAction={sidebarTradeAction}
           chatLocked={sidebarChatLocked}
           chatLockedMessage={sidebarLockedMessage}
-          tradeCompletion={sidebarTradeCompletion}
         />
       </div>
     );

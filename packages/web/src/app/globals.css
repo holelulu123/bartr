@@ -86,3 +86,15 @@
     @apply bg-background text-foreground;
   }
 }
+
+@property --glow-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes completion-glow-spin {
+  to {
+    --glow-angle: 360deg;
+  }
+}

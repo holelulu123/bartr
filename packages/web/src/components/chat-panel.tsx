@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, AlertCircle, ArrowLeftRight, XCircle, Check, X } from 'lucide-react';
-import { TradeCompletionStrip } from '@/components/trade-completion-strip';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
@@ -183,15 +182,6 @@ function useSendMessageStable(threadId: string, recipientNickname: string) {
   return useCallback((text: string) => ref.current(text), []);
 }
 
-export interface TradeCompletionInfo {
-  tradeId: string;
-  tradeStatus: string;
-  buyerId: string;
-  sellerId: string;
-  cryptoCurrency: string;
-  onCompleted?: () => void;
-}
-
 export interface ChatPanelProps {
   threadId: string;
   recipientNickname: string;
@@ -201,11 +191,9 @@ export interface ChatPanelProps {
   /** When true, messages are visible but the input is disabled with a hint. */
   chatLocked?: boolean;
   chatLockedMessage?: string;
-  /** Trade completion info — shows completion strip when provided */
-  tradeCompletion?: TradeCompletionInfo;
 }
 
-export function ChatPanel({ threadId, recipientNickname, contextLabel, className, tradeAction, chatLocked, chatLockedMessage, tradeCompletion }: ChatPanelProps) {
+export function ChatPanel({ threadId, recipientNickname, contextLabel, className, tradeAction, chatLocked, chatLockedMessage }: ChatPanelProps) {
   const { user } = useAuth();
   const { decrypt, isUnlocked } = useCrypto();
 
@@ -320,19 +308,6 @@ export function ChatPanel({ threadId, recipientNickname, contextLabel, className
         )}
         <div ref={bottomRef} />
       </div>
-
-      {/* Trade completion strip */}
-      {tradeCompletion && (
-        <TradeCompletionStrip
-          tradeId={tradeCompletion.tradeId}
-          tradeStatus={tradeCompletion.tradeStatus}
-          buyerId={tradeCompletion.buyerId}
-          sellerId={tradeCompletion.sellerId}
-          cryptoCurrency={tradeCompletion.cryptoCurrency}
-          compact
-          onCompleted={tradeCompletion.onCompleted}
-        />
-      )}
 
       {/* Input area */}
       <div className="shrink-0 border-t border-border px-3 py-2.5">

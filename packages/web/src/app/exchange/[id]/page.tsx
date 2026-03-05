@@ -700,7 +700,7 @@ function SelectedTradeDetail({
               cryptoCurrency={cryptoCurrency}
               onCompleted={handleCompleted}
             />
-            <div className="flex gap-2">
+            <div className="flex gap-2 mt-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -1103,7 +1103,7 @@ export default function OfferDetailPage() {
                           cryptoCurrency={offer.crypto_currency}
                           onCompleted={handleBuyerCompleted}
                         />
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 mt-2">
                           <Button
                             size="sm"
                             variant="outline"
