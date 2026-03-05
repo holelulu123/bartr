@@ -108,7 +108,11 @@ export default async function messageRoutes(fastify: FastifyInstance) {
                 u1.nickname as participant_1_nickname,
                 u2.nickname as participant_2_nickname,
                 l.title as listing_title,
-                CASE WHEN eo.id IS NOT NULL THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
+                CASE WHEN eo.id IS NOT NULL AND eo.status != 'removed' THEN eo.offer_type || ' ' || eo.crypto_currency || '/' || eo.fiat_currency ELSE NULL END as offer_summary,
+                eo.crypto_currency as offer_crypto,
+                eo.fiat_currency as offer_fiat,
+                (SELECT t.fiat_amount FROM trades t WHERE t.offer_id = mt.offer_id AND t.status IN ('offered', 'accepted', 'completed', 'declined') ORDER BY t.created_at DESC LIMIT 1) as trade_fiat_amount,
+                (SELECT t.status FROM trades t WHERE t.offer_id = mt.offer_id AND t.status IN ('offered', 'accepted', 'completed', 'declined') ORDER BY t.created_at DESC LIMIT 1) as trade_status,
                 (SELECT m.created_at FROM messages m WHERE m.thread_id = mt.id ORDER BY m.created_at DESC LIMIT 1) as last_message_at,
                 (SELECT u.nickname FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.thread_id = mt.id ORDER BY m.created_at DESC LIMIT 1) as last_sender_nickname
          FROM message_threads mt

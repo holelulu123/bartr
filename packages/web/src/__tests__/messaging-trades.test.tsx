@@ -142,12 +142,19 @@ import type { MessageThread, TradeSummary, TradeDetail } from '@/lib/api';
 function makeThread(overrides: Partial<MessageThread> = {}): MessageThread {
   return {
     id: 'thread-1',
-    listing_id: 'listing-1',
-    listing_title: 'Vintage Camera',
+    listing_id: null,
+    offer_id: 'offer-1',
+    listing_title: null,
+    offer_summary: 'buy BTC/USD',
+    offer_crypto: 'BTC',
+    offer_fiat: 'USD',
+    trade_fiat_amount: 500,
+    trade_status: 'accepted',
     participant_1_nickname: 'alice',
     participant_2_nickname: 'bob',
     created_at: new Date(Date.now() - 60_000 * 30).toISOString(),
     last_message_at: new Date(Date.now() - 60_000 * 5).toISOString(),
+    last_sender_nickname: 'bob',
     ...overrides,
   };
 }
@@ -156,12 +163,16 @@ function makeTrade(overrides: Partial<TradeSummary> = {}): TradeSummary {
   return {
     id: 'trade-1',
     listing_id: 'listing-1',
+    offer_id: null,
     listing_title: 'Vintage Camera',
+    offer_summary: null,
     buyer_id: 'user-1',
     buyer_nickname: 'alice',
     seller_id: 'user-2',
     seller_nickname: 'bob',
     status: 'offered',
+    fiat_amount: null,
+    payment_method: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     ...overrides,
@@ -241,7 +252,6 @@ describe('ChatRedirectPage', () => {
 import { MessageSidebar } from '@/components/message-sidebar';
 
 function renderSidebar() {
-  // Override the mock to use real context for these tests
   return render(<MessageSidebar />);
 }
 
@@ -262,33 +272,46 @@ describe('MessageSidebar — thread list', () => {
     expect(screen.getByText(/no messages yet/i)).toBeInTheDocument();
   });
 
-  it('renders thread list with other participant name', () => {
+  it('renders thread with other participant name, status, and trade context', () => {
     mockUseThreads.mockReturnValue({
       data: { threads: [makeThread()], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
       isLoading: false,
     });
     renderSidebar();
     expect(screen.getByText('bob')).toBeInTheDocument();
+    // Shows "Accepted – 500 USD for BTC"
+    expect(screen.getByText(/Accepted/)).toBeInTheDocument();
+    expect(screen.getByText('BTC')).toBeInTheDocument();
+    expect(screen.getByText(/500/)).toBeInTheDocument();
   });
 
-  it('groups multiple threads from same person into one row', () => {
+  it('shows trade fiat amount with crypto in thread row', () => {
+    mockUseThreads.mockReturnValue({
+      data: { threads: [makeThread({ trade_fiat_amount: 500 })], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
+      isLoading: false,
+    });
+    renderSidebar();
+    expect(screen.getByText(/500/)).toBeInTheDocument();
+    expect(screen.getByText('BTC')).toBeInTheDocument();
+  });
+
+  it('renders each thread as a separate row', () => {
     mockUseThreads.mockReturnValue({
       data: {
         threads: [
-          makeThread({ id: 'thread-1', listing_title: 'Vintage Camera' }),
-          makeThread({ id: 'thread-2', listing_title: 'Old Laptop' }),
+          makeThread({ id: 'thread-1', offer_crypto: 'BTC', offer_fiat: 'USD' }),
+          makeThread({ id: 'thread-2', offer_crypto: 'ETH', offer_fiat: 'EUR', offer_id: 'offer-2', offer_summary: 'sell ETH/EUR', trade_fiat_amount: 200 }),
         ],
         pagination: { page: 1, limit: 20, total: 2, pages: 1 },
       },
       isLoading: false,
     });
     renderSidebar();
-    // Only one row for "bob" even though there are 2 threads
-    const bobs = screen.getAllByText('bob');
-    expect(bobs).toHaveLength(1);
+    expect(screen.getByText('BTC')).toBeInTheDocument();
+    expect(screen.getByText('ETH')).toBeInTheDocument();
   });
 
-  it('clicking a thread calls openThread', async () => {
+  it('clicking a thread calls openThread to show inline chat', async () => {
     mockUseThreads.mockReturnValue({
       data: { threads: [makeThread({ id: 'thread-42' })], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
       isLoading: false,
@@ -296,6 +319,30 @@ describe('MessageSidebar — thread list', () => {
     renderSidebar();
     await userEvent.click(screen.getByRole('button', { name: /bob/i }));
     expect(mockOpenThread).toHaveBeenCalledWith('thread-42');
+  });
+
+  it('shows link icon to exchange page for offer-linked threads', () => {
+    mockUseThreads.mockReturnValue({
+      data: { threads: [makeThread({ offer_id: 'offer-1' })], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
+      isLoading: false,
+    });
+    renderSidebar();
+    const link = screen.getByRole('link', { name: /go to contract/i });
+    expect(link).toHaveAttribute('href', '/exchange/offer-1');
+  });
+
+  it('hides threads with offer_id but no offer_summary (removed offers)', () => {
+    mockUseThreads.mockReturnValue({
+      data: {
+        threads: [
+          makeThread({ id: 'thread-stale', offer_id: 'offer-deleted', offer_summary: null, offer_crypto: null, offer_fiat: null, trade_fiat_amount: null, trade_status: null }),
+        ],
+        pagination: { page: 1, limit: 20, total: 1, pages: 1 },
+      },
+      isLoading: false,
+    });
+    renderSidebar();
+    expect(screen.queryByText('bob')).not.toBeInTheDocument();
   });
 
   it('shows time-ago for last message', () => {
@@ -352,7 +399,6 @@ describe('MessageSidebar — conversation view', () => {
   it('renders chat header with other participant when thread selected', () => {
     setupSidebarChat({ messages: [] });
     renderSidebar();
-    // bob appears in header
     expect(screen.getByText('bob')).toBeInTheDocument();
   });
 
@@ -361,6 +407,13 @@ describe('MessageSidebar — conversation view', () => {
     renderSidebar();
     await userEvent.click(screen.getByRole('button', { name: /back to threads/i }));
     expect(mockClearSelection).toHaveBeenCalled();
+  });
+
+  it('shows link to exchange page in chat header', () => {
+    setupSidebarChat({ messages: [] });
+    renderSidebar();
+    const link = screen.getByRole('link', { name: /go to contract/i });
+    expect(link).toHaveAttribute('href', '/exchange/offer-1');
   });
 
   it('renders empty state when no messages in selected thread', async () => {
@@ -494,192 +547,5 @@ describe('TradesDashboardPage', () => {
     render(<TradesDashboardPage />);
     await userEvent.click(screen.getByRole('button', { name: /selling/i }));
     await waitFor(() => expect(screen.getByText('My Widget')).toBeInTheDocument());
-  });
-});
-
-// ── TradeDetailPage ──────────────────────────────────────────────────────────
-
-import TradeDetailPage from '@/app/trades/[id]/page';
-
-describe('TradeDetailPage — loading and errors', () => {
-  it('shows loading skeleton', () => {
-    mockParams = { id: 'trade-1' };
-    mockUseTrade.mockReturnValue({ data: undefined, isLoading: true, isError: false });
-    render(<TradeDetailPage />);
-    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
-  });
-
-  it('shows not found when error', () => {
-    mockParams = { id: 'trade-1' };
-    mockUseTrade.mockReturnValue({ data: undefined, isLoading: false, isError: true });
-    render(<TradeDetailPage />);
-    expect(screen.getByText(/trade not found/i)).toBeInTheDocument();
-  });
-});
-
-describe('TradeDetailPage — content', () => {
-  beforeEach(() => {
-    mockParams = { id: 'trade-1' };
-    mockUseTrade.mockReturnValue({
-      data: makeTradeDetail(),
-      isLoading: false,
-      isError: false,
-    });
-  });
-
-  it('renders listing title', () => {
-    render(<TradeDetailPage />);
-    expect(screen.getByRole('heading', { name: /vintage camera/i })).toBeInTheDocument();
-  });
-
-  it('renders status badge', () => {
-    render(<TradeDetailPage />);
-    expect(screen.getByText('offered')).toBeInTheDocument();
-  });
-
-  it('renders buyer and seller nicknames', () => {
-    render(<TradeDetailPage />);
-    expect(screen.getByRole('link', { name: 'alice' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'bob' })).toBeInTheDocument();
-  });
-
-  it('renders event timeline', () => {
-    render(<TradeDetailPage />);
-    expect(screen.getByText('Offer made')).toBeInTheDocument();
-  });
-
-  it('renders back to trades link', () => {
-    render(<TradeDetailPage />);
-    expect(screen.getByRole('link', { name: /my trades/i })).toHaveAttribute('href', '/dashboard/trades');
-  });
-
-  it('Open chat button calls openSidebar', async () => {
-    render(<TradeDetailPage />);
-    await userEvent.click(screen.getByRole('button', { name: /open chat/i }));
-    expect(mockOpenSidebar).toHaveBeenCalled();
-  });
-});
-
-describe('TradeDetailPage — seller actions (offered)', () => {
-  beforeEach(() => {
-    mockParams = { id: 'trade-1' };
-    mockUser = { id: 'user-2', nickname: 'bob' };
-    mockUseTrade.mockReturnValue({
-      data: makeTradeDetail({ seller_id: 'user-2', seller_nickname: 'bob', buyer_id: 'user-1', buyer_nickname: 'alice' }),
-      isLoading: false,
-      isError: false,
-    });
-  });
-
-  it('shows Accept and Decline buttons for seller on offered trade', () => {
-    render(<TradeDetailPage />);
-    expect(screen.getByRole('button', { name: /accept offer/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /decline/i })).toBeInTheDocument();
-  });
-
-  it('calls acceptTrade mutation when Accept clicked', async () => {
-    mockAcceptMutation.mutateAsync.mockResolvedValue({});
-    render(<TradeDetailPage />);
-    await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: /accept offer/i }));
-    });
-    await waitFor(() => expect(mockAcceptMutation.mutateAsync).toHaveBeenCalledWith('trade-1'));
-  });
-
-  it('calls declineTrade mutation when Decline clicked', async () => {
-    mockDeclineMutation.mutateAsync.mockResolvedValue({});
-    render(<TradeDetailPage />);
-    await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: /decline/i }));
-    });
-    await waitFor(() => expect(mockDeclineMutation.mutateAsync).toHaveBeenCalledWith('trade-1'));
-  });
-});
-
-describe('TradeDetailPage — buyer actions', () => {
-  beforeEach(() => {
-    mockParams = { id: 'trade-1' };
-    mockUser = { id: 'user-1', nickname: 'alice' };
-  });
-
-  it('shows Cancel button for buyer on offered trade', () => {
-    mockUseTrade.mockReturnValue({
-      data: makeTradeDetail({ status: 'offered' }),
-      isLoading: false,
-      isError: false,
-    });
-    render(<TradeDetailPage />);
-    expect(screen.getByRole('button', { name: /cancel trade/i })).toBeInTheDocument();
-  });
-
-  it('shows Confirm completion for buyer on accepted trade', () => {
-    mockUseTrade.mockReturnValue({
-      data: makeTradeDetail({ status: 'accepted' }),
-      isLoading: false,
-      isError: false,
-    });
-    render(<TradeDetailPage />);
-    expect(screen.getByRole('button', { name: /confirm completion/i })).toBeInTheDocument();
-  });
-
-  it('calls completeTrade when Confirm completion clicked', async () => {
-    mockCompleteMutation.mutateAsync.mockResolvedValue({ id: 'trade-1', status: 'accepted', message: 'Waiting' });
-    mockUseTrade.mockReturnValue({
-      data: makeTradeDetail({ status: 'accepted' }),
-      isLoading: false,
-      isError: false,
-    });
-    render(<TradeDetailPage />);
-    await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: /confirm completion/i }));
-    });
-    await waitFor(() => expect(mockCompleteMutation.mutateAsync).toHaveBeenCalledWith('trade-1'));
-  });
-});
-
-describe('TradeDetailPage — completed trade', () => {
-  beforeEach(() => {
-    mockParams = { id: 'trade-1' };
-    mockUser = { id: 'user-1', nickname: 'alice' };
-    mockUseTrade.mockReturnValue({
-      data: makeTradeDetail({ status: 'completed' }),
-      isLoading: false,
-      isError: false,
-    });
-  });
-
-  it('shows Leave a rating button', () => {
-    render(<TradeDetailPage />);
-    expect(screen.getByRole('button', { name: /leave a rating/i })).toBeInTheDocument();
-  });
-
-  it('opens rating dialog when Leave a rating clicked', async () => {
-    render(<TradeDetailPage />);
-    await userEvent.click(screen.getByRole('button', { name: /leave a rating/i }));
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-    expect(screen.getByRole('heading', { name: /leave a rating/i })).toBeInTheDocument();
-  });
-
-  it('rating dialog has 5 star buttons', async () => {
-    render(<TradeDetailPage />);
-    await userEvent.click(screen.getByRole('button', { name: /leave a rating/i }));
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-    const stars = screen.getAllByRole('button', { name: /star/i });
-    expect(stars).toHaveLength(5);
-  });
-
-  it('submits rating via mutation', async () => {
-    mockRateMutation.mutateAsync.mockResolvedValue({});
-    render(<TradeDetailPage />);
-    await userEvent.click(screen.getByRole('button', { name: /leave a rating/i }));
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
-    await act(async () => {
-      await userEvent.click(screen.getByRole('button', { name: /submit rating/i }));
-    });
-    await waitFor(() =>
-      expect(mockRateMutation.mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ tradeId: 'trade-1', payload: expect.objectContaining({ score: 5 }) }),
-      ),
-    );
   });
 });

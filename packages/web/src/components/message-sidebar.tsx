@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, MessageSquare, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, MessageSquare, X } from 'lucide-react';
 import { useMessageSidebar } from '@/contexts/message-sidebar-context';
 import { useThreads, useCreateThread } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
@@ -19,6 +19,15 @@ import { messages as messagesApi, users as usersApi } from '@/lib/api';
 import { SETTLEMENT_METHOD_LABELS } from '@bartr/shared';
 import type { SettlementMethod } from '@bartr/shared';
 import type { MessageThread } from '@/lib/api';
+
+const CRYPTO_COLORS: Record<string, string> = {
+  BTC: 'text-orange-500',
+  ETH: 'text-indigo-400',
+  SOL: 'text-fuchsia-500',
+  XRP: 'text-slate-400',
+  USDT: 'text-emerald-500',
+  USDC: 'text-blue-400',
+};
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -49,41 +58,34 @@ function InboxSkeleton() {
   );
 }
 
-/** Group threads by the other participant nickname. Returns one entry per person sorted by most recent activity. */
-function groupByPerson(threads: MessageThread[], myNickname: string) {
-  const map = new Map<string, { nickname: string; threads: MessageThread[]; lastActivity: string; hasUnread: boolean }>();
-
-  for (const t of threads) {
-    const other = t.participant_1_nickname === myNickname ? t.participant_2_nickname : t.participant_1_nickname;
-    const entry = map.get(other);
-    const activity = t.last_message_at ?? t.created_at;
-    const unread = isThreadUnread(t, myNickname);
-
-    if (entry) {
-      entry.threads.push(t);
-      if (activity > entry.lastActivity) entry.lastActivity = activity;
-      if (unread) entry.hasUnread = true;
-    } else {
-      map.set(other, { nickname: other, threads: [t], lastActivity: activity, hasUnread: unread });
-    }
-  }
-
-  return [...map.values()].sort((a, b) => (a.lastActivity > b.lastActivity ? -1 : 1));
-}
-
-function PersonRow({
-  nickname,
-  lastActivity,
+function ThreadRow({
+  thread,
+  myNickname,
   unread,
   selected,
   onSelect,
 }: {
-  nickname: string;
-  lastActivity: string;
+  thread: MessageThread;
+  myNickname: string;
   unread: boolean;
   selected: boolean;
   onSelect: () => void;
 }) {
+  const otherNickname = thread.participant_1_nickname === myNickname
+    ? thread.participant_2_nickname
+    : thread.participant_1_nickname;
+  const activity = thread.last_message_at ?? thread.created_at;
+  const linkHref = thread.offer_id ? `/exchange/${thread.offer_id}` : null;
+
+  const crypto = thread.offer_crypto;
+  const fiat = thread.offer_fiat;
+  const tradeFiatAmount = thread.trade_fiat_amount ? Number(thread.trade_fiat_amount) : null;
+  const tradeStatus = thread.trade_status;
+
+  // Hide threads with no offer_summary (deleted/removed offers)
+  const hasContext = !!(thread.offer_summary || thread.listing_title);
+  if (!hasContext && thread.offer_id) return null;
+
   return (
     <button
       type="button"
@@ -98,27 +100,61 @@ function PersonRow({
       )}
     >
       <div className="relative shrink-0">
-        <UserAvatar nickname={nickname} size={32} />
+        <UserAvatar nickname={otherNickname} size={32} />
         {unread && (
           <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-orange-500 border-2 border-background" />
         )}
       </div>
 
       <div className="flex-1 min-w-0">
-        <span className={cn('text-sm truncate block', unread ? 'font-semibold' : 'font-medium')}>
-          {nickname}
+        <span className="flex items-center gap-1.5 truncate">
+          <span className={cn('text-sm', unread ? 'font-semibold' : 'font-medium')}>
+            {otherNickname}
+          </span>
+          {tradeStatus && tradeStatus !== 'offered' && (
+            <span className={cn(
+              'text-[11px] font-semibold',
+              tradeStatus === 'accepted' ? 'text-green-500' : tradeStatus === 'completed' ? 'text-blue-500' : tradeStatus === 'declined' ? 'text-red-500' : 'text-muted-foreground',
+            )}>
+              {tradeStatus === 'accepted' ? 'Accepted' : tradeStatus === 'completed' ? 'Completed' : tradeStatus === 'declined' ? 'Declined' : ''}
+            </span>
+          )}
+        </span>
+        <span className="text-sm truncate block leading-tight">
+          {crypto && fiat ? (
+            tradeFiatAmount ? (
+              <span className="text-muted-foreground">{fmtAmount(tradeFiatAmount)} {fiat} for {crypto}</span>
+            ) : (
+              <span className="text-muted-foreground">{crypto}/{fiat}</span>
+            )
+          ) : thread.listing_title ? (
+            <span className="text-muted-foreground">{thread.listing_title}</span>
+          ) : null}
         </span>
       </div>
 
-      <span className="text-xs text-muted-foreground shrink-0">
-        {timeAgo(lastActivity)}
-      </span>
+      <div className="flex items-center gap-2 shrink-0">
+        <span className="text-xs text-muted-foreground">
+          {timeAgo(activity)}
+        </span>
+        {linkHref && (
+          <Link
+            href={linkHref}
+            onClick={(e) => e.stopPropagation()}
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+            aria-label="Go to contract"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Link>
+        )}
+      </div>
     </button>
   );
 }
 
-function SidebarChatHeader({ nickname, onBack, onClose }: {
+function SidebarChatHeader({ nickname, offerId, onBack, onClose }: {
   nickname: string;
+  offerId: string | null;
   onBack: () => void;
   onClose: () => void;
 }) {
@@ -138,6 +174,15 @@ function SidebarChatHeader({ nickname, onBack, onClose }: {
           {nickname}
         </Link>
       </div>
+      {offerId && (
+        <Link
+          href={`/exchange/${offerId}`}
+          className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+          aria-label="Go to contract"
+        >
+          <ExternalLink className="h-4 w-4" />
+        </Link>
+      )}
       <button
         type="button"
         onClick={onClose}
@@ -162,40 +207,32 @@ function SidebarContent() {
 
   const myNickname = user?.nickname ?? '';
 
-  // Group threads by person
-  const personGroups = useMemo(() => groupByPerson(threads, myNickname), [threads, myNickname]);
+  // Sort threads by most recent activity
+  const sortedThreads = useMemo(() => {
+    return [...threads].sort((a, b) => {
+      const aTime = a.last_message_at ?? a.created_at;
+      const bTime = b.last_message_at ?? b.created_at;
+      return bTime > aTime ? -1 : bTime < aTime ? 1 : 0;
+    });
+  }, [threads]);
 
-  // Resolve selectedThreadId to a nickname (for thread-based selection from redirects)
-  const selectedFromThread = selectedThreadId
+  // Find selected thread
+  const activeThread = selectedThreadId
     ? threads.find((t) => t.id === selectedThreadId)
     : null;
-  const resolvedNickname = selectedFromThread
-    ? (selectedFromThread.participant_1_nickname === myNickname
-      ? selectedFromThread.participant_2_nickname
-      : selectedFromThread.participant_1_nickname)
-    : null;
 
-  // Pending contact nickname
-  const activeNickname = resolvedNickname ?? pendingContact?.nickname ?? null;
+  const activeNickname = activeThread
+    ? (activeThread.participant_1_nickname === myNickname
+      ? activeThread.participant_2_nickname
+      : activeThread.participant_1_nickname)
+    : pendingContact?.nickname ?? null;
 
-  // Find the most recent thread for the active person (used for ChatPanel)
-  const activeGroup = activeNickname ? personGroups.find((g) => g.nickname === activeNickname) : null;
-  const activeThread = activeGroup
-    ? activeGroup.threads.sort((a, b) => {
-        const aTime = a.last_message_at ?? a.created_at;
-        const bTime = b.last_message_at ?? b.created_at;
-        return bTime > aTime ? 1 : -1;
-      })[0]
-    : null;
-
-  // Mark all threads for this person as read when selected
+  // Mark thread as read when selected
   useEffect(() => {
-    if (activeGroup) {
-      for (const t of activeGroup.threads) {
-        markThreadRead(t.id, t.last_message_at);
-      }
+    if (activeThread) {
+      markThreadRead(activeThread.id, activeThread.last_message_at);
     }
-  }, [activeNickname, activeGroup, markThreadRead]);
+  }, [activeThread, markThreadRead]);
 
   // Handle pendingContact: find or create thread
   useEffect(() => {
@@ -203,7 +240,6 @@ function SidebarContent() {
     if (pendingContact.nickname === user.nickname) return;
 
     if (!isLoading && data) {
-      // If there's already a thread with this person, just open it
       const existing = threads.find(
         (t) =>
           t.participant_1_nickname === pendingContact.nickname ||
@@ -231,18 +267,9 @@ function SidebarContent() {
     }
   }, [pendingContact, user, isLoading, data, threads, openThread, createThread]);
 
-  function selectPerson(nickname: string, group: { threads: MessageThread[] }) {
-    // Mark all threads for this person as read
-    for (const t of group.threads) {
-      markThreadRead(t.id, t.last_message_at);
-    }
-    // Open the most recent thread
-    const mostRecent = group.threads.sort((a, b) => {
-      const aTime = a.last_message_at ?? a.created_at;
-      const bTime = b.last_message_at ?? b.created_at;
-      return bTime > aTime ? 1 : -1;
-    })[0];
-    openThread(mostRecent.id);
+  function selectThread(thread: MessageThread) {
+    markThreadRead(thread.id, thread.last_message_at);
+    openThread(thread.id);
   }
 
   // Trade action for offer-linked threads (accept/decline in chat)
@@ -250,12 +277,11 @@ function SidebarContent() {
   const { data: tradesData } = useTradesForOffer(offerId);
   const acceptTrade = useAcceptTrade();
   const declineTrade = useDeclineTrade();
-  const createThreadForDecline = useCreateThread();
+  const createThreadForAction = useCreateThread();
   const { encrypt } = useCrypto();
 
   const sidebarTradeAction: TradeAction | undefined = useMemo(() => {
     if (!tradesData || !activeNickname || !offerId || !user) return undefined;
-    // Find the trade where the other person is the buyer and status is 'offered'
     const trade = tradesData.trades.find(
       (t) => t.buyer_nickname === activeNickname && t.seller_id === user.id,
     );
@@ -266,7 +292,6 @@ function SidebarContent() {
       isPending: acceptTrade.isPending || declineTrade.isPending,
       onAccept: async (tradeId: string) => {
         await acceptTrade.mutateAsync(tradeId);
-        // Send system accept message
         const methodLabel = trade.payment_method
           ? (SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method)
           : '';
@@ -277,7 +302,7 @@ function SidebarContent() {
           : '';
         const autoMsg = `[SYSTEM] Accepted: ${details}`;
         try {
-          const thread = await createThreadForDecline.mutateAsync({
+          const thread = await createThreadForAction.mutateAsync({
             recipient_nickname: activeNickname,
             offer_id: offerId,
           });
@@ -288,11 +313,9 @@ function SidebarContent() {
       },
       onDecline: async (tradeId: string) => {
         await declineTrade.mutateAsync(tradeId);
-        // Send system decline message
         const methodLabel = trade.payment_method
           ? (SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method)
           : '';
-        // Parse "BUY BTC/USD" → crypto=BTC, fiat=USD
         const parts = (trade.offer_summary ?? '').split(' ');
         const [cryptoCurrency, fiatCurrency] = (parts[1] ?? '/').split('/');
         const details = trade.fiat_amount
@@ -300,7 +323,7 @@ function SidebarContent() {
           : '';
         const autoMsg = `[SYSTEM] Declined: ${details}`;
         try {
-          const thread = await createThreadForDecline.mutateAsync({
+          const thread = await createThreadForAction.mutateAsync({
             recipient_nickname: activeNickname,
             offer_id: offerId,
           });
@@ -316,7 +339,6 @@ function SidebarContent() {
   // Determine if chat is locked (offer-linked thread with non-accepted trade)
   const sidebarChatLocked = useMemo(() => {
     if (!tradesData || !offerId || !activeNickname || !user) return false;
-    // Find the trade for this offer between the two participants
     const trade = tradesData.trades.find(
       (t) =>
         (t.buyer_nickname === activeNickname && t.seller_id === user.id) ||
@@ -336,7 +358,7 @@ function SidebarContent() {
     if (!trade) return '';
     if (trade.status === 'declined') return 'This offer was declined.';
     if (trade.seller_id === user.id) return 'Accept the offer to start chatting.';
-    return 'Waiting for the seller to accept your offer…';
+    return 'Waiting for the seller to accept your offer\u2026';
   }, [tradesData, offerId, activeNickname, user?.id]);
 
   // Conversation view
@@ -345,6 +367,7 @@ function SidebarContent() {
       <div className="flex flex-col h-full">
         <SidebarChatHeader
           nickname={activeNickname}
+          offerId={activeThread.offer_id}
           onBack={clearSelection}
           onClose={closeSidebar}
         />
@@ -361,7 +384,7 @@ function SidebarContent() {
     );
   }
 
-  // Thread list view (grouped by person)
+  // Thread list view
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
@@ -379,7 +402,7 @@ function SidebarContent() {
       <div className="flex-1 overflow-y-auto p-1">
         {isLoading || pendingContact ? (
           <InboxSkeleton />
-        ) : personGroups.length === 0 ? (
+        ) : sortedThreads.length === 0 ? (
           <div className="p-10 text-center space-y-1.5">
             <MessageSquare className="h-6 w-6 mx-auto text-muted-foreground/40" />
             <p className="text-sm font-medium">No messages yet</p>
@@ -389,14 +412,14 @@ function SidebarContent() {
           </div>
         ) : (
           <div className="space-y-0.5">
-            {personGroups.map((group) => (
-              <PersonRow
-                key={group.nickname}
-                nickname={group.nickname}
-                lastActivity={group.lastActivity}
-                unread={group.hasUnread}
-                selected={activeNickname === group.nickname}
-                onSelect={() => selectPerson(group.nickname, group)}
+            {sortedThreads.map((thread) => (
+              <ThreadRow
+                key={thread.id}
+                thread={thread}
+                myNickname={myNickname}
+                unread={isThreadUnread(thread, myNickname)}
+                selected={selectedThreadId === thread.id}
+                onSelect={() => selectThread(thread)}
               />
             ))}
           </div>

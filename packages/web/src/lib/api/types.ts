@@ -237,6 +237,10 @@ export interface MessageThread {
   participant_2_nickname: string;
   listing_title: string | null;
   offer_summary: string | null;
+  offer_crypto: string | null;
+  offer_fiat: string | null;
+  trade_fiat_amount: number | null;
+  trade_status: string | null;
   last_message_at: string | null;
   last_sender_nickname: string | null;
 }

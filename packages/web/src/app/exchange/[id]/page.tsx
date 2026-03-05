@@ -992,20 +992,7 @@ export default function OfferDetailPage() {
                   </div>
 
                   {trades.length === 0 ? (
-                    /* No proposals — safety warnings */
-                    <div className="p-6 space-y-4">
-                      <div className="flex items-start gap-3 text-sm text-muted-foreground">
-                        <ShieldAlert className="h-5 w-5 shrink-0 text-yellow-500 mt-0.5" />
-                        <div className="space-y-2">
-                          <p className="font-medium text-foreground">Safety reminders</p>
-                          <ul className="space-y-1.5 text-xs list-disc list-inside">
-                            <li>Always verify payment before releasing crypto</li>
-                            <li>Never share your private keys or recovery phrase</li>
-                            <li>Use the messaging system for all trade communication</li>
-                            <li>Report suspicious activity immediately</li>
-                          </ul>
-                        </div>
-                      </div>
+                    <div className="p-6">
                       <p className="text-xs text-muted-foreground text-center">No proposals yet</p>
                     </div>
                   ) : selectedTrade ? (
@@ -1037,6 +1024,22 @@ export default function OfferDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Safety reminders — always visible for authenticated users */}
+            {isAuthenticated && isUnlocked && (
+              <div className="mt-3 flex items-start gap-3 text-sm text-muted-foreground rounded-xl border border-border bg-card p-4">
+                <ShieldAlert className="h-5 w-5 shrink-0 text-yellow-500 mt-0.5" />
+                <div className="space-y-2">
+                  <p className="font-medium text-foreground text-xs">Safety reminders</p>
+                  <ul className="space-y-1.5 text-xs list-disc list-inside">
+                    <li>Always verify payment before releasing crypto</li>
+                    <li>Never share your private keys or recovery phrase</li>
+                    <li>Use the messaging system for all trade communication</li>
+                    <li>Report suspicious activity immediately</li>
+                  </ul>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
