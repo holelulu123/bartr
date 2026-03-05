@@ -496,7 +496,7 @@ function MakeOfferForm({
                       if (v === '' || /^[1-9]\d{0,5}(\.\d{0,2})?$/.test(v)) setFiatAmount(v);
                     }}
                     className={cn(
-                      'w-32 h-10 text-sm',
+                      'w-40 h-11 text-base',
                       isOutOfRange && 'border-destructive ring-1 ring-destructive/30 focus-visible:ring-destructive/50',
                     )}
                   />
@@ -928,8 +928,8 @@ export default function OfferDetailPage() {
             />
           )}
 
-          {/* Safety reminders — shown for authenticated users in left panel */}
-          {isAuthenticated && isUnlocked && (
+          {/* Safety reminders — shown for owner or buyer with active trade (not during initial offer) */}
+          {isAuthenticated && isUnlocked && (isOwner || myActiveTrade) && (
             <div className="flex items-start gap-4 rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-5">
               <ShieldAlert className="h-6 w-6 shrink-0 text-yellow-500 mt-0.5" />
               <div className="space-y-2.5">
@@ -940,6 +940,9 @@ export default function OfferDetailPage() {
                   <li>Use the messaging system for all trade communication</li>
                   <li>Report suspicious activity immediately</li>
                 </ul>
+                <Link href="/tips" className="text-sm text-primary hover:underline font-medium">
+                  Read more safety tips
+                </Link>
               </div>
             </div>
           )}

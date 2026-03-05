@@ -212,7 +212,7 @@ function SidebarContent() {
     return [...threads].sort((a, b) => {
       const aTime = a.last_message_at ?? a.created_at;
       const bTime = b.last_message_at ?? b.created_at;
-      return bTime > aTime ? -1 : bTime < aTime ? 1 : 0;
+      return bTime > aTime ? 1 : bTime < aTime ? -1 : 0;
     });
   }, [threads]);
 
