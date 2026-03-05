@@ -54,6 +54,17 @@ export function rateTrade(tradeId: string, payload: RateTradePayload): Promise<R
   return post<Rating>(`/trades/${tradeId}/rate`, payload);
 }
 
+export interface TradeCompletions {
+  buyer_confirmed: boolean;
+  seller_confirmed: boolean;
+  accepted_at: string;
+  status: string;
+}
+
+export function getTradeCompletions(tradeId: string): Promise<TradeCompletions> {
+  return get<TradeCompletions>(`/trades/${tradeId}/completions`);
+}
+
 export function checkPairRating(userId: string): Promise<{ rated: boolean; rating?: Rating }> {
   return get<{ rated: boolean; rating?: Rating }>(`/ratings/check/${userId}`);
 }

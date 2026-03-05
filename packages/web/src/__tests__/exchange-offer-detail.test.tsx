@@ -62,6 +62,8 @@ vi.mock('@/hooks/use-trades', () => ({
   useTradesForOffer: () => mockTradesForOffer,
   useAcceptTrade: () => mockAcceptTradeMutation,
   useDeclineTrade: () => mockDeclineTradeMutation,
+  useCompleteTrade: () => ({ mutate: vi.fn(), isPending: false }),
+  useTradeCompletions: () => ({ data: null, isLoading: false }),
   useRateTrade: () => mockRateTradeMutation,
   useCheckPairRating: () => ({ data: { rated: false }, isLoading: false }),
 }));

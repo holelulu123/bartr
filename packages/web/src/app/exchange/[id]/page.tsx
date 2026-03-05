@@ -17,6 +17,7 @@ import { useCreateThread } from '@/hooks/use-messages';
 import { messages as messagesApi, users as usersApi } from '@/lib/api';
 import { CoinIcon } from '@/components/crypto-icons';
 import { ReputationBadge } from '@/components/reputation-badge';
+import { TradeCompletionStrip } from '@/components/trade-completion-strip';
 import { HalfStarPicker } from '@/components/half-star-picker';
 import { getCountryFlag, getCountryName } from '@/lib/countries';
 import { Button } from '@/components/ui/button';
@@ -135,36 +136,19 @@ function TradeProfileCard({ nickname }: { nickname: string }) {
 
 // ── Rating Section ──────────────────────────────────────────────────────────
 
-function RatingSection({ tradeId, tradeStatus, tradeUpdatedAt, counterpartyId, counterpartyNickname }: {
+function RatingSection({ tradeId, tradeStatus, counterpartyId, counterpartyNickname }: {
   tradeId: string;
   tradeStatus: string;
-  tradeUpdatedAt: string;
   counterpartyId: string;
   counterpartyNickname: string;
 }) {
   const [score, setScore] = useState(2.5);
   const [comment, setComment] = useState('');
-  const [now, setNow] = useState(() => Date.now());
   const rateMutation = useRateTrade();
   const { data: pairCheck } = useCheckPairRating(counterpartyId);
 
   const isCompleted = tradeStatus === 'completed';
-  const unlockTime = isCompleted ? new Date(tradeUpdatedAt).getTime() + 2 * 60 * 60 * 1000 : 0;
-  const isLocked = isCompleted && now < unlockTime;
   const alreadyRated = pairCheck?.rated === true;
-
-  // Tick every minute while locked so the countdown updates
-  useEffect(() => {
-    if (!isLocked) return;
-    const interval = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(interval);
-  }, [isLocked]);
-
-  const remainingMs = unlockTime - now;
-  const remainingMin = Math.ceil(remainingMs / 60_000);
-  const remainingLabel = remainingMin >= 60
-    ? `${Math.floor(remainingMin / 60)}h ${remainingMin % 60}m`
-    : `${remainingMin}m`;
 
   async function handleSubmit() {
     await rateMutation.mutateAsync({
@@ -173,14 +157,12 @@ function RatingSection({ tradeId, tradeStatus, tradeUpdatedAt, counterpartyId, c
     });
   }
 
-  const disabled = !isCompleted || isLocked || alreadyRated;
+  const disabled = !isCompleted || alreadyRated;
 
   // Status line below heading
   let statusText = '';
   if (!isCompleted) {
     statusText = 'Complete the trade to leave a review';
-  } else if (isLocked) {
-    statusText = `Review unlocks in ${remainingLabel}`;
   } else if (alreadyRated) {
     statusText = 'You have already reviewed this user';
   }
@@ -582,11 +564,27 @@ function SelectedTradeDetail({
   onTradeUpdated: () => void;
   hideBackButton?: boolean;
 }) {
+  const { user: currentUser } = useAuth();
   const acceptTrade = useAcceptTrade();
   const declineTrade = useDeclineTrade();
   const createThread = useCreateThread();
   const { encrypt } = useCrypto();
   const { openContact } = useMessageSidebar();
+
+  async function handleCompleted() {
+    const myNickname = currentUser?.nickname ?? '';
+    const autoMsg = `[SYSTEM] Completed: ${myNickname}`;
+    try {
+      const thread = await createThread.mutateAsync({
+        recipient_nickname: trade.buyer_nickname,
+        offer_id: offerId,
+      });
+      const { public_key } = await usersApi.getUserPublicKey(trade.buyer_nickname);
+      const encrypted = await encrypt(autoMsg, public_key);
+      await messagesApi.sendMessage(thread.id, encrypted);
+    } catch { /* non-critical */ }
+    onTradeUpdated();
+  }
 
   async function handleAccept() {
     await acceptTrade.mutateAsync(trade.id);
@@ -693,29 +691,39 @@ function SelectedTradeDetail({
           </div>
         )}
         {(trade.status === 'accepted' || trade.status === 'completed') && (
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 h-8 text-xs"
-              onClick={() => openContact(trade.buyer_nickname)}
-            >
-              <MessageSquare className="h-3 w-3 mr-1" />
-              Message
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="flex-1 h-8 text-xs"
-              onClick={() => window.open(`/report?user=${trade.buyer_nickname}&trade=${trade.id}`, '_blank')}
-            >
-              <Megaphone className="h-3 w-3 mr-1" />
-              Report
-            </Button>
-          </div>
+          <>
+            <TradeCompletionStrip
+              tradeId={trade.id}
+              tradeStatus={trade.status}
+              buyerId={trade.buyer_id}
+              sellerId={trade.seller_id}
+              cryptoCurrency={cryptoCurrency}
+              onCompleted={handleCompleted}
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 h-8 text-xs"
+                onClick={() => openContact(trade.buyer_nickname)}
+              >
+                <MessageSquare className="h-3 w-3 mr-1" />
+                Message
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="flex-1 h-8 text-xs"
+                onClick={() => window.open(`/report?user=${trade.buyer_nickname}&trade=${trade.id}`, '_blank')}
+              >
+                <Megaphone className="h-3 w-3 mr-1" />
+                Report
+              </Button>
+            </div>
+          </>
         )}
       </div>
-      <RatingSection tradeId={trade.id} tradeStatus={trade.status} tradeUpdatedAt={trade.updated_at} counterpartyId={trade.buyer_id} counterpartyNickname={trade.buyer_nickname} />
+      <RatingSection tradeId={trade.id} tradeStatus={trade.status} counterpartyId={trade.buyer_id} counterpartyNickname={trade.buyer_nickname} />
     </div>
   );
 }
@@ -726,8 +734,9 @@ export default function OfferDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
-  const { isUnlocked } = useCrypto();
+  const { isUnlocked, encrypt } = useCrypto();
   const { openContact } = useMessageSidebar();
+  const createThreadForComplete = useCreateThread();
 
   const { data: offer, isLoading, isError } = useOffer(id);
   const { data: sellerProfile } = useUser(offer?.seller_nickname ?? '');
@@ -757,6 +766,22 @@ export default function OfferDetailPage() {
     if (!tradesData || !selectedTradeId) return null;
     return tradesData.trades.find((t) => t.id === selectedTradeId) ?? null;
   }, [tradesData, selectedTradeId]);
+
+  // Buyer completion handler — sends system message to seller
+  async function handleBuyerCompleted() {
+    if (!offer || !myActiveTrade || !user) return;
+    const autoMsg = `[SYSTEM] Completed: ${user.nickname}`;
+    try {
+      const thread = await createThreadForComplete.mutateAsync({
+        recipient_nickname: offer.seller_nickname,
+        offer_id: offer.id,
+      });
+      const { public_key } = await usersApi.getUserPublicKey(offer.seller_nickname);
+      const encrypted = await encrypt(autoMsg, public_key);
+      await messagesApi.sendMessage(thread.id, encrypted);
+    } catch { /* non-critical */ }
+    refetchTrades();
+  }
 
   if (isLoading) return <OfferDetailSkeleton />;
 
@@ -1069,29 +1094,39 @@ export default function OfferDetailPage() {
                       </div>
                     </div>
                     {(myActiveTrade.status === 'accepted' || myActiveTrade.status === 'completed') && (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 h-8 text-xs"
-                          onClick={() => openContact(offer.seller_nickname)}
-                        >
-                          <MessageSquare className="h-3 w-3 mr-1" />
-                          Message
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="flex-1 h-8 text-xs"
-                          onClick={() => window.open(`/report?user=${offer.seller_nickname}&trade=${myActiveTrade.id}`, '_blank')}
-                        >
-                          <Megaphone className="h-3 w-3 mr-1" />
-                          Report
-                        </Button>
-                      </div>
+                      <>
+                        <TradeCompletionStrip
+                          tradeId={myActiveTrade.id}
+                          tradeStatus={myActiveTrade.status}
+                          buyerId={myActiveTrade.buyer_id}
+                          sellerId={myActiveTrade.seller_id}
+                          cryptoCurrency={offer.crypto_currency}
+                          onCompleted={handleBuyerCompleted}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 h-8 text-xs"
+                            onClick={() => openContact(offer.seller_nickname)}
+                          >
+                            <MessageSquare className="h-3 w-3 mr-1" />
+                            Message
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1 h-8 text-xs"
+                            onClick={() => window.open(`/report?user=${offer.seller_nickname}&trade=${myActiveTrade.id}`, '_blank')}
+                          >
+                            <Megaphone className="h-3 w-3 mr-1" />
+                            Report
+                          </Button>
+                        </div>
+                      </>
                     )}
                   </div>
-                  <RatingSection tradeId={myActiveTrade.id} tradeStatus={myActiveTrade.status} tradeUpdatedAt={myActiveTrade.updated_at} counterpartyId={offer.user_id} counterpartyNickname={offer.seller_nickname} />
+                  <RatingSection tradeId={myActiveTrade.id} tradeStatus={myActiveTrade.status} counterpartyId={offer.user_id} counterpartyNickname={offer.seller_nickname} />
                 </>
               )}
 

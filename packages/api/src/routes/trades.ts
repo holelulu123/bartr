@@ -452,4 +452,39 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  // Get completion confirmation status for a trade
+  fastify.get<{ Params: { id: string } }>(
+    '/trades/:id/completions',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const userId = request.user!.sub;
+      const { id } = request.params;
+
+      const trade = await fastify.pg.query(
+        'SELECT buyer_id, seller_id, status, updated_at FROM trades WHERE id = $1',
+        [id],
+      );
+      if (trade.rows.length === 0) {
+        return reply.status(404).send({ error: 'Trade not found' });
+      }
+      const t = trade.rows[0];
+      if (t.buyer_id !== userId && t.seller_id !== userId) {
+        return reply.status(403).send({ error: 'Not a participant in this trade' });
+      }
+
+      const confirmations = await fastify.pg.query(
+        "SELECT created_by FROM trade_events WHERE trade_id = $1 AND event_type = 'complete_confirmed'",
+        [id],
+      );
+      const confirmedIds = new Set(confirmations.rows.map((r: { created_by: string }) => r.created_by));
+
+      return reply.send({
+        buyer_confirmed: confirmedIds.has(t.buyer_id),
+        seller_confirmed: confirmedIds.has(t.seller_id),
+        accepted_at: t.updated_at,
+        status: t.status,
+      });
+    },
+  );
 }

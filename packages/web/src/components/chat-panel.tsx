@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, AlertCircle, ArrowLeftRight, XCircle, Check, X } from 'lucide-react';
+import { TradeCompletionStrip } from '@/components/trade-completion-strip';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
@@ -80,6 +81,10 @@ function SystemMessage({ msg, isOwn, tradeAction }: { msg: DecryptedMessage; isO
     icon = <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />;
     const details = text.slice('Declined: '.length);
     text = isOwn ? `You declined: ${details}` : `Offer declined: ${details}`;
+  } else if (text.startsWith('Completed: ')) {
+    icon = <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />;
+    const nickname = text.slice('Completed: '.length);
+    text = isOwn ? 'You marked the trade as complete' : `${nickname} marked the trade as complete`;
   }
 
   // Show accept/decline buttons only for the recipient (seller) on an "Offer received" message
@@ -178,6 +183,15 @@ function useSendMessageStable(threadId: string, recipientNickname: string) {
   return useCallback((text: string) => ref.current(text), []);
 }
 
+export interface TradeCompletionInfo {
+  tradeId: string;
+  tradeStatus: string;
+  buyerId: string;
+  sellerId: string;
+  cryptoCurrency: string;
+  onCompleted?: () => void;
+}
+
 export interface ChatPanelProps {
   threadId: string;
   recipientNickname: string;
@@ -187,9 +201,11 @@ export interface ChatPanelProps {
   /** When true, messages are visible but the input is disabled with a hint. */
   chatLocked?: boolean;
   chatLockedMessage?: string;
+  /** Trade completion info — shows completion strip when provided */
+  tradeCompletion?: TradeCompletionInfo;
 }
 
-export function ChatPanel({ threadId, recipientNickname, contextLabel, className, tradeAction, chatLocked, chatLockedMessage }: ChatPanelProps) {
+export function ChatPanel({ threadId, recipientNickname, contextLabel, className, tradeAction, chatLocked, chatLockedMessage, tradeCompletion }: ChatPanelProps) {
   const { user } = useAuth();
   const { decrypt, isUnlocked } = useCrypto();
 
@@ -304,6 +320,19 @@ export function ChatPanel({ threadId, recipientNickname, contextLabel, className
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* Trade completion strip */}
+      {tradeCompletion && (
+        <TradeCompletionStrip
+          tradeId={tradeCompletion.tradeId}
+          tradeStatus={tradeCompletion.tradeStatus}
+          buyerId={tradeCompletion.buyerId}
+          sellerId={tradeCompletion.sellerId}
+          cryptoCurrency={tradeCompletion.cryptoCurrency}
+          compact
+          onCompleted={tradeCompletion.onCompleted}
+        />
+      )}
 
       {/* Input area */}
       <div className="shrink-0 border-t border-border px-3 py-2.5">

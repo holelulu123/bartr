@@ -11,7 +11,7 @@ import { useUnreadThreads, isThreadUnread } from '@/hooks/use-unread-threads';
 import { useTradesForOffer, useAcceptTrade, useDeclineTrade } from '@/hooks/use-trades';
 import { UserAvatar } from '@/components/user-avatar';
 import { ChatPanel } from '@/components/chat-panel';
-import type { TradeAction } from '@/components/chat-panel';
+import type { TradeAction, TradeCompletionInfo } from '@/components/chat-panel';
 import { CryptoGuard } from '@/components/crypto-guard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, fmtAmount } from '@/lib/utils';
@@ -361,6 +361,39 @@ function SidebarContent() {
     return 'Waiting for the seller to accept your offer\u2026';
   }, [tradesData, offerId, activeNickname, user?.id]);
 
+  // Trade completion info for the chat strip
+  const sidebarTradeCompletion: TradeCompletionInfo | undefined = useMemo(() => {
+    if (!tradesData || !activeNickname || !offerId || !user || !activeThread) return undefined;
+    const trade = tradesData.trades.find(
+      (t) =>
+        (t.buyer_nickname === activeNickname && t.seller_id === user.id) ||
+        (t.buyer_id === user.id && t.seller_nickname === activeNickname),
+    );
+    if (!trade || (trade.status !== 'accepted' && trade.status !== 'completed')) return undefined;
+    // Extract crypto from offer_summary (e.g. "sell BTC/USD" → "BTC")
+    const crypto = activeThread.offer_crypto ?? (trade.offer_summary?.split(' ')[1]?.split('/')[0]) ?? '';
+    return {
+      tradeId: trade.id,
+      tradeStatus: trade.status,
+      buyerId: trade.buyer_id,
+      sellerId: trade.seller_id,
+      cryptoCurrency: crypto,
+      onCompleted: async () => {
+        const autoMsg = `[SYSTEM] Completed: ${user.nickname}`;
+        try {
+          const thread = await createThreadForAction.mutateAsync({
+            recipient_nickname: activeNickname,
+            offer_id: offerId,
+          });
+          const { public_key } = await usersApi.getUserPublicKey(activeNickname);
+          const encrypted = await encrypt(autoMsg, public_key);
+          await messagesApi.sendMessage(thread.id, encrypted);
+        } catch { /* non-critical */ }
+      },
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tradesData, activeNickname, offerId, user?.id, activeThread]);
+
   // Conversation view
   if (activeNickname && activeThread) {
     return (
@@ -379,6 +412,7 @@ function SidebarContent() {
           tradeAction={sidebarTradeAction}
           chatLocked={sidebarChatLocked}
           chatLockedMessage={sidebarLockedMessage}
+          tradeCompletion={sidebarTradeCompletion}
         />
       </div>
     );

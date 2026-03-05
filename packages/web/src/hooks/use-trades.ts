@@ -97,6 +97,7 @@ export function useCompleteTrade() {
     onSuccess: (_, id) => {
       qc.invalidateQueries({ queryKey: tradeKeys.detail(id) });
       qc.invalidateQueries({ queryKey: tradeKeys.lists() });
+      qc.invalidateQueries({ queryKey: ['tradeCompletions', id] });
     },
   });
 }
@@ -110,6 +111,15 @@ export function useRateTrade() {
       qc.invalidateQueries({ queryKey: tradeKeys.detail(tradeId) });
       qc.invalidateQueries({ queryKey: ['pairRating'] });
     },
+  });
+}
+
+export function useTradeCompletions(tradeId: string) {
+  return useQuery({
+    queryKey: ['tradeCompletions', tradeId],
+    queryFn: () => tradesApi.getTradeCompletions(tradeId),
+    enabled: !!tradeId,
+    refetchInterval: 15_000, // poll for partner's confirmation
   });
 }
 
