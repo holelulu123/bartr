@@ -276,8 +276,9 @@ function HealthDashboard() {
           <ServiceCard name="Price Feed" ok={!health?.price_feed.stale} latency_ms={0} />
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard label="Total Users" value={health?.stats.users ?? 0} />
+          <StatCard label="Contracts Created" value={health?.stats.contracts_created ?? 0} />
           <StatCard label="Active Offers" value={health?.stats.active_offers ?? 0} />
           <StatCard label="Trades Today" value={health?.stats.trades_today ?? 0} />
         </div>

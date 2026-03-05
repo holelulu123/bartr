@@ -98,6 +98,7 @@ export interface HealthResponse {
     users: number;
     active_offers: number;
     trades_today: number;
+    contracts_created: number;
   };
 }
 

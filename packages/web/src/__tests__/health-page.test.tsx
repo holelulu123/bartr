@@ -15,7 +15,7 @@ const mockHealth: HealthResponse = {
     minio: { ok: true, latency_ms: 5 },
   },
   price_feed: { last_update: new Date().toISOString(), stale: false },
-  stats: { users: 42, active_offers: 7, trades_today: 3 },
+  stats: { users: 42, active_offers: 7, trades_today: 3, contracts_created: 15 },
 };
 
 const mockSystem: SystemMetrics = {

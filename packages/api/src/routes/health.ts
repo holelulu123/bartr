@@ -50,15 +50,18 @@ export default async function healthRoutes(fastify: FastifyInstance) {
     let users = 0;
     let activeOffers = 0;
     let tradesToday = 0;
+    let contractsCreated = 0;
     try {
-      const [uRes, oRes, tRes] = await Promise.all([
+      const [uRes, oRes, tRes, cRes] = await Promise.all([
         fastify.pg.query('SELECT COUNT(*)::int AS c FROM users'),
         fastify.pg.query("SELECT COUNT(*)::int AS c FROM exchange_offers WHERE status = 'active'"),
         fastify.pg.query("SELECT COUNT(*)::int AS c FROM trades WHERE created_at >= CURRENT_DATE"),
+        fastify.pg.query('SELECT COUNT(*)::int AS c FROM exchange_offers'),
       ]);
       users = uRes.rows[0].c;
       activeOffers = oRes.rows[0].c;
       tradesToday = tRes.rows[0].c;
+      contractsCreated = cRes.rows[0].c;
     } catch { /* ignore */ }
 
     const allOk = dbResult.ok && redisResult.ok;
@@ -75,7 +78,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
         minio: minioResult,
       },
       price_feed: { last_update: lastUpdate, stale },
-      stats: { users, active_offers: activeOffers, trades_today: tradesToday },
+      stats: { users, active_offers: activeOffers, trades_today: tradesToday, contracts_created: contractsCreated },
     };
 
     const statusCode = response.status === 'ok' ? 200 : response.status === 'degraded' ? 200 : 503;
