@@ -279,10 +279,8 @@ describe('MessageSidebar — thread list', () => {
     });
     renderSidebar();
     expect(screen.getByText('bob')).toBeInTheDocument();
-    // Shows "Accepted – 500 USD for BTC"
     expect(screen.getByText(/Accepted/)).toBeInTheDocument();
-    expect(screen.getByText('BTC')).toBeInTheDocument();
-    expect(screen.getByText(/500/)).toBeInTheDocument();
+    expect(screen.getByText(/500.*USD.*for.*BTC/)).toBeInTheDocument();
   });
 
   it('shows trade fiat amount with crypto in thread row', () => {
@@ -291,8 +289,7 @@ describe('MessageSidebar — thread list', () => {
       isLoading: false,
     });
     renderSidebar();
-    expect(screen.getByText(/500/)).toBeInTheDocument();
-    expect(screen.getByText('BTC')).toBeInTheDocument();
+    expect(screen.getByText(/500.*USD.*for.*BTC/)).toBeInTheDocument();
   });
 
   it('renders each thread as a separate row', () => {
@@ -307,8 +304,8 @@ describe('MessageSidebar — thread list', () => {
       isLoading: false,
     });
     renderSidebar();
-    expect(screen.getByText('BTC')).toBeInTheDocument();
-    expect(screen.getByText('ETH')).toBeInTheDocument();
+    expect(screen.getByText(/for BTC/)).toBeInTheDocument();
+    expect(screen.getByText(/for ETH/)).toBeInTheDocument();
   });
 
   it('clicking a thread calls openThread to show inline chat', async () => {

@@ -108,6 +108,15 @@ export function useRateTrade() {
       tradesApi.rateTrade(tradeId, payload),
     onSuccess: (_, { tradeId }) => {
       qc.invalidateQueries({ queryKey: tradeKeys.detail(tradeId) });
+      qc.invalidateQueries({ queryKey: ['pairRating'] });
     },
+  });
+}
+
+export function useCheckPairRating(counterpartyId: string) {
+  return useQuery({
+    queryKey: ['pairRating', counterpartyId],
+    queryFn: () => tradesApi.checkPairRating(counterpartyId),
+    enabled: !!counterpartyId,
   });
 }

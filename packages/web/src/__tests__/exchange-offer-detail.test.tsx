@@ -63,6 +63,7 @@ vi.mock('@/hooks/use-trades', () => ({
   useAcceptTrade: () => mockAcceptTradeMutation,
   useDeclineTrade: () => mockDeclineTradeMutation,
   useRateTrade: () => mockRateTradeMutation,
+  useCheckPairRating: () => ({ data: { rated: false }, isLoading: false }),
 }));
 
 const mockCreateThreadMutation = { mutateAsync: vi.fn().mockResolvedValue({ id: 'thread-1' }), isPending: false };
@@ -316,22 +317,22 @@ describe('OfferDetailPage — authenticated buyer with active trade', () => {
     expect(screen.queryByRole('button', { name: /^make offer$/i })).not.toBeInTheDocument();
   });
 
-  it('shows active trade summary', () => {
+  it('shows safety reminders in left panel', () => {
     render(<OfferDetailPage />);
-    expect(screen.getByText(/your active trade/i)).toBeInTheDocument();
+    expect(screen.getByText(/safety reminders/i)).toBeInTheDocument();
   });
 
   it('shows seller profile card in right panel', () => {
     render(<OfferDetailPage />);
     // TradeProfileCard renders the seller nickname in right panel
     const links = screen.getAllByText('seller_nick');
-    expect(links.length).toBeGreaterThanOrEqual(2); // left panel + right panel profile card
+    expect(links.length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows greyed rating section', () => {
     render(<OfferDetailPage />);
-    expect(screen.getByText(/rate this trade/i)).toBeInTheDocument();
-    expect(screen.getByText(/complete the trade to leave a rating/i)).toBeInTheDocument();
+    expect(screen.getByText(/rate seller_nick/i)).toBeInTheDocument();
+    expect(screen.getByText(/complete the trade to leave a review/i)).toBeInTheDocument();
   });
 });
 

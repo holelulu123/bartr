@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -12,7 +12,7 @@ import { useUser } from '@/hooks/use-users';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
 import { usePrices } from '@/hooks/use-prices';
-import { useCreateExchangeTrade, useTradesForOffer, useAcceptTrade, useDeclineTrade, useRateTrade } from '@/hooks/use-trades';
+import { useCreateExchangeTrade, useTradesForOffer, useAcceptTrade, useDeclineTrade, useRateTrade, useCheckPairRating } from '@/hooks/use-trades';
 import { useCreateThread } from '@/hooks/use-messages';
 import { messages as messagesApi, users as usersApi } from '@/lib/api';
 import { CoinIcon } from '@/components/crypto-icons';
@@ -133,38 +133,80 @@ function TradeProfileCard({ nickname }: { nickname: string }) {
 
 // ── Rating Section ──────────────────────────────────────────────────────────
 
-function RatingSection({ tradeId, tradeStatus }: { tradeId: string; tradeStatus: string }) {
+function RatingSection({ tradeId, tradeStatus, tradeUpdatedAt, counterpartyId, counterpartyNickname }: {
+  tradeId: string;
+  tradeStatus: string;
+  tradeUpdatedAt: string;
+  counterpartyId: string;
+  counterpartyNickname: string;
+}) {
   const [score, setScore] = useState(2.5);
   const [comment, setComment] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const rateMutation = useRateTrade();
+  const { data: pairCheck } = useCheckPairRating(counterpartyId);
 
   const isCompleted = tradeStatus === 'completed';
+  const unlockTime = isCompleted ? new Date(tradeUpdatedAt).getTime() + 2 * 60 * 60 * 1000 : 0;
+  const isLocked = isCompleted && now < unlockTime;
+  const alreadyRated = pairCheck?.rated === true;
+
+  // Tick every minute while locked so the countdown updates
+  useEffect(() => {
+    if (!isLocked) return;
+    const interval = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, [isLocked]);
+
+  const remainingMs = unlockTime - now;
+  const remainingMin = Math.ceil(remainingMs / 60_000);
+  const remainingLabel = remainingMin >= 60
+    ? `${Math.floor(remainingMin / 60)}h ${remainingMin % 60}m`
+    : `${remainingMin}m`;
 
   async function handleSubmit() {
     await rateMutation.mutateAsync({
       tradeId,
       payload: { score, comment: comment || undefined },
     });
-    setSubmitted(true);
+  }
+
+  const disabled = !isCompleted || isLocked || alreadyRated;
+
+  // Status line below heading
+  let statusText = '';
+  if (!isCompleted) {
+    statusText = 'Complete the trade to leave a review';
+  } else if (isLocked) {
+    statusText = `Review unlocks in ${remainingLabel}`;
+  } else if (alreadyRated) {
+    statusText = 'You have already reviewed this user';
   }
 
   return (
-    <div className={cn('p-4 border-t border-border space-y-3', !isCompleted && 'opacity-50')}>
-      <h4 className="text-sm font-semibold">Rate this trade</h4>
+    <div className="p-4 border-t border-border space-y-3">
+      <h4 className="text-sm font-semibold">Rate {counterpartyNickname}</h4>
 
-      {!isCompleted && (
-        <p className="text-xs text-muted-foreground">Complete the trade to leave a rating</p>
+      {statusText && (
+        <p className="text-sm text-muted-foreground">{statusText}</p>
       )}
 
-      {isCompleted && submitted && (
-        <p className="text-xs text-green-500">Rating submitted. Thank you!</p>
-      )}
-
-      {isCompleted && !submitted && (
-        <>
+      {alreadyRated && pairCheck?.rating && (
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <HalfStarPicker value={score} onChange={setScore} size={24} />
+            <HalfStarPicker value={pairCheck.rating.score} onChange={() => {}} size={24} disabled readOnly />
+            <span className="text-sm text-muted-foreground">{pairCheck.rating.score.toFixed(1)}</span>
+          </div>
+          {pairCheck.rating.comment && (
+            <p className="text-sm text-muted-foreground italic">&ldquo;{pairCheck.rating.comment}&rdquo;</p>
+          )}
+        </div>
+      )}
+
+      {!alreadyRated && (
+        <div className={cn(disabled && 'opacity-40 pointer-events-none')}>
+          <div className="flex items-center gap-2 mb-3">
+            <HalfStarPicker value={score} onChange={setScore} size={24} disabled={disabled} />
             <span className="text-sm text-muted-foreground">{score.toFixed(1)}</span>
           </div>
           <textarea
@@ -173,25 +215,25 @@ function RatingSection({ tradeId, tradeStatus }: { tradeId: string; tradeStatus:
             onChange={(e) => setComment(e.target.value)}
             rows={2}
             maxLength={500}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            disabled={!isCompleted}
+            disabled={disabled}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
           />
           <Button
             size="sm"
-            className="w-full"
+            className="w-full mt-2"
             onClick={handleSubmit}
-            disabled={rateMutation.isPending}
+            disabled={disabled || rateMutation.isPending}
           >
-            {rateMutation.isPending ? 'Submitting...' : 'Submit rating'}
+            {rateMutation.isPending ? 'Submitting...' : 'Submit review'}
           </Button>
           {rateMutation.isError && (
-            <p className="text-xs text-destructive">
+            <p className="text-xs text-destructive mt-1">
               {rateMutation.error instanceof ApiError && rateMutation.error.body && typeof rateMutation.error.body === 'object' && 'error' in rateMutation.error.body
                 ? String((rateMutation.error.body as { error: string }).error)
-                : 'Failed to submit rating'}
+                : 'Failed to submit review'}
             </p>
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -206,6 +248,7 @@ function TradeProposalRow({
   offerId,
   onSelect,
   isSelected,
+  effectivePrice,
 }: {
   trade: TradeSummary;
   fiatCurrency: string;
@@ -213,6 +256,7 @@ function TradeProposalRow({
   offerId: string;
   onSelect: () => void;
   isSelected: boolean;
+  effectivePrice: number | undefined;
 }) {
   const acceptTrade = useAcceptTrade();
   const declineTrade = useDeclineTrade();
@@ -250,13 +294,18 @@ function TradeProposalRow({
           {trade.status}
         </span>
       </div>
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">
-          {trade.fiat_amount ? `${fmt(trade.fiat_amount)} ${fiatCurrency}` : '--'}
+      <div className="text-sm space-y-0.5">
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <span>{trade.fiat_amount ? `${fmt(trade.fiat_amount)} ${fiatCurrency}` : '--'}</span>
           {trade.payment_method && (
-            <> · {SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method}</>
+            <span>· {SETTLEMENT_METHOD_LABELS[trade.payment_method as SettlementMethod] ?? trade.payment_method}</span>
           )}
-        </span>
+        </div>
+        {trade.fiat_amount && effectivePrice && (
+          <p className="text-xs text-muted-foreground">
+            ≈ {fmt(Number(trade.fiat_amount) / effectivePrice, 6)} {cryptoCurrency}
+          </p>
+        )}
       </div>
       {trade.status === 'offered' && (
         <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
@@ -516,16 +565,20 @@ function SelectedTradeDetail({
   trade,
   fiatCurrency,
   cryptoCurrency,
+  effectivePrice,
   offerId,
   onBack,
   onTradeUpdated,
+  hideBackButton,
 }: {
   trade: TradeSummary;
   fiatCurrency: string;
   cryptoCurrency: string;
+  effectivePrice: number | undefined;
   offerId: string;
   onBack: () => void;
   onTradeUpdated: () => void;
+  hideBackButton?: boolean;
 }) {
   const acceptTrade = useAcceptTrade();
   const declineTrade = useDeclineTrade();
@@ -578,20 +631,25 @@ function SelectedTradeDetail({
 
   return (
     <div className="flex flex-col">
-      <button
-        className="px-4 py-2 text-xs text-muted-foreground hover:text-foreground border-b border-border text-left shrink-0"
-        onClick={onBack}
-      >
-        <ArrowLeft className="h-3 w-3 inline mr-1" />
-        Back to proposals
-      </button>
+      {!hideBackButton && (
+        <button
+          className="px-4 py-2 text-xs text-muted-foreground hover:text-foreground border-b border-border text-left shrink-0"
+          onClick={onBack}
+        >
+          <ArrowLeft className="h-3 w-3 inline mr-1" />
+          Back to proposals
+        </button>
+      )}
       <TradeProfileCard nickname={trade.buyer_nickname} />
       <div className="px-4 pb-4 space-y-2">
-        <div className="rounded-lg border border-border p-3 space-y-1">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Amount</span>
-            <span className="font-medium">
+        <div className="rounded-lg border border-border p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Amount</span>
+            <span className="font-semibold">
               {trade.fiat_amount ? `${fmt(trade.fiat_amount)} ${fiatCurrency}` : '--'}
+              {trade.fiat_amount && effectivePrice && (
+                <> ≈ {fmt(Number(trade.fiat_amount) / effectivePrice, 6)} {cryptoCurrency}</>
+              )}
             </span>
           </div>
           {trade.payment_method && (
@@ -632,7 +690,7 @@ function SelectedTradeDetail({
           </div>
         )}
       </div>
-      <RatingSection tradeId={trade.id} tradeStatus={trade.status} />
+      <RatingSection tradeId={trade.id} tradeStatus={trade.status} tradeUpdatedAt={trade.updated_at} counterpartyId={trade.buyer_id} counterpartyNickname={trade.buyer_nickname} />
     </div>
   );
 }
@@ -714,6 +772,7 @@ export default function OfferDetailPage() {
   }
 
   const trades = tradesData?.trades ?? [];
+  const acceptedTrade = trades.find((t) => t.status === 'accepted' || t.status === 'completed');
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 py-6">
@@ -868,18 +927,18 @@ export default function OfferDetailPage() {
             />
           )}
 
-          {/* Active trade summary for buyer */}
-          {isAuthenticated && !isOwner && myActiveTrade && (
-            <div className="rounded-xl border border-primary/30 bg-primary/5 p-5 space-y-2">
-              <h3 className="font-semibold text-sm">Your active trade</h3>
-              <div className="flex items-center justify-between text-sm">
-                <span>
-                  {myActiveTrade.fiat_amount ? `${fmt(myActiveTrade.fiat_amount)} ${offer.fiat_currency}` : '--'}
-                  {myActiveTrade.payment_method && (
-                    <> · {SETTLEMENT_METHOD_LABELS[myActiveTrade.payment_method as SettlementMethod] ?? myActiveTrade.payment_method}</>
-                  )}
-                </span>
-                <Badge variant="outline" className="text-xs">{myActiveTrade.status}</Badge>
+          {/* Safety reminders — shown for authenticated users in left panel */}
+          {isAuthenticated && isUnlocked && (
+            <div className="flex items-start gap-4 rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-5">
+              <ShieldAlert className="h-6 w-6 shrink-0 text-yellow-500 mt-0.5" />
+              <div className="space-y-2.5">
+                <p className="font-semibold text-foreground text-sm">Safety reminders</p>
+                <ul className="space-y-2 text-sm text-muted-foreground list-disc list-inside">
+                  <li>Always verify payment before releasing crypto</li>
+                  <li>Never share your private keys or recovery phrase</li>
+                  <li>Use the messaging system for all trade communication</li>
+                  <li>Report suspicious activity immediately</li>
+                </ul>
               </div>
             </div>
           )}
@@ -952,16 +1011,19 @@ export default function OfferDetailPage() {
                 </div>
               )}
 
-              {/* Buyer: has active trade — show seller profile + proposal details + rating */}
+              {/* Buyer: has active trade — show buyer profile + proposal details + rating */}
               {isAuthenticated && isUnlocked && !isOwner && myActiveTrade && (
                 <>
-                  <TradeProfileCard nickname={offer.seller_nickname} />
+                  <TradeProfileCard nickname={user!.nickname} />
                   <div className="px-4 pb-4 space-y-2">
-                    <div className="rounded-lg border border-border p-3 space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Amount</span>
-                        <span className="font-medium">
+                    <div className="rounded-lg border border-border p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Amount</span>
+                        <span className="font-semibold">
                           {myActiveTrade.fiat_amount ? `${fmt(myActiveTrade.fiat_amount)} ${offer.fiat_currency}` : '--'}
+                          {myActiveTrade.fiat_amount && effectivePrice && (
+                            <> ≈ {fmt(Number(myActiveTrade.fiat_amount) / effectivePrice, 6)} {offer.crypto_currency}</>
+                          )}
                         </span>
                       </div>
                       {myActiveTrade.payment_method && (
@@ -978,13 +1040,27 @@ export default function OfferDetailPage() {
                       </div>
                     </div>
                   </div>
-                  <RatingSection tradeId={myActiveTrade.id} tradeStatus={myActiveTrade.status} />
+                  <RatingSection tradeId={myActiveTrade.id} tradeStatus={myActiveTrade.status} tradeUpdatedAt={myActiveTrade.updated_at} counterpartyId={offer.user_id} counterpartyNickname={offer.seller_nickname} />
                 </>
               )}
 
               {/* Owner: trade proposals */}
               {isAuthenticated && isUnlocked && isOwner && (
                 <div className="flex flex-col">
+                  {/* When a trade is accepted/completed, show only that trade */}
+                  {acceptedTrade ? (
+                    <SelectedTradeDetail
+                      trade={acceptedTrade}
+                      fiatCurrency={offer.fiat_currency}
+                      cryptoCurrency={offer.crypto_currency}
+                      effectivePrice={effectivePrice}
+                      offerId={offer.id}
+                      onBack={() => {}}
+                      onTradeUpdated={() => refetchTrades()}
+                      hideBackButton
+                    />
+                  ) : (
+                  <>
                   <div className="px-4 py-3 border-b border-border shrink-0">
                     <h3 className="font-semibold text-sm">
                       Trade proposals {trades.length > 0 && `(${trades.length})`}
@@ -1001,6 +1077,7 @@ export default function OfferDetailPage() {
                       trade={selectedTrade}
                       fiatCurrency={offer.fiat_currency}
                       cryptoCurrency={offer.crypto_currency}
+                      effectivePrice={effectivePrice}
                       offerId={offer.id}
                       onBack={() => setSelectedTradeId(null)}
                       onTradeUpdated={() => refetchTrades()}
@@ -1017,29 +1094,17 @@ export default function OfferDetailPage() {
                           offerId={offer.id}
                           onSelect={() => setSelectedTradeId(trade.id)}
                           isSelected={selectedTradeId === trade.id}
+                          effectivePrice={effectivePrice}
                         />
                       ))}
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Safety reminders — always visible for authenticated users */}
-            {isAuthenticated && isUnlocked && (
-              <div className="mt-3 flex items-start gap-3 text-sm text-muted-foreground rounded-xl border border-border bg-card p-4">
-                <ShieldAlert className="h-5 w-5 shrink-0 text-yellow-500 mt-0.5" />
-                <div className="space-y-2">
-                  <p className="font-medium text-foreground text-xs">Safety reminders</p>
-                  <ul className="space-y-1.5 text-xs list-disc list-inside">
-                    <li>Always verify payment before releasing crypto</li>
-                    <li>Never share your private keys or recovery phrase</li>
-                    <li>Use the messaging system for all trade communication</li>
-                    <li>Report suspicious activity immediately</li>
-                  </ul>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

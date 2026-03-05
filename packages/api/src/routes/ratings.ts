@@ -43,13 +43,13 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
       // Determine who is being rated
       const toUserId = t.buyer_id === userId ? t.seller_id : t.buyer_id;
 
-      // Check if already rated
+      // Check if already rated this user (one rating per user pair, ever)
       const existing = await fastify.pg.query(
-        'SELECT id FROM ratings WHERE trade_id = $1 AND from_user_id = $2',
-        [tradeId, userId],
+        'SELECT id FROM ratings WHERE from_user_id = $1 AND to_user_id = $2',
+        [userId, toUserId],
       );
       if (existing.rows.length > 0) {
-        return reply.status(409).send({ error: 'You already rated this trade' });
+        return reply.status(409).send({ error: 'You have already rated this user' });
       }
 
       const result = await fastify.pg.query(
@@ -65,6 +65,30 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
       const row = result.rows[0];
       row.score = parseFloat(row.score);
       return reply.status(201).send(row);
+    },
+  );
+
+  // Check if current user has already rated a specific user
+  fastify.get<{
+    Params: { userId: string };
+  }>(
+    '/ratings/check/:userId',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const fromUserId = request.user!.sub;
+      const { userId } = request.params;
+
+      const existing = await fastify.pg.query(
+        'SELECT id, score, comment, created_at FROM ratings WHERE from_user_id = $1 AND to_user_id = $2',
+        [fromUserId, userId],
+      );
+
+      if (existing.rows.length > 0) {
+        const row = existing.rows[0];
+        row.score = parseFloat(row.score);
+        return reply.send({ rated: true, rating: row });
+      }
+      return reply.send({ rated: false });
     },
   );
 

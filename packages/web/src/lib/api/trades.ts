@@ -53,3 +53,7 @@ export function completeTrade(id: string): Promise<CompleteTradeResponse> {
 export function rateTrade(tradeId: string, payload: RateTradePayload): Promise<Rating> {
   return post<Rating>(`/trades/${tradeId}/rate`, payload);
 }
+
+export function checkPairRating(userId: string): Promise<{ rated: boolean; rating?: Rating }> {
+  return get<{ rated: boolean; rating?: Rating }>(`/ratings/check/${userId}`);
+}
