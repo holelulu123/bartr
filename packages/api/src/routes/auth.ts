@@ -112,6 +112,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
     if (password.length < 8) {
       return reply.status(400).send({ error: 'Password must be at least 8 characters' });
     }
+    if (password.length > 128) {
+      return reply.status(400).send({ error: 'Password must be 128 characters or less' });
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return reply.status(400).send({ error: 'Password must contain at least one letter and one number' });
+    }
 
     // Basic email format validation
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
