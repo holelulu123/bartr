@@ -43,6 +43,20 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     reply.header('X-Permitted-Cross-Domain-Policies', 'none');
   });
 
+  // Catch PostgreSQL invalid UUID errors and return clean 400 instead of leaky 500
+  app.setErrorHandler((error, _request, reply) => {
+    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === '22P02') {
+      return reply.status(400).send({ error: 'Invalid ID format' });
+    }
+    // Preserve status code from other errors (rate limit 429s, validation, etc.)
+    const statusCode = error.statusCode ?? 500;
+    reply.status(statusCode).send({
+      statusCode,
+      error: error.message || 'Internal Server Error',
+      ...(typeof (error as Record<string, unknown>).expiresIn === 'number' && { expiresIn: (error as Record<string, unknown>).expiresIn }),
+    });
+  });
+
   // Record response times for API performance metrics (exclude /health to avoid noise)
   app.addHook('onResponse', async (request, reply) => {
     if (!request.url.startsWith('/health')) {
