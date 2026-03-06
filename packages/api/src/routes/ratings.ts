@@ -13,8 +13,8 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
       const { tradeId } = request.params;
       const { score, comment } = request.body;
 
-      if (score === undefined || score === null || typeof score !== 'number' || score < 0 || score > 5 || (score * 2) % 1 !== 0) {
-        return reply.status(400).send({ error: 'Score must be between 0 and 5 in 0.5 increments' });
+      if (score === undefined || score === null || typeof score !== 'number' || score < 0.5 || score > 5 || (score * 2) % 1 !== 0) {
+        return reply.status(400).send({ error: 'Score must be between 0.5 and 5 in 0.5 increments' });
       }
 
       if (comment && comment.length > 80) {

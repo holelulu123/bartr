@@ -201,7 +201,7 @@ describe('Rating & Reputation routes', () => {
       expect(res.json().error).toContain('0.5 increments');
     });
 
-    it('accepts score of 0', async () => {
+    it('rejects score of 0', async () => {
       const seller = await createTestUser('zero_s');
       const buyer = await createTestUser('zero_b');
       const tradeId = await createCompletedTrade(seller, buyer);
@@ -214,8 +214,8 @@ describe('Rating & Reputation routes', () => {
         payload: { score: 0 },
       });
 
-      expect(res.statusCode).toBe(201);
-      expect(parseFloat(res.json().score)).toBe(0);
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('0.5 and 5');
     });
 
     it('accepts half-star score (2.5)', async () => {
