@@ -407,6 +407,14 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         if (!Array.isArray(body.payment_methods) || body.payment_methods.length === 0) {
           return reply.status(400).send({ error: 'At least one payment method is required' });
         }
+        if (body.payment_methods.length > 10) {
+          return reply.status(400).send({ error: 'Too many settlement methods (max 10)' });
+        }
+        for (const pm of body.payment_methods) {
+          if (!VALID_SETTLEMENT_METHODS.includes(pm)) {
+            return reply.status(400).send({ error: `Invalid settlement method: ${pm}` });
+          }
+        }
         updates.push(`payment_methods = $${paramIdx++}`);
         values.push(JSON.stringify(body.payment_methods));
       }
@@ -450,6 +458,13 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
 
       if (updates.length === 0) {
         return reply.status(400).send({ error: 'No fields to update' });
+      }
+
+      // Cross-validate min/max amounts (use updated value or fall back to existing)
+      const finalMin = body.min_amount ?? existing.rows[0].min_amount;
+      const finalMax = body.max_amount ?? existing.rows[0].max_amount;
+      if (finalMin > finalMax) {
+        return reply.status(400).send({ error: 'min_amount must be less than or equal to max_amount' });
       }
 
       updates.push(`updated_at = now()`);
