@@ -10,6 +10,7 @@ import { KeyRound, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
 import { auth } from '@/lib/api';
+import { safeRedirect } from '@/lib/safe-redirect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,7 +25,7 @@ type FormData = z.infer<typeof schema>;
 export default function UnlockPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/listings';
+  const next = safeRedirect(searchParams.get('next'));
   const { isAuthenticated } = useAuth();
   const { unlock } = useCrypto();
   const [unlockError, setUnlockError] = useState('');

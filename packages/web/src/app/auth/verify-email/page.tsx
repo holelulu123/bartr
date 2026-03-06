@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Mail, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { auth } from '@/lib/api';
+import { safeRedirect } from '@/lib/safe-redirect';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -34,7 +35,7 @@ function formatTime(seconds: number): string {
 export default function VerifyEmailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') ?? '/market';
+  const next = safeRedirect(searchParams.get('next'), '/market');
   const { user, isAuthenticated, isLoading, refreshUser, logout } = useAuth();
   const { toast } = useToast();
   const [serverError, setServerError] = useState('');
