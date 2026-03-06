@@ -36,10 +36,12 @@ vi.mock('@/contexts/crypto-context', () => ({
 const mockUseOffer = vi.fn();
 const mockUpdateMutation = { mutateAsync: vi.fn(), isPending: false };
 const mockDeleteMutation = { mutateAsync: vi.fn(), isPending: false };
+const mockCreateOfferMutation = { mutateAsync: vi.fn(), isPending: false };
 vi.mock('@/hooks/use-exchange', () => ({
   useOffer: (...args: unknown[]) => mockUseOffer(...args),
   useUpdateOffer: () => mockUpdateMutation,
   useDeleteOffer: () => mockDeleteMutation,
+  useCreateOffer: () => mockCreateOfferMutation,
 }));
 
 const mockUseUser = vi.fn().mockReturnValue({ data: null });

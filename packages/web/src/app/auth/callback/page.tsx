@@ -26,6 +26,12 @@ export default function AuthCallbackPage() {
       const refreshToken = searchParams.get('refresh_token');
       const authError = searchParams.get('auth_error');
 
+      // Clear tokens from URL immediately to prevent leakage via
+      // browser history, referrer headers, and server logs.
+      if (typeof window !== 'undefined' && (accessToken || refreshToken)) {
+        window.history.replaceState({}, '', '/auth/callback');
+      }
+
       if (authError || !accessToken || !refreshToken) {
         setErrorMsg('Authentication failed. Please try again.');
         setStatus('error');

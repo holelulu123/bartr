@@ -4,12 +4,14 @@ import { signAccessToken } from '../lib/jwt.js';
 import type { FastifyInstance } from 'fastify';
 import type { HealthResponse, SystemMetrics, MetricSample, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
 
+let adminCounter = 0;
 async function createAdminAndToken(app: FastifyInstance, suffix: string): Promise<string> {
+  const unique = `${suffix}_${Date.now()}_${++adminCounter}`;
   const result = await app.pg.query(
     `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, role, email_verified)
      VALUES ($1, $2, $3, $4, $5, 'admin', TRUE)
      RETURNING id, nickname`,
-    [`google_health_${suffix}`, `health_${suffix}`, null, 'hash', ''],
+    [`google_health_${unique}`, `health_${unique}`, null, 'hash', ''],
   );
   const user = result.rows[0];
   await app.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [user.id]);
