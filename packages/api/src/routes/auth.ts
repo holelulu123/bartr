@@ -113,13 +113,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Password must be at least 8 characters' });
     }
 
-    const hash = emailHmac(email);
-
-    // Check email uniqueness
-    const emailCheck = await fastify.pg.query('SELECT id FROM users WHERE email_hash = $1', [hash]);
-    if (emailCheck.rows.length > 0) {
-      return reply.status(409).send({ error: 'Email already registered' });
+    // Basic email format validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return reply.status(400).send({ error: 'Invalid email format' });
     }
+
+    const hash = emailHmac(email);
 
     const nickname = await generateUniqueNickname(fastify.pg);
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
@@ -127,12 +126,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const privateKeyBlobBuf = private_key_blob ? Buffer.from(private_key_blob, 'base64') : null;
     const recoveryKeyBlobBuf = recovery_key_blob ? Buffer.from(recovery_key_blob, 'base64') : null;
 
+    // Use ON CONFLICT to atomically handle duplicate emails (fixes race condition)
     const result = await fastify.pg.query(
       `INSERT INTO users (nickname, email_encrypted, email_hash, password_hash, public_key, private_key_blob, recovery_key_blob, auth_provider)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'email')
+       ON CONFLICT (email_hash) DO NOTHING
        RETURNING id, nickname`,
       [nickname, emailEncrypted, hash, passwordHash, public_key || null, privateKeyBlobBuf, recoveryKeyBlobBuf],
     );
+
+    if (result.rows.length === 0) {
+      return reply.status(409).send({ error: 'Email already registered' });
+    }
 
     const user = result.rows[0];
     const accessToken = await signAccessToken({ sub: user.id, nickname: user.nickname, role: 'user' });
