@@ -1,7 +1,13 @@
 # Production overrides — use with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-# Only overrides the 3 app services. Infrastructure (postgres, redis, minio, nginx) inherits from docker-compose.yml.
 
 services:
+  nginx:
+    volumes: !override
+      - ./nginx/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: !override
+      - "80:80"
+      - "443:443"
+
   nextjs:
     image: !reset null
     build:
@@ -35,3 +41,18 @@ services:
     command: !reset null
     working_dir: !reset null
     volumes: !reset []
+
+  redis:
+    ports: !reset []
+    expose:
+      - "6379"
+
+  postgres:
+    ports: !reset []
+    expose:
+      - "5432"
+
+  minio:
+    ports: !reset []
+    expose:
+      - "9000"
