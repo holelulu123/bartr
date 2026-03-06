@@ -26,7 +26,7 @@ export default async function moderationRoutes(fastify: FastifyInstance) {
     };
   }>(
     '/flags',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.requireEmailVerified] },
     async (request, reply) => {
       const userId = request.user!.sub;
       const { target_type, target_id, reason } = request.body;

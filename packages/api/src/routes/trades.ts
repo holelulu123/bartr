@@ -6,7 +6,7 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
     Body: { listing_id?: string; offer_id?: string; fiat_amount?: number; payment_method?: string };
   }>(
     '/trades',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.requireEmailVerified] },
     async (request, reply) => {
       const buyerId = request.user!.sub;
       const { listing_id, offer_id, fiat_amount, payment_method } = request.body;

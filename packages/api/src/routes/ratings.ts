@@ -7,7 +7,7 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
     Body: { score: number; comment?: string };
   }>(
     '/trades/:tradeId/rate',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.requireEmailVerified] },
     async (request, reply) => {
       const userId = request.user!.sub;
       const { tradeId } = request.params;

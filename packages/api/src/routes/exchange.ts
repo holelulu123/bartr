@@ -32,7 +32,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
     };
   }>(
     '/exchange/offers',
-    { preHandler: [fastify.authenticate] },
+    { preHandler: [fastify.authenticate, fastify.requireEmailVerified] },
     async (request, reply) => {
       const userId = request.user!.sub;
       const {
