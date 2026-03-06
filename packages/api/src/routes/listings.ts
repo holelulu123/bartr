@@ -393,7 +393,7 @@ export default async function listingRoutes(fastify: FastifyInstance) {
       }
 
       if (body.status !== undefined) {
-        const validStatuses = ['active', 'paused', 'sold', 'removed'];
+        const validStatuses = ['active', 'paused', 'sold'];
         if (!validStatuses.includes(body.status)) {
           return reply.status(400).send({ error: 'Invalid status' });
         }
@@ -492,16 +492,6 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ error: 'Not your listing' });
       }
 
-      // Check current image count
-      const countResult = await fastify.pg.query(
-        'SELECT COUNT(*) FROM listing_images WHERE listing_id = $1',
-        [id],
-      );
-      const currentCount = parseInt(countResult.rows[0].count, 10);
-      if (currentCount >= 5) {
-        return reply.status(400).send({ error: 'Maximum 5 images per listing' });
-      }
-
       const data = await request.file();
       if (!data) {
         return reply.status(400).send({ error: 'No file uploaded' });
@@ -525,12 +515,35 @@ export default async function listingRoutes(fastify: FastifyInstance) {
         'Content-Type': processed.mime,
       });
 
-      const imgResult = await fastify.pg.query(
-        `INSERT INTO listing_images (listing_id, storage_key, order_index)
-         VALUES ($1, $2, $3)
-         RETURNING id, storage_key, order_index`,
-        [id, key, currentCount],
-      );
+      // Use transaction with row lock to prevent race condition on image count
+      const client = await fastify.pg.connect();
+      let imgResult;
+      try {
+        await client.query('BEGIN');
+        // Lock the listing row to serialize concurrent uploads
+        await client.query('SELECT id FROM listings WHERE id = $1 FOR UPDATE', [id]);
+        const countResult = await client.query(
+          'SELECT COUNT(*) FROM listing_images WHERE listing_id = $1',
+          [id],
+        );
+        const currentCount = parseInt(countResult.rows[0].count, 10);
+        if (currentCount >= 5) {
+          await client.query('ROLLBACK');
+          return reply.status(400).send({ error: 'Maximum 5 images per listing' });
+        }
+        imgResult = await client.query(
+          `INSERT INTO listing_images (listing_id, storage_key, order_index)
+           VALUES ($1, $2, $3)
+           RETURNING id, storage_key, order_index`,
+          [id, key, currentCount],
+        );
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
 
       return reply.status(201).send(imgResult.rows[0]);
     },
