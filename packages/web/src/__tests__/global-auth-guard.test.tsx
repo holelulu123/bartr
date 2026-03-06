@@ -66,7 +66,7 @@ describe('GlobalAuthGuard — public routes (unauthenticated)', () => {
 });
 
 describe('GlobalAuthGuard — protected routes, unauthenticated', () => {
-  const protectedPaths = ['/listings', '/listings/abc', '/listings/new', '/messages', '/trades/1', '/dashboard', '/user/alice', '/exchange', '/market'];
+  const protectedPaths = ['/listings', '/listings/abc', '/listings/new', '/messages', '/dashboard', '/user/alice', '/exchange', '/market'];
 
   protectedPaths.forEach((path) => {
     it(`redirects to /login for protected path: ${path}`, async () => {

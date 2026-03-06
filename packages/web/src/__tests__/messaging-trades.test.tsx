@@ -107,7 +107,6 @@ vi.mock('@/hooks/use-users', () => ({
 
 // trades hooks mock
 const mockUseTrade = vi.fn();
-const mockUseTrades = vi.fn();
 const mockAcceptMutation = { mutateAsync: vi.fn(), isPending: false };
 const mockDeclineMutation = { mutateAsync: vi.fn(), isPending: false };
 const mockCancelMutation = { mutateAsync: vi.fn(), isPending: false };
@@ -116,7 +115,7 @@ const mockRateMutation = { mutateAsync: vi.fn(), isPending: false };
 
 vi.mock('@/hooks/use-trades', () => ({
   useTrade: (...args: unknown[]) => mockUseTrade(...args),
-  useTrades: (...args: unknown[]) => mockUseTrades(...args),
+  useTrades: () => ({ data: undefined, isLoading: false }),
   useTradesForOffer: () => ({ data: undefined }),
   useAcceptTrade: () => mockAcceptMutation,
   useDeclineTrade: () => mockDeclineMutation,
@@ -482,67 +481,3 @@ describe('MessageSidebar — closed', () => {
   });
 });
 
-// ── TradesDashboardPage ──────────────────────────────────────────────────────
-
-import TradesDashboardPage from '@/app/dashboard/trades/page';
-
-describe('TradesDashboardPage', () => {
-  beforeEach(() => {
-    mockUseTrades.mockReturnValue({
-      data: { trades: [makeTrade()], pagination: { page: 1, limit: 20, total: 1, pages: 1 } },
-      isLoading: false,
-    });
-  });
-
-  it('renders page heading', () => {
-    render(<TradesDashboardPage />);
-    expect(screen.getByRole('heading', { name: /my trades/i })).toBeInTheDocument();
-  });
-
-  it('renders Buying and Selling tabs', () => {
-    render(<TradesDashboardPage />);
-    expect(screen.getByRole('button', { name: /buying/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /selling/i })).toBeInTheDocument();
-  });
-
-  it('shows trade listing title in row', () => {
-    render(<TradesDashboardPage />);
-    expect(screen.getByText('Vintage Camera')).toBeInTheDocument();
-  });
-
-  it('shows trade status badge', () => {
-    render(<TradesDashboardPage />);
-    expect(screen.getByText('offered')).toBeInTheDocument();
-  });
-
-  it('trade row links to trade detail page', () => {
-    render(<TradesDashboardPage />);
-    const link = screen.getByRole('link', { name: /vintage camera/i });
-    expect(link).toHaveAttribute('href', '/trades/trade-1');
-  });
-
-  it('shows empty state when no trades', () => {
-    mockUseTrades.mockReturnValue({
-      data: { trades: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } },
-      isLoading: false,
-    });
-    render(<TradesDashboardPage />);
-    expect(screen.getByText(/no purchases yet/i)).toBeInTheDocument();
-  });
-
-  it('switches to Selling tab', async () => {
-    const buyingTrade = makeTrade({ listing_title: 'Vintage Camera' });
-    const sellingTrade = makeTrade({ id: 'trade-2', listing_title: 'My Widget', buyer_nickname: 'charlie', buyer_id: 'user-3' });
-
-    mockUseTrades.mockImplementation((filters: { role?: string } = {}) => {
-      if (filters.role === 'seller') {
-        return { data: { trades: [sellingTrade], pagination: { page: 1, limit: 20, total: 1, pages: 1 } }, isLoading: false };
-      }
-      return { data: { trades: [buyingTrade], pagination: { page: 1, limit: 20, total: 1, pages: 1 } }, isLoading: false };
-    });
-
-    render(<TradesDashboardPage />);
-    await userEvent.click(screen.getByRole('button', { name: /selling/i }));
-    await waitFor(() => expect(screen.getByText('My Widget')).toBeInTheDocument());
-  });
-});

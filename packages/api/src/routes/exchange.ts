@@ -203,18 +203,19 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         paramIdx++;
         conditions.push(`eo.status != 'removed'`);
       } else {
-        // Public browse: show active offers without an accepted/completed trade,
-        // PLUS private contracts where current user is a participant
+        // Public browse: hide completed trades from everyone,
+        // but show accepted trades to participants (they need the exchange page)
         conditions.push(`eo.status = 'active'`);
+        conditions.push(`NOT EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status = 'completed')`);
         if (currentUserId) {
           conditions.push(`(
-            NOT EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed'))
-            OR EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed') AND (t.buyer_id = $${paramIdx} OR eo.user_id = $${paramIdx}))
+            NOT EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status = 'accepted')
+            OR EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status = 'accepted' AND (t.buyer_id = $${paramIdx} OR eo.user_id = $${paramIdx}))
           )`);
           values.push(currentUserId);
           paramIdx++;
         } else {
-          conditions.push(`NOT EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed'))`);
+          conditions.push(`NOT EXISTS (SELECT 1 FROM trades t WHERE t.offer_id = eo.id AND t.status = 'accepted')`);
         }
       }
 

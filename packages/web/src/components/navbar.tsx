@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Info, ShieldCheck, Moon, Sun, User, Package, BarChart2, Settings, LogOut, Bell } from 'lucide-react';
+import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Info, ShieldCheck, Moon, Sun, User, Package, Settings, LogOut, Bell } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
@@ -241,12 +241,6 @@ export function Navbar() {
                     <Link href="/dashboard/offers" className="flex items-center gap-2">
                       <ArrowLeftRight className="h-4 w-4" />
                       My Contracts
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard/trades" className="flex items-center gap-2">
-                      <BarChart2 className="h-4 w-4" />
-                      My Trades
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
