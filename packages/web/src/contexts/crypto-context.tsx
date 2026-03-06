@@ -17,10 +17,27 @@ import {
 
 const SESSION_KEY = 'bartr_e2e_priv';
 
-function cachePrivateKey(key: CryptoKey) {
-  crypto.subtle.exportKey('pkcs8', key).then((raw) => {
-    try { sessionStorage.setItem(SESSION_KEY, bufToBase64(raw)); } catch { /* storage full */ }
-  });
+// Ephemeral wrapping key — lives only in JS memory. XSS can read sessionStorage
+// but cannot unwrap the blob without this key. Lost on full page reload.
+let wrappingKey: CryptoKey | null = null;
+
+async function getWrappingKey(): Promise<CryptoKey> {
+  if (!wrappingKey) {
+    wrappingKey = await crypto.subtle.generateKey(
+      { name: 'AES-KW', length: 256 },
+      false, // non-extractable
+      ['wrapKey', 'unwrapKey'],
+    );
+  }
+  return wrappingKey;
+}
+
+async function cachePrivateKey(key: CryptoKey) {
+  try {
+    const wk = await getWrappingKey();
+    const wrapped = await crypto.subtle.wrapKey('pkcs8', key, wk, 'AES-KW');
+    sessionStorage.setItem(SESSION_KEY, bufToBase64(wrapped));
+  } catch { /* storage full or wrap error */ }
 }
 
 function clearCachedKey() {
@@ -31,14 +48,19 @@ async function loadCachedKey(): Promise<CryptoKey | null> {
   try {
     const b64 = sessionStorage.getItem(SESSION_KEY);
     if (!b64) return null;
-    return crypto.subtle.importKey(
+    const wk = await getWrappingKey();
+    return crypto.subtle.unwrapKey(
       'pkcs8',
       base64ToBuf(b64),
+      wk,
+      'AES-KW',
       { name: 'ECDH', namedCurve: 'P-256' },
       true,
       ['deriveKey', 'deriveBits'],
     );
   } catch {
+    // Wrapping key rotated (page reload) or corrupt data — clear stale cache
+    clearCachedKey();
     return null;
   }
 }
