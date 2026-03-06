@@ -34,6 +34,7 @@ export const env = {
   minioBucket: process.env.MINIO_BUCKET || 'listing-images',
   brevoApiKey: process.env.BREVO_API_KEY || '',
   brevoFromEmail: process.env.BREVO_FROM_EMAIL || 'noreply@bartr.app',
+  healthServiceKey: process.env.HEALTH_SERVICE_KEY || '',
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { apiHealthUrl, verifyHealthSession } from '../_lib';
+import { apiHealthUrl, verifyHealthSession, serviceHeaders } from '../_lib';
 
 export async function GET(request: NextRequest) {
   if (!verifyHealthSession(request)) {
@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const qs = searchParams.toString();
   const url = apiHealthUrl(`/health/history${qs ? `?${qs}` : ''}`);
-  const res = await fetch(url, { cache: 'no-store' });
+  const res = await fetch(url, { cache: 'no-store', headers: serviceHeaders() });
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }

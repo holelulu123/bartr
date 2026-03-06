@@ -1,9 +1,22 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildApp } from '../app.js';
+import { signAccessToken } from '../lib/jwt.js';
 import type { FastifyInstance } from 'fastify';
 import type { HealthResponse, SystemMetrics, MetricSample, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
 
-describe('GET /health', () => {
+async function createAdminAndToken(app: FastifyInstance, suffix: string): Promise<string> {
+  const result = await app.pg.query(
+    `INSERT INTO users (google_id, nickname, email_encrypted, password_hash, bio, role, email_verified)
+     VALUES ($1, $2, $3, $4, $5, 'admin', TRUE)
+     RETURNING id, nickname`,
+    [`google_health_${suffix}`, `health_${suffix}`, null, 'hash', ''],
+  );
+  const user = result.rows[0];
+  await app.pg.query('INSERT INTO reputation_scores (user_id) VALUES ($1)', [user.id]);
+  return signAccessToken({ sub: user.id, nickname: user.nickname, role: 'admin' });
+}
+
+describe('GET /health/ping', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
@@ -15,8 +28,38 @@ describe('GET /health', () => {
     await app.close();
   });
 
-  it('returns ok with service details when db and redis are connected', async () => {
+  it('returns ok without auth', async () => {
+    const res = await app.inject({ method: 'GET', url: '/health/ping' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().status).toBe('ok');
+  });
+});
+
+describe('GET /health', () => {
+  let app: FastifyInstance;
+  let adminToken: string;
+
+  beforeAll(async () => {
+    app = await buildApp({ skipRateLimit: true });
+    await app.ready();
+    adminToken = await createAdminAndToken(app, 'main');
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('rejects unauthenticated requests', async () => {
     const res = await app.inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns ok with service details when db and redis are connected', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
 
     expect(res.statusCode).toBe(200);
 
@@ -47,18 +90,29 @@ describe('GET /health', () => {
 
 describe('GET /health/system', () => {
   let app: FastifyInstance;
+  let adminToken: string;
 
   beforeAll(async () => {
     app = await buildApp({ skipRateLimit: true });
     await app.ready();
+    adminToken = await createAdminAndToken(app, 'system');
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  it('returns system metrics snapshot', async () => {
+  it('rejects unauthenticated requests', async () => {
     const res = await app.inject({ method: 'GET', url: '/health/system' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns system metrics snapshot', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/system',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
 
     expect(res.statusCode).toBe(200);
 
@@ -85,18 +139,29 @@ describe('GET /health/system', () => {
 
 describe('GET /health/history', () => {
   let app: FastifyInstance;
+  let adminToken: string;
 
   beforeAll(async () => {
     app = await buildApp({ skipRateLimit: true });
     await app.ready();
+    adminToken = await createAdminAndToken(app, 'history');
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  it('returns an array of metric samples for valid metric', async () => {
+  it('rejects unauthenticated requests', async () => {
     const res = await app.inject({ method: 'GET', url: '/health/history?metric=ram&hours=1' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns an array of metric samples for valid metric', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/history?metric=ram&hours=1',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
 
     expect(res.statusCode).toBe(200);
 
@@ -110,17 +175,29 @@ describe('GET /health/history', () => {
   });
 
   it('returns 400 for invalid metric', async () => {
-    const res = await app.inject({ method: 'GET', url: '/health/history?metric=invalid' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/history?metric=invalid',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
     expect(res.statusCode).toBe(400);
   });
 
   it('returns 400 when metric is missing', async () => {
-    const res = await app.inject({ method: 'GET', url: '/health/history' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/history',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
     expect(res.statusCode).toBe(400);
   });
 
   it('accepts cpu:N metric', async () => {
-    const res = await app.inject({ method: 'GET', url: '/health/history?metric=cpu:0&hours=1' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/history?metric=cpu:0&hours=1',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.json())).toBe(true);
   });
@@ -129,7 +206,11 @@ describe('GET /health/history', () => {
     'resp_time_p50', 'resp_time_p95', 'req_rate', 'error_rate',
     'redis_mem', 'pg_conns',
   ])('accepts new metric %s', async (metric) => {
-    const res = await app.inject({ method: 'GET', url: `/health/history?metric=${metric}&hours=1` });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/health/history?metric=${metric}&hours=1`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.json())).toBe(true);
   });
@@ -137,18 +218,29 @@ describe('GET /health/history', () => {
 
 describe('GET /health/api-performance', () => {
   let app: FastifyInstance;
+  let adminToken: string;
 
   beforeAll(async () => {
     app = await buildApp({ skipRateLimit: true });
     await app.ready();
+    adminToken = await createAdminAndToken(app, 'apiperf');
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  it('returns API performance metrics shape', async () => {
+  it('rejects unauthenticated requests', async () => {
     const res = await app.inject({ method: 'GET', url: '/health/api-performance' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns API performance metrics shape', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/api-performance',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
 
     expect(res.statusCode).toBe(200);
 
@@ -162,18 +254,29 @@ describe('GET /health/api-performance', () => {
 
 describe('GET /health/infra', () => {
   let app: FastifyInstance;
+  let adminToken: string;
 
   beforeAll(async () => {
     app = await buildApp({ skipRateLimit: true });
     await app.ready();
+    adminToken = await createAdminAndToken(app, 'infra');
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  it('returns infrastructure metrics shape', async () => {
+  it('rejects unauthenticated requests', async () => {
     const res = await app.inject({ method: 'GET', url: '/health/infra' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns infrastructure metrics shape', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/infra',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
 
     expect(res.statusCode).toBe(200);
 
@@ -185,18 +288,29 @@ describe('GET /health/infra', () => {
 
 describe('GET /health/growth', () => {
   let app: FastifyInstance;
+  let adminToken: string;
 
   beforeAll(async () => {
     app = await buildApp({ skipRateLimit: true });
     await app.ready();
+    adminToken = await createAdminAndToken(app, 'growth');
   });
 
   afterAll(async () => {
     await app.close();
   });
 
-  it('returns growth data shape', async () => {
+  it('rejects unauthenticated requests', async () => {
     const res = await app.inject({ method: 'GET', url: '/health/growth?days=7' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns growth data shape', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/growth?days=7',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
 
     expect(res.statusCode).toBe(200);
 
@@ -212,7 +326,11 @@ describe('GET /health/growth', () => {
   });
 
   it('defaults to 30 days when no param given', async () => {
-    const res = await app.inject({ method: 'GET', url: '/health/growth' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/growth',
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
     expect(res.statusCode).toBe(200);
     const body: GrowthData = res.json();
     expect(Array.isArray(body.users)).toBe(true);

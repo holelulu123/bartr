@@ -1,9 +1,11 @@
 import os from 'node:os';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { HealthResponse, SystemMetrics, MetricSample, ApiPerformanceMetrics, InfraMetrics, GrowthData } from '@bartr/shared';
 import { getLatestSample } from '../lib/metrics-collector.js';
+import { env } from '../config/env.js';
 
 const startedAt = Date.now();
 
@@ -38,11 +40,27 @@ function isValidMetric(m: string): boolean {
 }
 
 export default async function healthRoutes(fastify: FastifyInstance) {
-  // Auth is handled by the web layer (session cookie + /api/health/login).
-  // The API is only reachable internally (behind nginx), so no auth here.
+  // Accept admin JWT OR internal service key (used by Next.js hproxy)
+  async function requireAdminOrServiceKey(request: FastifyRequest, reply: FastifyReply) {
+    // Check X-Service-Key header first (server-to-server from hproxy)
+    const serviceKey = request.headers['x-service-key'] as string | undefined;
+    if (serviceKey && env.healthServiceKey) {
+      const a = Buffer.from(serviceKey);
+      const b = Buffer.from(env.healthServiceKey);
+      if (a.length === b.length && crypto.timingSafeEqual(a, b)) return;
+    }
+    // Fall back to admin JWT auth
+    return fastify.requireAdmin(request, reply);
+  }
 
-  // ── GET /health — existing rich health check ────────────────────────────
-  fastify.get('/health', async (_request, reply) => {
+  // ── GET /health/ping — lightweight, unauthenticated uptime check ────────
+  fastify.get('/health/ping', async (_request, reply) => {
+    return reply.send({ status: 'ok' });
+  });
+
+  // All other health endpoints require admin auth or service key
+  // ── GET /health — rich health check ─────────────────────────────────────
+  fastify.get('/health', { preHandler: [requireAdminOrServiceKey] }, async (_request, reply) => {
     const now = new Date();
 
     const [dbResult, redisResult, minioResult] = await Promise.all([
@@ -122,7 +140,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
   });
 
   // ── GET /health/system — live snapshot ──────────────────────────────────
-  fastify.get('/health/system', async (_request, reply) => {
+  fastify.get('/health/system', { preHandler: [requireAdminOrServiceKey] }, async (_request, reply) => {
     const cpus = os.cpus();
     const totalMem = os.totalmem();
     const freeMem = os.freemem();
@@ -168,7 +186,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
   });
 
   // ── GET /health/history — time-series from Redis ZSETs ──────────────────
-  fastify.get('/health/history', async (request, reply) => {
+  fastify.get('/health/history', { preHandler: [requireAdminOrServiceKey] }, async (request, reply) => {
     const { metric, hours } = request.query as { metric?: string; hours?: string };
 
     if (!metric || !isValidMetric(metric)) {
@@ -194,7 +212,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
   });
 
   // ── GET /health/api-performance — live API perf snapshot ────────────────
-  fastify.get('/health/api-performance', async (_request, reply) => {
+  fastify.get('/health/api-performance', { preHandler: [requireAdminOrServiceKey] }, async (_request, reply) => {
     const response: ApiPerformanceMetrics = {
       resp_time_p50: getLatestSample('resp_time_p50'),
       resp_time_p95: getLatestSample('resp_time_p95'),
@@ -205,7 +223,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
   });
 
   // ── GET /health/infra — live infrastructure snapshot ────────────────────
-  fastify.get('/health/infra', async (_request, reply) => {
+  fastify.get('/health/infra', { preHandler: [requireAdminOrServiceKey] }, async (_request, reply) => {
     const response: InfraMetrics = {
       redis_mem_bytes: getLatestSample('redis_mem'),
       pg_connections: getLatestSample('pg_conns'),
@@ -214,7 +232,7 @@ export default async function healthRoutes(fastify: FastifyInstance) {
   });
 
   // ── GET /health/growth — daily counts from DB ──────────────────────────
-  fastify.get('/health/growth', async (request, reply) => {
+  fastify.get('/health/growth', { preHandler: [requireAdminOrServiceKey] }, async (request, reply) => {
     const { days: daysParam } = request.query as { days?: string };
     const days = Math.min(Math.max(parseInt(daysParam || '30', 10), 1), 365);
 

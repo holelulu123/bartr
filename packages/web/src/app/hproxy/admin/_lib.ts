@@ -11,6 +11,12 @@ export function apiHealthUrl(path: string): string {
   return `${API_URL}${path}`;
 }
 
+/** Headers for server-to-server health API calls (service key auth). */
+export function serviceHeaders(): Record<string, string> {
+  const key = process.env.HEALTH_SERVICE_KEY;
+  return key ? { 'X-Service-Key': key } : {};
+}
+
 /** Normalize PEM stored in env var — replace literal \n with real newlines. */
 export function normalizePem(pem: string): string {
   return pem.replace(/\\n/g, '\n');
