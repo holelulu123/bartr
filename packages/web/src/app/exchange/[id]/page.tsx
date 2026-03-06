@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ArrowLeft, ArrowUp, ArrowDown, Star, Pause, Play, Trash2, RefreshCw,
   Lock, LogIn, MessageSquare, Megaphone, Check, X, ShieldAlert,
@@ -245,13 +246,9 @@ function RatingSection({ tradeId, tradeStatus, counterpartyId, counterpartyNickn
                 : 'Failed to submit review'}
             </p>
           )}
-          {isCompleted && !alreadyRated && (
-            <p className="text-xs text-muted-foreground/60 text-center mt-3">
-              Bartr is community-run — no fees, no ads. If you like it, show us some support :)
-            </p>
-          )}
         </div>
       )}
+
     </div>
   );
 }
@@ -961,7 +958,7 @@ export default function OfferDetailPage() {
                   {offer.seller_nickname} is {isBuy ? 'buying' : 'selling'} {offer.crypto_currency} in exchange for {offer.fiat_currency}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Created {new Date(offer.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(offer.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                  Contract created {new Date(offer.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(offer.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
             </div>
@@ -1286,6 +1283,16 @@ export default function OfferDetailPage() {
                 </div>
               )}
             </div>
+
+            {(acceptedTrade || myActiveTrade) && (
+              <div className="text-base text-muted-foreground/60 text-center mt-4">
+                <p className="inline-flex items-center justify-center gap-1.5">
+                  <Image src="/logo.png" alt="" width={20} height={20} className="h-5 w-5" />
+                  <span className="font-bold text-orange-500">Bartr</span> is community-run — no fees, no ads.
+                </p>
+                <p><Link href="/donate" className="underline hover:text-muted-foreground">Show us some support</Link> :)</p>
+              </div>
+            )}
 
           </div>
         </div>
