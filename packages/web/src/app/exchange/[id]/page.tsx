@@ -919,7 +919,7 @@ export default function OfferDetailPage() {
             </Link>
 
             <div className="flex items-center gap-3">
-              <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-[13px]">
+              <Badge variant="secondary" className="gap-1 text-[13px]">
                 {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
                 {isBuy ? 'Buying' : 'Selling'}
               </Badge>

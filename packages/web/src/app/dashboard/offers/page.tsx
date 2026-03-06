@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, Plus, Trash2, Pause, Play, Lock } from 'lucide-react';
+import { ArrowUp, ArrowDown, Plus, Trash2, Pause, Play } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useOffers, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
 import { usePrices } from '@/hooks/use-prices';
@@ -285,17 +285,10 @@ function ContractRow({
       )}>
       {/* Type + pair */}
       <div className="space-y-1">
-        {isPrivateContract ? (
-          <Badge variant="outline" className="gap-1 text-xs px-2 py-0.5 border-purple-500/40 text-purple-400 bg-purple-500/10">
-            <Lock className="h-2.5 w-2.5" />
-            {isInProgress ? 'Active' : 'Done'}
-          </Badge>
-        ) : (
-          <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
-            {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
-            {isBuy ? 'Buy' : 'Sell'}
-          </Badge>
-        )}
+        <Badge variant="secondary" className="gap-1 text-sm px-2 py-0.5">
+          {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
+          {isBuy ? 'Buy' : 'Sell'}
+        </Badge>
         <p className={cn('text-sm font-semibold', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
           {offer.crypto_currency}/{offer.fiat_currency}
         </p>
@@ -311,16 +304,18 @@ function ContractRow({
                 ? `${fmt(minFiat)} – ${fmt(maxFiat)} ${offer.fiat_currency}`
                 : 'Any amount'}
           </p>
-          {!isPrivateContract && (
-            <span
-              className={cn(
-                'inline-flex items-center rounded-full border px-2 py-0 text-[11px] font-medium capitalize',
-                STATUS_COLORS[offer.status],
-              )}
-            >
-              {offer.status}
-            </span>
-          )}
+          <span
+            className={cn(
+              'inline-flex items-center rounded-full border px-2 py-0 text-[11px] font-medium capitalize',
+              isPrivateContract
+                ? isFinished
+                  ? 'border-purple-500/40 text-purple-400 bg-purple-500/10'
+                  : 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
+                : STATUS_COLORS[offer.status],
+            )}
+          >
+            {isPrivateContract ? (isFinished ? 'Done' : 'Active') : offer.status}
+          </span>
         </div>
         {effectivePrice !== undefined && (offer.min_amount || offer.max_amount) && (
           <p className="text-xs text-muted-foreground leading-tight mt-0.5">
@@ -351,14 +346,14 @@ function ContractRow({
       {/* Settlement methods */}
       <div className="hidden md:flex flex-wrap gap-1 overflow-hidden">
         {offer.payment_methods.slice(0, 2).map((pm) => (
-          <span key={pm} className="inline-block rounded border border-border text-xs text-muted-foreground px-2 py-0.5 leading-relaxed truncate max-w-[140px]">
+          <Badge key={pm} variant="outline" className="text-xs px-1.5 py-0 truncate max-w-[140px]">
             {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
-          </span>
+          </Badge>
         ))}
         {offer.payment_methods.length > 2 && (
-          <span className="inline-block rounded border border-border text-xs text-muted-foreground px-2 py-0.5 leading-relaxed whitespace-nowrap">
+          <Badge variant="outline" className="text-xs px-1.5 py-0">
             +{offer.payment_methods.length - 2}
-          </span>
+          </Badge>
         )}
       </div>
 

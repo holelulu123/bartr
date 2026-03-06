@@ -29,7 +29,7 @@ const CRYPTO_HEX: Record<string, string> = {
   TON: '#0ea5e9',
 };
 
-const MIN_WAIT_MS = 90 * 60 * 1000; // 90 minutes
+const MIN_WAIT_MS = 0; // TODO: restore to 90 * 60 * 1000 (90 minutes) after testing
 
 function formatCountdown(ms: number): string {
   return `${Math.ceil(ms / 60_000)}m`;

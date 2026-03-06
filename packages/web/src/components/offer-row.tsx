@@ -125,41 +125,25 @@ export function OfferRow({ offer }: OfferRowProps) {
       )}>
       {/* Type + pair */}
       <div className="flex flex-col items-start gap-1">
-        {isPrivateContract ? (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="cursor-help">
-                  <Badge variant="outline" className="gap-1 text-[13px] px-2 py-0 -ml-2 border-purple-500/40 text-purple-400 bg-purple-500/10">
-                    <Lock className="h-3.5 w-3.5" />
-                    Contract
-                  </Badge>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Private contract between you and {isOwn ? offer.accepted_buyer_nickname : offer.seller_nickname}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="cursor-help">
-                  <Badge variant={isBuy ? 'default' : 'secondary'} className="gap-1 text-sm px-2 py-0.5">
-                    {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
-                    {isBuy ? 'Buy' : 'Sell'}
-                  </Badge>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {isBuy
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-help">
+                <Badge variant="secondary" className="gap-1 text-sm px-2 py-0.5">
+                  {isBuy ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />}
+                  {isBuy ? 'Buy' : 'Sell'}
+                </Badge>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {isPrivateContract
+                ? `Private contract between you and ${isOwn ? offer.accepted_buyer_nickname : offer.seller_nickname}`
+                : isBuy
                   ? `${offer.seller_nickname} wants to buy ${offer.crypto_currency} with ${offer.fiat_currency}`
                   : `${offer.seller_nickname} wants to sell ${offer.crypto_currency} for ${offer.fiat_currency}`}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <span className={cn('text-sm font-semibold whitespace-nowrap', CRYPTO_COLORS[offer.crypto_currency] ?? 'text-foreground')}>
           {offer.crypto_currency}/{offer.fiat_currency}
         </span>
@@ -171,9 +155,28 @@ export function OfferRow({ offer }: OfferRowProps) {
           <MiniIdenticon seed={offer.seller_nickname} size={32} />
         </span>
         <div className="min-w-0 overflow-hidden">
-          <span className="text-base font-semibold block truncate">
-            {offer.seller_nickname}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-base font-semibold truncate">
+              {offer.seller_nickname}
+            </span>
+            {isPrivateContract && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help">
+                      <Badge variant="outline" className="gap-1 text-xs px-2 py-0.5 border-purple-500/40 text-purple-400 bg-purple-500/10 shrink-0">
+                        <Lock className="h-3 w-3" />
+                        Private
+                      </Badge>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Private contract — only visible to you and {isOwn ? offer.accepted_buyer_nickname : offer.seller_nickname}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           {(offer.country_code || offer.city) && (
             <p className="text-sm text-muted-foreground truncate">
               {offer.country_code && getCountryFlag(offer.country_code)}{' '}

@@ -192,7 +192,7 @@ function HeaderCompletionTicks({ info }: { info: CompletionHeaderInfo }) {
   if (myConfirmed) return null;
 
   const acceptedAt = new Date(completions.accepted_at).getTime();
-  const remaining = acceptedAt + 90 * 60 * 1000 - Date.now();
+  const remaining = acceptedAt + 0 - Date.now(); // TODO: restore to 90 * 60 * 1000 after testing
   const timerActive = remaining > 0 && info.tradeStatus === 'accepted';
 
   const cryptoColor = HEADER_CRYPTO_COLORS[info.cryptoCurrency] ?? 'text-primary';
