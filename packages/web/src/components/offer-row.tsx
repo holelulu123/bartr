@@ -109,6 +109,7 @@ export function OfferRow({ offer }: OfferRowProps) {
   const ratingAvg = Number(offer.seller_rating_avg) || 0;
   const stars = Math.round(ratingAvg);
   const tradeCount = Number(offer.seller_trade_count) || 0;
+  const reviewCount = Number(offer.seller_review_count) || 0;
 
   return (
     <Link
@@ -197,7 +198,7 @@ export function OfferRow({ offer }: OfferRowProps) {
               </span>
             </div>
             <span className="text-sm text-muted-foreground">
-              · {tradeCount} {tradeCount === 1 ? 'trade' : 'trades'}
+              · {tradeCount} {tradeCount === 1 ? 'trade' : 'trades'} · {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
             </span>
           </div>
         </div>

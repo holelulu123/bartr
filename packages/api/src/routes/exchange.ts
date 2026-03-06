@@ -258,6 +258,7 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
                 COALESCE(rs.rating_avg, 0) as seller_rating_avg,
                 COALESCE(rs.tier, 'new') as seller_tier,
                 (SELECT COUNT(*) FROM trades t WHERE (t.buyer_id = eo.user_id OR t.seller_id = eo.user_id) AND t.status = 'completed')::int as seller_trade_count,
+                (SELECT COUNT(*) FROM ratings r WHERE r.to_user_id = eo.user_id)::int as seller_review_count,
                 (SELECT t.status FROM trades t WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed') LIMIT 1) as accepted_trade_status,
                 (SELECT bu.nickname FROM trades t JOIN users bu ON bu.id = t.buyer_id WHERE t.offer_id = eo.id AND t.status IN ('accepted', 'completed') LIMIT 1) as accepted_buyer_nickname
          FROM exchange_offers eo
@@ -289,7 +290,8 @@ export default async function exchangeRoutes(fastify: FastifyInstance) {
         `SELECT eo.*, u.nickname as seller_nickname,
                 COALESCE(rs.rating_avg, 0) as seller_rating_avg,
                 COALESCE(rs.tier, 'new') as seller_tier,
-                (SELECT COUNT(*) FROM trades t WHERE (t.buyer_id = eo.user_id OR t.seller_id = eo.user_id) AND t.status = 'completed')::int as seller_trade_count
+                (SELECT COUNT(*) FROM trades t WHERE (t.buyer_id = eo.user_id OR t.seller_id = eo.user_id) AND t.status = 'completed')::int as seller_trade_count,
+                (SELECT COUNT(*) FROM ratings r WHERE r.to_user_id = eo.user_id)::int as seller_review_count
          FROM exchange_offers eo
          JOIN users u ON u.id = eo.user_id
          LEFT JOIN reputation_scores rs ON rs.user_id = eo.user_id

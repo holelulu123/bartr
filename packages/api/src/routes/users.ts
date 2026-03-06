@@ -12,7 +12,8 @@ export default async function userRoutes(fastify: FastifyInstance) {
     const result = await fastify.pg.query(
       `SELECT u.id, u.nickname, u.bio, u.avatar_key, u.created_at, u.last_active,
               rs.composite_score, rs.rating_avg, rs.tier,
-              (SELECT COUNT(*) FROM trades t WHERE (t.buyer_id = u.id OR t.seller_id = u.id) AND t.status = 'completed')::int AS completed_trades
+              (SELECT COUNT(*) FROM trades t WHERE (t.buyer_id = u.id OR t.seller_id = u.id) AND t.status = 'completed')::int AS completed_trades,
+              (SELECT COUNT(*) FROM ratings r WHERE r.to_user_id = u.id)::int AS review_count
        FROM users u
        LEFT JOIN reputation_scores rs ON rs.user_id = u.id
        WHERE u.nickname = $1`,
@@ -38,6 +39,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
         rating_avg: parseFloat(user.rating_avg) || 0,
         tier: user.tier || 'new',
         completed_trades: user.completed_trades || 0,
+        review_count: user.review_count || 0,
       },
     });
   });

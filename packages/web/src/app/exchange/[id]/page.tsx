@@ -125,7 +125,7 @@ function TradeProfileCard({ nickname }: { nickname: string }) {
                 {profile.reputation.rating_avg.toFixed(1)}
               </span>
               <span className="text-sm text-muted-foreground">
-                · {profile.reputation.completed_trades} trade{profile.reputation.completed_trades !== 1 ? 's' : ''}
+                · {profile.reputation.completed_trades} trade{profile.reputation.completed_trades !== 1 ? 's' : ''} · {profile.reputation.review_count} review{profile.reputation.review_count !== 1 ? 's' : ''}
               </span>
             </div>
           )}
@@ -950,7 +950,7 @@ export default function OfferDetailPage() {
                       {sellerProfile.reputation.rating_avg.toFixed(1)}
                     </span>
                     <span className="text-sm text-muted-foreground ml-1.5">
-                      · {offer.seller_trade_count} {offer.seller_trade_count === 1 ? 'trade' : 'trades'}
+                      · {offer.seller_trade_count} {offer.seller_trade_count === 1 ? 'trade' : 'trades'} · {offer.seller_review_count} {offer.seller_review_count === 1 ? 'review' : 'reviews'}
                     </span>
                   </div>
                 )}

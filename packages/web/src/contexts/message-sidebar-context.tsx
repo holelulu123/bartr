@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useAuth } from '@/contexts/auth-context';
 
 interface MessageSidebarState {
   isOpen: boolean;
@@ -24,6 +25,7 @@ function readSession<T>(key: string, fallback: T): T {
 }
 
 export function MessageSidebarProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [pendingContact, setPendingContact] = useState<{ nickname: string; listingId?: string } | null>(null);
@@ -38,6 +40,15 @@ export function MessageSidebarProvider({ children }: { children: ReactNode }) {
     if (savedOpen) setIsOpen(true);
     if (savedThread) setSelectedThreadId(savedThread);
   }, []);
+
+  // Close sidebar when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setIsOpen(false);
+      setSelectedThreadId(null);
+      setPendingContact(null);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => { sessionStorage.setItem('sidebar-open', JSON.stringify(isOpen)); }, [isOpen]);
   useEffect(() => { sessionStorage.setItem('sidebar-thread', JSON.stringify(selectedThreadId)); }, [selectedThreadId]);

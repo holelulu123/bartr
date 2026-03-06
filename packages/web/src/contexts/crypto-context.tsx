@@ -16,18 +16,78 @@ import {
 } from '@/lib/crypto/e2e';
 
 const SESSION_KEY = 'bartr_e2e_priv';
+const IDB_NAME = 'bartr_keys';
+const IDB_STORE = 'wrapping';
+const IDB_KEY = 'wk';
 
-// Ephemeral wrapping key — lives only in JS memory. XSS can read sessionStorage
-// but cannot unwrap the blob without this key. Lost on full page reload.
+// Wrapping key cached in memory for fast access; persisted in IndexedDB to
+// survive page refreshes. IndexedDB can store non-extractable CryptoKey objects
+// natively, so XSS cannot export the key — it can only be used in-place.
 let wrappingKey: CryptoKey | null = null;
 
+function openIDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function storeWrappingKey(key: CryptoKey): Promise<void> {
+  try {
+    const db = await openIDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(key, IDB_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch { /* IndexedDB unavailable — fall back to in-memory only */ }
+}
+
+async function loadWrappingKey(): Promise<CryptoKey | null> {
+  try {
+    const db = await openIDB();
+    const key = await new Promise<CryptoKey | null>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return key;
+  } catch {
+    return null;
+  }
+}
+
+async function clearWrappingKey(): Promise<void> {
+  try {
+    const db = await openIDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(IDB_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch { /* noop */ }
+}
+
 async function getWrappingKey(): Promise<CryptoKey> {
+  if (!wrappingKey) {
+    // Try to restore from IndexedDB first (survives page refresh)
+    wrappingKey = await loadWrappingKey();
+  }
   if (!wrappingKey) {
     wrappingKey = await crypto.subtle.generateKey(
       { name: 'AES-KW', length: 256 },
       false, // non-extractable
       ['wrapKey', 'unwrapKey'],
     );
+    await storeWrappingKey(wrappingKey);
   }
   return wrappingKey;
 }
@@ -42,6 +102,8 @@ async function cachePrivateKey(key: CryptoKey) {
 
 function clearCachedKey() {
   try { sessionStorage.removeItem(SESSION_KEY); } catch { /* noop */ }
+  clearWrappingKey();
+  wrappingKey = null;
 }
 
 async function loadCachedKey(): Promise<CryptoKey | null> {
@@ -59,7 +121,7 @@ async function loadCachedKey(): Promise<CryptoKey | null> {
       ['deriveKey', 'deriveBits'],
     );
   } catch {
-    // Wrapping key rotated (page reload) or corrupt data — clear stale cache
+    // Wrapping key or cached data corrupt — clear everything
     clearCachedKey();
     return null;
   }
