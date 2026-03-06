@@ -362,9 +362,13 @@ describe('Moderation routes', () => {
     });
 
     it('POST /moderation/check returns filter result', async () => {
+      const user = await createTestUser('checkuser');
+      const token = await getToken(user);
+
       const res1 = await app.inject({
         method: 'POST',
         url: '/moderation/check',
+        headers: { authorization: `Bearer ${token}` },
         payload: { text: 'Buy this stolen laptop' },
       });
       expect(res1.json().allowed).toBe(false);
@@ -373,6 +377,7 @@ describe('Moderation routes', () => {
       const res2 = await app.inject({
         method: 'POST',
         url: '/moderation/check',
+        headers: { authorization: `Bearer ${token}` },
         payload: { text: 'Selling a GPU for crypto' },
       });
       expect(res2.json().allowed).toBe(true);

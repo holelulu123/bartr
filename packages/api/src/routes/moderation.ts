@@ -200,7 +200,7 @@ export default async function moderationRoutes(fastify: FastifyInstance) {
   // Content filter check endpoint (can be used by frontend to pre-check)
   fastify.post<{
     Body: { text: string };
-  }>('/moderation/check', async (request, reply) => {
+  }>('/moderation/check', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { text } = request.body;
     if (!text) {
       return reply.status(400).send({ error: 'text is required' });
