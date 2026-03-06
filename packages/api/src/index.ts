@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 // multipart is registered per-route in listings.ts and users.ts
 import { env } from './config/env.js';
 import dbPlugin from './plugins/db.js';
@@ -24,8 +25,30 @@ import { startUnverifiedCleanup } from './lib/unverified-cleanup.js';
 
 const app = Fastify({ logger: true });
 
-await app.register(cors, { origin: true, credentials: true });
+// CORS: allow only the configured client origin
+await app.register(cors, { origin: env.clientUrl, credentials: true });
 await app.register(cookie);
+
+// Global rate limit: 100 req/min per IP
+await app.register(rateLimit, {
+  global: true,
+  max: 100,
+  timeWindow: '1 minute',
+  keyGenerator: (request) => request.ip,
+  errorResponseBuilder: (_req, ctx) => ({
+    statusCode: 429,
+    error: 'Too many requests — please slow down',
+    expiresIn: ctx.ttl,
+  }),
+});
+
+// Security headers on every response
+app.addHook('onSend', async (_request, reply) => {
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('X-Frame-Options', 'DENY');
+  reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  reply.header('X-Permitted-Cross-Domain-Policies', 'none');
+});
 
 // Record response times for API performance metrics (exclude /health to avoid noise)
 app.addHook('onResponse', async (request, reply) => {
