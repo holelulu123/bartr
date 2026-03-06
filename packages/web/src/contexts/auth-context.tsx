@@ -40,7 +40,11 @@ function getRefreshTokenFromCookie(): string | null {
 function setRefreshTokenCookie(token: string) {
   if (typeof document === 'undefined') return;
   const maxAge = 60 * 60 * 24 * 30; // 30 days
-  const secure = location.protocol === 'https:' ? '; Secure' : '';
+  const isLocalDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const secure = isLocalDev ? '' : '; Secure';
+  // Note: HttpOnly cannot be set from JS. The SameSite=Strict + Secure flags
+  // mitigate CSRF. The ephemeral wrapping key on the private key cache further
+  // limits XSS damage window.
   document.cookie = `${REFRESH_TOKEN_KEY}=${encodeURIComponent(token)}; max-age=${maxAge}; path=/; SameSite=Strict${secure}`;
 }
 
