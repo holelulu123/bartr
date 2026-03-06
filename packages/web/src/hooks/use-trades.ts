@@ -54,6 +54,7 @@ export function useTradesForOffer(offerId: string) {
     queryKey: tradeKeys.list({ offer_id: offerId }),
     queryFn: () => tradesApi.getTrades({ offer_id: offerId }),
     enabled: !!offerId,
+    refetchInterval: 10_000,
   });
 }
 
@@ -128,5 +129,6 @@ export function useCheckPairRating(counterpartyId: string) {
     queryKey: ['pairRating', counterpartyId],
     queryFn: () => tradesApi.checkPairRating(counterpartyId),
     enabled: !!counterpartyId,
+    staleTime: 0,
   });
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, AlertCircle, ArrowLeftRight, XCircle, Check, X } from 'lucide-react';
+import { Send, AlertCircle, ArrowLeftRight, XCircle, Check, X, Star } from 'lucide-react';
+import Link from 'next/link';
 import { useMessages, useSendMessage } from '@/hooks/use-messages';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
@@ -63,10 +64,12 @@ export interface TradeAction {
   isPending?: boolean;
 }
 
-function SystemMessage({ msg, isOwn, tradeAction }: { msg: DecryptedMessage; isOwn: boolean; tradeAction?: TradeAction }) {
+function SystemMessage({ msg, isOwn, tradeAction, offerId }: { msg: DecryptedMessage; isOwn: boolean; tradeAction?: TradeAction; offerId?: string }) {
   let text = msg.body.slice(SYSTEM_PREFIX.length);
   let icon = <ArrowLeftRight className="h-3.5 w-3.5 text-primary shrink-0" />;
   let isOffer = false;
+  let isTradeCompleted = false;
+  let isRated = false;
 
   // Replace neutral labels with directional ones
   if (text.startsWith('Offer: ')) {
@@ -80,6 +83,15 @@ function SystemMessage({ msg, isOwn, tradeAction }: { msg: DecryptedMessage; isO
     icon = <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />;
     const details = text.slice('Declined: '.length);
     text = isOwn ? `You declined: ${details}` : `Offer declined: ${details}`;
+  } else if (text.startsWith('Rated: ')) {
+    isRated = true;
+    icon = <Star className="h-3.5 w-3.5 text-yellow-500 shrink-0" />;
+    const nickname = text.slice('Rated: '.length);
+    text = isOwn ? 'You left a review' : `${nickname} left you a review`;
+  } else if (text === 'TradeCompleted') {
+    isTradeCompleted = true;
+    icon = <Star className="h-3.5 w-3.5 text-yellow-500 shrink-0" />;
+    text = '';
   } else if (text.startsWith('Completed: ')) {
     icon = <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />;
     const nickname = text.slice('Completed: '.length);
@@ -89,6 +101,52 @@ function SystemMessage({ msg, isOwn, tradeAction }: { msg: DecryptedMessage; isO
   // Show accept/decline buttons only for the recipient (seller) on an "Offer received" message
   // and only when the trade is still in 'offered' status
   const showActions = isOffer && !isOwn && tradeAction?.status === 'offered';
+
+  if (isRated && !isOwn && offerId) {
+    return (
+      <div className="flex justify-center mb-3 px-4">
+        <div className="rounded-lg border border-border bg-muted/50 px-3 py-1.5 max-w-[85%]">
+          <div className="flex items-center gap-2">
+            {icon}
+            <p className="text-xs text-muted-foreground">
+              {text} —{' '}
+              <Link
+                href={`/exchange/${offerId}`}
+                onClick={() => { sessionStorage.setItem('glow-rating', '1'); window.dispatchEvent(new CustomEvent('glow-rating')); }}
+                className="text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                View review
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isTradeCompleted) {
+    return (
+      <div className="flex justify-center mb-3 px-4">
+        <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 max-w-[85%]">
+          <div className="flex items-center gap-2">
+            {icon}
+            <p className="text-xs text-muted-foreground">
+              Trade completed! {offerId ? (
+                <Link
+                  href={`/exchange/${offerId}`}
+                  onClick={() => { sessionStorage.setItem('glow-rating', '1'); window.dispatchEvent(new CustomEvent('glow-rating')); }}
+                  className="text-primary underline underline-offset-2 hover:text-primary/80"
+                >
+                  Rate each other
+                </Link>
+              ) : 'You can rate each other.'}
+            </p>
+          </div>
+          <p className="text-[11px] text-muted-foreground/60 mt-1">Chat will remain open for 24 hours.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex justify-center mb-3 px-4">
@@ -126,9 +184,9 @@ function SystemMessage({ msg, isOwn, tradeAction }: { msg: DecryptedMessage; isO
   );
 }
 
-export function MessageBubble({ msg, isOwn, tradeAction }: { msg: DecryptedMessage; isOwn: boolean; tradeAction?: TradeAction }) {
+export function MessageBubble({ msg, isOwn, tradeAction, offerId }: { msg: DecryptedMessage; isOwn: boolean; tradeAction?: TradeAction; offerId?: string }) {
   if (!msg.decryptError && msg.body.startsWith(SYSTEM_PREFIX)) {
-    return <SystemMessage msg={msg} isOwn={isOwn} tradeAction={tradeAction} />;
+    return <SystemMessage msg={msg} isOwn={isOwn} tradeAction={tradeAction} offerId={offerId} />;
   }
 
   return (
@@ -188,12 +246,13 @@ export interface ChatPanelProps {
   contextLabel?: string | null;
   className?: string;
   tradeAction?: TradeAction;
+  offerId?: string;
   /** When true, messages are visible but the input is disabled with a hint. */
   chatLocked?: boolean;
   chatLockedMessage?: string;
 }
 
-export function ChatPanel({ threadId, recipientNickname, contextLabel, className, tradeAction, chatLocked, chatLockedMessage }: ChatPanelProps) {
+export function ChatPanel({ threadId, recipientNickname, contextLabel, className, tradeAction, offerId, chatLocked, chatLockedMessage }: ChatPanelProps) {
   const { user } = useAuth();
   const { decrypt, isUnlocked } = useCrypto();
 
@@ -301,6 +360,7 @@ export function ChatPanel({ threadId, recipientNickname, contextLabel, className
                   msg={msg}
                   isOwn={msg.sender_nickname === user?.nickname}
                   tradeAction={tradeAction}
+                  offerId={offerId}
                 />
               </div>
             );

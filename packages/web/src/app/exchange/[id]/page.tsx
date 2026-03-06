@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -124,7 +124,7 @@ function TradeProfileCard({ nickname }: { nickname: string }) {
                 {profile.reputation.rating_avg.toFixed(1)}
               </span>
               <span className="text-sm text-muted-foreground">
-                · Score: {profile.reputation.composite_score}
+                · {profile.reputation.completed_trades} trade{profile.reputation.completed_trades !== 1 ? 's' : ''}
               </span>
             </div>
           )}
@@ -136,25 +136,50 @@ function TradeProfileCard({ nickname }: { nickname: string }) {
 
 // ── Rating Section ──────────────────────────────────────────────────────────
 
-function RatingSection({ tradeId, tradeStatus, counterpartyId, counterpartyNickname }: {
+function RatingSection({ tradeId, tradeStatus, counterpartyId, counterpartyNickname, onRated }: {
   tradeId: string;
   tradeStatus: string;
   counterpartyId: string;
   counterpartyNickname: string;
+  onRated?: () => void;
 }) {
   const [score, setScore] = useState(2.5);
   const [comment, setComment] = useState('');
+  const [glowing, setGlowing] = useState(false);
+  const ratingRef = useRef<HTMLDivElement>(null);
   const rateMutation = useRateTrade();
   const { data: pairCheck } = useCheckPairRating(counterpartyId);
 
   const isCompleted = tradeStatus === 'completed';
   const alreadyRated = pairCheck?.rated === true;
 
+  // Glow effect when navigated from chat "Rate each other" link
+  const triggerGlow = useCallback(() => {
+    sessionStorage.removeItem('glow-rating');
+    setGlowing(true);
+    ratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setGlowing(false), 2000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // On mount: check sessionStorage (cross-page navigation)
+  useEffect(() => {
+    if (sessionStorage.getItem('glow-rating')) triggerGlow();
+  }, [triggerGlow]);
+
+  // Listen for custom event (same-page navigation)
+  useEffect(() => {
+    function handle() { triggerGlow(); }
+    window.addEventListener('glow-rating', handle);
+    return () => window.removeEventListener('glow-rating', handle);
+  }, [triggerGlow]);
+
   async function handleSubmit() {
     await rateMutation.mutateAsync({
       tradeId,
       payload: { score, comment: comment || undefined },
     });
+    onRated?.();
   }
 
   const disabled = !isCompleted || alreadyRated;
@@ -168,7 +193,10 @@ function RatingSection({ tradeId, tradeStatus, counterpartyId, counterpartyNickn
   }
 
   return (
-    <div className="p-4 border-t border-border space-y-3">
+    <div
+      ref={ratingRef}
+      className={cn('p-4 border-t border-border space-y-3 transition-colors', glowing && 'bg-yellow-500/10')}
+    >
       <h4 className="text-sm font-semibold">Rate {counterpartyNickname}</h4>
 
       {statusText && (
@@ -198,7 +226,7 @@ function RatingSection({ tradeId, tradeStatus, counterpartyId, counterpartyNickn
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={2}
-            maxLength={500}
+            maxLength={80}
             disabled={disabled}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed"
           />
@@ -571,19 +599,38 @@ function SelectedTradeDetail({
   const { encrypt } = useCrypto();
   const { openContact } = useMessageSidebar();
 
-  async function handleCompleted() {
+  async function handleCompleted(bothDone: boolean) {
     const myNickname = currentUser?.nickname ?? '';
-    const autoMsg = `[SYSTEM] Completed: ${myNickname}`;
     try {
       const thread = await createThread.mutateAsync({
         recipient_nickname: trade.buyer_nickname,
         offer_id: offerId,
       });
       const { public_key } = await usersApi.getUserPublicKey(trade.buyer_nickname);
-      const encrypted = await encrypt(autoMsg, public_key);
-      await messagesApi.sendMessage(thread.id, encrypted);
+      const confirmMsg = `[SYSTEM] Completed: ${myNickname}`;
+      const encConfirm = await encrypt(confirmMsg, public_key);
+      await messagesApi.sendMessage(thread.id, encConfirm);
+      if (bothDone) {
+        const doneMsg = '[SYSTEM] TradeCompleted';
+        const encDone = await encrypt(doneMsg, public_key);
+        await messagesApi.sendMessage(thread.id, encDone);
+      }
     } catch { /* non-critical */ }
     onTradeUpdated();
+  }
+
+  async function handleRated() {
+    const myNickname = currentUser?.nickname ?? '';
+    try {
+      const thread = await createThread.mutateAsync({
+        recipient_nickname: trade.buyer_nickname,
+        offer_id: offerId,
+      });
+      const { public_key } = await usersApi.getUserPublicKey(trade.buyer_nickname);
+      const ratedMsg = `[SYSTEM] Rated: ${myNickname}`;
+      const encrypted = await encrypt(ratedMsg, public_key);
+      await messagesApi.sendMessage(thread.id, encrypted);
+    } catch { /* non-critical */ }
   }
 
   async function handleAccept() {
@@ -704,26 +751,26 @@ function SelectedTradeDetail({
               <Button
                 size="sm"
                 variant="outline"
-                className="flex-1 h-8 text-xs"
+                className="flex-1 h-9 text-sm"
                 onClick={() => openContact(trade.buyer_nickname)}
               >
-                <MessageSquare className="h-3 w-3 mr-1" />
+                <MessageSquare className="h-4 w-4 mr-1.5" />
                 Message
               </Button>
               <Button
                 size="sm"
                 variant="destructive"
-                className="flex-1 h-8 text-xs"
+                className="flex-1 h-9 text-sm"
                 onClick={() => window.open(`/report?user=${trade.buyer_nickname}&trade=${trade.id}`, '_blank')}
               >
-                <Megaphone className="h-3 w-3 mr-1" />
+                <Megaphone className="h-4 w-4 mr-1.5" />
                 Report
               </Button>
             </div>
           </>
         )}
       </div>
-      <RatingSection tradeId={trade.id} tradeStatus={trade.status} counterpartyId={trade.buyer_id} counterpartyNickname={trade.buyer_nickname} />
+      <RatingSection tradeId={trade.id} tradeStatus={trade.status} counterpartyId={trade.buyer_id} counterpartyNickname={trade.buyer_nickname} onRated={handleRated} />
     </div>
   );
 }
@@ -768,19 +815,38 @@ export default function OfferDetailPage() {
   }, [tradesData, selectedTradeId]);
 
   // Buyer completion handler — sends system message to seller
-  async function handleBuyerCompleted() {
+  async function handleBuyerCompleted(bothDone: boolean) {
     if (!offer || !myActiveTrade || !user) return;
-    const autoMsg = `[SYSTEM] Completed: ${user.nickname}`;
     try {
       const thread = await createThreadForComplete.mutateAsync({
         recipient_nickname: offer.seller_nickname,
         offer_id: offer.id,
       });
       const { public_key } = await usersApi.getUserPublicKey(offer.seller_nickname);
-      const encrypted = await encrypt(autoMsg, public_key);
-      await messagesApi.sendMessage(thread.id, encrypted);
+      const confirmMsg = `[SYSTEM] Completed: ${user.nickname}`;
+      const encConfirm = await encrypt(confirmMsg, public_key);
+      await messagesApi.sendMessage(thread.id, encConfirm);
+      if (bothDone) {
+        const doneMsg = '[SYSTEM] TradeCompleted';
+        const encDone = await encrypt(doneMsg, public_key);
+        await messagesApi.sendMessage(thread.id, encDone);
+      }
     } catch { /* non-critical */ }
     refetchTrades();
+  }
+
+  async function handleBuyerRated() {
+    if (!offer || !user) return;
+    try {
+      const thread = await createThreadForComplete.mutateAsync({
+        recipient_nickname: offer.seller_nickname,
+        offer_id: offer.id,
+      });
+      const { public_key } = await usersApi.getUserPublicKey(offer.seller_nickname);
+      const ratedMsg = `[SYSTEM] Rated: ${user.nickname}`;
+      const encrypted = await encrypt(ratedMsg, public_key);
+      await messagesApi.sendMessage(thread.id, encrypted);
+    } catch { /* non-critical */ }
   }
 
   if (isLoading) return <OfferDetailSkeleton />;
@@ -1107,26 +1173,26 @@ export default function OfferDetailPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="flex-1 h-8 text-xs"
+                            className="flex-1 h-9 text-sm"
                             onClick={() => openContact(offer.seller_nickname)}
                           >
-                            <MessageSquare className="h-3 w-3 mr-1" />
+                            <MessageSquare className="h-4 w-4 mr-1.5" />
                             Message
                           </Button>
                           <Button
                             size="sm"
                             variant="destructive"
-                            className="flex-1 h-8 text-xs"
+                            className="flex-1 h-9 text-sm"
                             onClick={() => window.open(`/report?user=${offer.seller_nickname}&trade=${myActiveTrade.id}`, '_blank')}
                           >
-                            <Megaphone className="h-3 w-3 mr-1" />
+                            <Megaphone className="h-4 w-4 mr-1.5" />
                             Report
                           </Button>
                         </div>
                       </>
                     )}
                   </div>
-                  <RatingSection tradeId={myActiveTrade.id} tradeStatus={myActiveTrade.status} counterpartyId={offer.user_id} counterpartyNickname={offer.seller_nickname} />
+                  <RatingSection tradeId={myActiveTrade.id} tradeStatus={myActiveTrade.status} counterpartyId={offer.user_id} counterpartyNickname={offer.seller_nickname} onRated={handleBuyerRated} />
                 </>
               )}
 

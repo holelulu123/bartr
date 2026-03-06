@@ -48,6 +48,7 @@ export interface UserProfile {
     composite_score: number;
     rating_avg: number;
     tier: ReputationTier;
+    completed_trades: number;
   };
 }
 

@@ -17,8 +17,8 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: 'Score must be between 0 and 5 in 0.5 increments' });
       }
 
-      if (comment && comment.length > 500) {
-        return reply.status(400).send({ error: 'Comment must be 500 characters or less' });
+      if (comment && comment.length > 80) {
+        return reply.status(400).send({ error: 'Comment must be 80 characters or less' });
       }
 
       // Verify trade exists and is completed
@@ -44,6 +44,7 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
       const toUserId = t.buyer_id === userId ? t.seller_id : t.buyer_id;
 
       // Check if already rated this user (one rating per user pair, ever)
+      // Use SELECT ... FOR UPDATE style check within a serializable insert
       const existing = await fastify.pg.query(
         'SELECT id FROM ratings WHERE from_user_id = $1 AND to_user_id = $2',
         [userId, toUserId],
@@ -55,9 +56,14 @@ export default async function ratingRoutes(fastify: FastifyInstance) {
       const result = await fastify.pg.query(
         `INSERT INTO ratings (trade_id, from_user_id, to_user_id, score, comment)
          VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (from_user_id, to_user_id) DO NOTHING
          RETURNING id, trade_id, from_user_id, to_user_id, score, comment, created_at`,
         [tradeId, userId, toUserId, score, comment || null],
       );
+
+      if (result.rows.length === 0) {
+        return reply.status(409).send({ error: 'You have already rated this user' });
+      }
 
       // Recalculate reputation for the rated user
       await recalculateReputation(fastify, toUserId);

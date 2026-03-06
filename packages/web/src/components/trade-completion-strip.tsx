@@ -18,17 +18,6 @@ const CRYPTO_COLORS: Record<string, string> = {
   TON: 'text-sky-500',
 };
 
-const CRYPTO_FILL: Record<string, string> = {
-  BTC: 'fill-orange-500',
-  ETH: 'fill-violet-500',
-  USDT: 'fill-emerald-500',
-  USDC: 'fill-blue-400',
-  SOL: 'fill-fuchsia-500',
-  XRP: 'fill-blue-600',
-  TRX: 'fill-red-500',
-  TON: 'fill-sky-500',
-};
-
 const CRYPTO_HEX: Record<string, string> = {
   BTC: '#f97316',
   ETH: '#8b5cf6',
@@ -40,7 +29,7 @@ const CRYPTO_HEX: Record<string, string> = {
   TON: '#0ea5e9',
 };
 
-const MIN_WAIT_MS = 0; // TODO: restore to 90 * 60 * 1000 (90 minutes) after testing
+const MIN_WAIT_MS = 90 * 60 * 1000; // 90 minutes
 
 function formatCountdown(ms: number): string {
   return `${Math.ceil(ms / 60_000)}m`;
@@ -54,8 +43,8 @@ export interface TradeCompletionStripProps {
   cryptoCurrency: string;
   /** compact mode for chat strip — hides button after confirmation */
   compact?: boolean;
-  /** Called after successfully confirming completion */
-  onCompleted?: () => void;
+  /** Called after confirming completion. `bothDone` is true when trade is fully completed. */
+  onCompleted?: (bothDone: boolean) => void;
 }
 
 export function TradeCompletionStrip({
@@ -128,11 +117,10 @@ export function TradeCompletionStrip({
   const timerActive = remaining > 0 && tradeStatus === 'accepted';
 
   const cryptoColor = CRYPTO_COLORS[cryptoCurrency] ?? 'text-primary';
-  const cryptoFill = CRYPTO_FILL[cryptoCurrency] ?? 'fill-primary';
 
   async function handleComplete() {
-    await completeTrade.mutateAsync(tradeId);
-    onCompleted?.();
+    const res = await completeTrade.mutateAsync(tradeId);
+    onCompleted?.(res.status === 'completed');
   }
 
   // Checkmark classes
@@ -175,7 +163,7 @@ export function TradeCompletionStrip({
           className={cn(
             'transition-colors',
             compact ? 'h-5 w-5' : 'h-7 w-7',
-            check1Active ? `${cryptoColor} ${cryptoFill}` : 'text-muted-foreground/40',
+            check1Active ? cryptoColor : 'text-muted-foreground/40',
           )}
           strokeWidth={3}
         />
@@ -183,7 +171,7 @@ export function TradeCompletionStrip({
           className={cn(
             'transition-colors',
             compact ? 'h-5 w-5 -ml-2' : 'h-7 w-7 -ml-1',
-            check2Active ? `${cryptoColor} ${cryptoFill}` : 'text-muted-foreground/40',
+            check2Active ? cryptoColor : 'text-muted-foreground/40',
           )}
           strokeWidth={3}
         />
@@ -209,11 +197,11 @@ export function TradeCompletionStrip({
         <div className="group relative shrink-0">
           <Button
             size="sm"
-            variant="outline"
-            className="h-8 text-sm"
+            className="h-9 px-4 text-sm font-medium bg-green-600 hover:bg-green-700 text-white"
             disabled={timerActive || completeTrade.isPending}
             onClick={handleComplete}
           >
+            <Check className="h-4 w-4 mr-1.5" />
             {completeTrade.isPending ? 'Confirming...' : 'Complete'}
           </Button>
           {timerActive && (

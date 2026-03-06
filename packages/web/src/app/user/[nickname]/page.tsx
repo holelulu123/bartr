@@ -435,7 +435,7 @@ export default function UserProfilePage() {
                   />
                 ))}
                 <span className="text-sm text-muted-foreground ml-1">
-                  {profile.reputation.rating_avg.toFixed(1)} · score {profile.reputation.composite_score.toFixed(0)}
+                  {profile.reputation.rating_avg.toFixed(1)} · {profile.reputation.completed_trades} successful trade{profile.reputation.completed_trades !== 1 ? 's' : ''}
                 </span>
               </div>
 

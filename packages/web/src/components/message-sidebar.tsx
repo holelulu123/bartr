@@ -420,7 +420,13 @@ function SidebarContent() {
         (t.buyer_id === user.id && t.seller_nickname === activeNickname),
     );
     if (!trade) return false;
-    return trade.status !== 'accepted';
+    if (trade.status === 'accepted') return false;
+    if (trade.status === 'completed') {
+      const completedAt = new Date(trade.updated_at).getTime();
+      const hoursSince = (Date.now() - completedAt) / (1000 * 60 * 60);
+      return hoursSince > 24;
+    }
+    return true;
   }, [tradesData, offerId, activeNickname, user?.id]);
 
   const sidebarLockedMessage = useMemo(() => {
@@ -431,6 +437,12 @@ function SidebarContent() {
         (t.buyer_id === user.id && t.seller_nickname === activeNickname),
     );
     if (!trade) return '';
+    if (trade.status === 'completed') {
+      const completedAt = new Date(trade.updated_at).getTime();
+      const hoursSince = (Date.now() - completedAt) / (1000 * 60 * 60);
+      if (hoursSince > 24) return 'Chat closed — trade was completed over 24 hours ago.';
+      return '';
+    }
     if (trade.status === 'declined') return 'This offer was declined.';
     if (trade.seller_id === user.id) return 'Accept the offer to start chatting.';
     return 'Waiting for the seller to accept your offer\u2026';
@@ -454,16 +466,21 @@ function SidebarContent() {
       sellerId: trade.seller_id,
       cryptoCurrency: crypto,
       offerId,
-      onCompleted: async () => {
-        const autoMsg = `[SYSTEM] Completed: ${user.nickname}`;
+      onCompleted: async (bothDone: boolean) => {
         try {
           const thread = await createThreadForAction.mutateAsync({
             recipient_nickname: activeNickname,
             offer_id: offerId,
           });
           const { public_key } = await usersApi.getUserPublicKey(activeNickname);
-          const encrypted = await encrypt(autoMsg, public_key);
-          await messagesApi.sendMessage(thread.id, encrypted);
+          const confirmMsg = `[SYSTEM] Completed: ${user.nickname}`;
+          const encConfirm = await encrypt(confirmMsg, public_key);
+          await messagesApi.sendMessage(thread.id, encConfirm);
+          if (bothDone) {
+            const doneMsg = '[SYSTEM] TradeCompleted';
+            const encDone = await encrypt(doneMsg, public_key);
+            await messagesApi.sendMessage(thread.id, encDone);
+          }
         } catch { /* non-critical */ }
       },
     };
@@ -487,6 +504,7 @@ function SidebarContent() {
           recipientNickname={activeNickname}
           className="flex-1 min-h-0"
           tradeAction={sidebarTradeAction}
+          offerId={offerId}
           chatLocked={sidebarChatLocked}
           chatLockedMessage={sidebarLockedMessage}
         />
