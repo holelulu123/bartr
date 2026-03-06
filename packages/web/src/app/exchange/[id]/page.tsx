@@ -4,10 +4,10 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ArrowLeft, ArrowUp, ArrowDown, Star, Pause, Play, Trash2,
+  ArrowLeft, ArrowUp, ArrowDown, Star, Pause, Play, Trash2, RefreshCw,
   Lock, LogIn, MessageSquare, Megaphone, Check, X, ShieldAlert,
 } from 'lucide-react';
-import { useOffer, useUpdateOffer, useDeleteOffer } from '@/hooks/use-exchange';
+import { useOffer, useUpdateOffer, useDeleteOffer, useCreateOffer } from '@/hooks/use-exchange';
 import { useUser } from '@/hooks/use-users';
 import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
@@ -243,6 +243,11 @@ function RatingSection({ tradeId, tradeStatus, counterpartyId, counterpartyNickn
               {rateMutation.error instanceof ApiError && rateMutation.error.body && typeof rateMutation.error.body === 'object' && 'error' in rateMutation.error.body
                 ? String((rateMutation.error.body as { error: string }).error)
                 : 'Failed to submit review'}
+            </p>
+          )}
+          {isCompleted && !alreadyRated && (
+            <p className="text-xs text-muted-foreground/60 text-center mt-3">
+              Bartr is community-run — no fees, no ads. If you like it, show us some support :)
             </p>
           )}
         </div>
@@ -794,11 +799,18 @@ export default function OfferDetailPage() {
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPauseDialog, setShowPauseDialog] = useState(false);
+  const [showRecreateDialog, setShowRecreateDialog] = useState(false);
+  const createOffer = useCreateOffer();
 
   // Selected trade for owner detail view
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
 
   const isOwner = user?.id === offer?.user_id;
+
+  const hasCompletedTrade = useMemo(() => {
+    if (!tradesData) return false;
+    return tradesData.trades.some((t) => t.status === 'completed');
+  }, [tradesData]);
 
   // Find buyer's existing active trade on this offer
   const myActiveTrade = useMemo(() => {
@@ -945,6 +957,12 @@ export default function OfferDetailPage() {
                     </span>
                   </div>
                 )}
+                <p className="text-sm text-muted-foreground mt-1">
+                  {offer.seller_nickname} is {isBuy ? 'buying' : 'selling'} {offer.crypto_currency} in exchange for {offer.fiat_currency}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Created {new Date(offer.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(offer.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                </p>
               </div>
             </div>
           </div>
@@ -1066,27 +1084,39 @@ export default function OfferDetailPage() {
           {/* Owner controls */}
           {isOwner && (
             <div className="flex gap-3">
-              {offer.status !== 'removed' && (
+              {hasCompletedTrade ? (
                 <Button
-                  variant="outline"
                   className="flex-1"
-                  onClick={() => setShowPauseDialog(true)}
+                  onClick={() => setShowRecreateDialog(true)}
                 >
-                  {offer.status === 'active' ? (
-                    <><Pause className="h-4 w-4 mr-2" />Pause offer</>
-                  ) : (
-                    <><Play className="h-4 w-4 mr-2" />Resume offer</>
-                  )}
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Recreate offer
                 </Button>
+              ) : (
+                <>
+                  {offer.status !== 'removed' && (
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setShowPauseDialog(true)}
+                    >
+                      {offer.status === 'active' ? (
+                        <><Pause className="h-4 w-4 mr-2" />Pause offer</>
+                      ) : (
+                        <><Play className="h-4 w-4 mr-2" />Resume offer</>
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={() => setShowDeleteDialog(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete offer
+                  </Button>
+                </>
               )}
-              <Button
-                variant="destructive"
-                className="flex-1"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete offer
-              </Button>
             </div>
           )}
         </div>
@@ -1318,6 +1348,47 @@ export default function OfferDetailPage() {
               }}
             >
               {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recreate dialog */}
+      <Dialog open={showRecreateDialog} onOpenChange={setShowRecreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Recreate offer?</DialogTitle>
+            <DialogDescription>
+              This will create a new {offer.offer_type} offer for {offer.crypto_currency}/{offer.fiat_currency} with the same terms. The old offer will remain accessible to its trade participants.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRecreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={createOffer.isPending}
+              onClick={async () => {
+                const newOffer = await createOffer.mutateAsync({
+                  offer_type: offer.offer_type,
+                  crypto_currency: offer.crypto_currency,
+                  fiat_currency: offer.fiat_currency,
+                  min_amount: offer.min_amount,
+                  max_amount: offer.max_amount,
+                  rate_type: offer.rate_type,
+                  margin_percent: offer.margin_percent ?? undefined,
+                  fixed_price: offer.fixed_price ?? undefined,
+                  payment_methods: offer.payment_methods,
+                  country_code: offer.country_code ?? undefined,
+                  city: offer.city ?? undefined,
+                  terms: offer.terms ?? undefined,
+                  price_source: offer.price_source,
+                });
+                setShowRecreateDialog(false);
+                router.push(`/exchange/${newOffer.id}`);
+              }}
+            >
+              {createOffer.isPending ? 'Creating…' : 'Recreate'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -274,7 +274,7 @@ function ContractRow({
       href={`/exchange/${offer.id}`}
       className={cn(
         'grid items-center gap-4 rounded-lg border px-4 py-3 border-l-[3px] transition-colors hover:bg-accent/50',
-        'grid-cols-[70px_1fr_160px_100px_80px]',
+        'grid-cols-[80px_1fr_170px_110px_80px]',
         'max-md:grid-cols-[60px_1fr_80px]',
         isPrivateContract
           ? 'border-l-purple-500 bg-purple-500/[0.04] border-purple-500/20'
@@ -286,7 +286,7 @@ function ContractRow({
       {/* Type + pair */}
       <div className="space-y-1">
         {isPrivateContract ? (
-          <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 border-purple-500/40 text-purple-400 bg-purple-500/10">
+          <Badge variant="outline" className="gap-1 text-xs px-2 py-0.5 border-purple-500/40 text-purple-400 bg-purple-500/10">
             <Lock className="h-2.5 w-2.5" />
             {isInProgress ? 'Active' : 'Done'}
           </Badge>
@@ -321,11 +321,6 @@ function ContractRow({
               {offer.status}
             </span>
           )}
-          {isPrivateContract && offer.accepted_buyer_nickname && (
-            <span className="text-xs text-purple-400">
-              with {offer.accepted_buyer_nickname}
-            </span>
-          )}
         </div>
         {effectivePrice !== undefined && (offer.min_amount || offer.max_amount) && (
           <p className="text-xs text-muted-foreground leading-tight mt-0.5">
@@ -354,14 +349,14 @@ function ContractRow({
       </div>
 
       {/* Settlement methods */}
-      <div className="hidden md:flex flex-wrap gap-0.5 overflow-hidden">
+      <div className="hidden md:flex flex-wrap gap-1 overflow-hidden">
         {offer.payment_methods.slice(0, 2).map((pm) => (
-          <span key={pm} className="inline-block rounded border border-border text-[10px] text-muted-foreground px-1.5 py-0 leading-relaxed whitespace-nowrap">
+          <span key={pm} className="inline-block rounded border border-border text-xs text-muted-foreground px-2 py-0.5 leading-relaxed truncate max-w-[140px]">
             {SETTLEMENT_METHOD_LABELS[pm as SettlementMethod] ?? pm}
           </span>
         ))}
         {offer.payment_methods.length > 2 && (
-          <span className="inline-block rounded border border-border text-[10px] text-muted-foreground px-1.5 py-0 leading-relaxed whitespace-nowrap">
+          <span className="inline-block rounded border border-border text-xs text-muted-foreground px-2 py-0.5 leading-relaxed whitespace-nowrap">
             +{offer.payment_methods.length - 2}
           </span>
         )}
