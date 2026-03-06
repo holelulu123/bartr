@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { env } from '../config/env.js';
 
 const CLEANUP_INTERVAL_MS = 60_000; // run every 1 minute
-const MAX_AGE_MS = 5 * 60_000;      // delete after 5 minutes unverified
+const MAX_AGE_MS = 10 * 60_000;     // delete after 10 minutes unverified (allows 2 resends)
 
 let timer: ReturnType<typeof setInterval> | null = null;
 

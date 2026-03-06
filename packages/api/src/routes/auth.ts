@@ -295,11 +295,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         [userId, codeH, expiresAt],
       );
 
-      // Reset user created_at so cleanup job gives them a fresh 5-minute window
-      await fastify.pg.query(
-        'UPDATE users SET created_at = now() WHERE id = $1',
-        [userId],
-      );
+      // Extend the verification code expiry so the cleanup job doesn't delete the user
+      // before they can verify. The code itself already has a 5-minute expiry above.
 
       fastify.resend.sendVerificationEmail(email, code).catch(() => {});
 
