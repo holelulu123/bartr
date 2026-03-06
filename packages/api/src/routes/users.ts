@@ -78,14 +78,6 @@ export default async function userRoutes(fastify: FastifyInstance) {
         if (nickname.length < 3 || nickname.length > 30) {
           return reply.status(400).send({ error: 'Nickname must be 3-30 characters' });
         }
-        // Check uniqueness
-        const existing = await fastify.pg.query(
-          'SELECT id FROM users WHERE nickname = $1 AND id != $2',
-          [nickname, userId],
-        );
-        if (existing.rows.length > 0) {
-          return reply.status(409).send({ error: 'Nickname already taken' });
-        }
         updates.push(`nickname = $${paramIdx++}`);
         values.push(nickname);
       }
@@ -124,10 +116,19 @@ export default async function userRoutes(fastify: FastifyInstance) {
       }
 
       values.push(userId);
-      const result = await fastify.pg.query(
-        `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIdx} RETURNING id, nickname, bio, avatar_key, max_exchange_offers`,
-        values,
-      );
+      let result;
+      try {
+        result = await fastify.pg.query(
+          `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIdx} RETURNING id, nickname, bio, avatar_key, max_exchange_offers`,
+          values,
+        );
+      } catch (err: unknown) {
+        // Handle unique constraint violation on nickname
+        if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '23505') {
+          return reply.status(409).send({ error: 'Nickname already taken' });
+        }
+        throw err;
+      }
 
       return reply.send(result.rows[0]);
     },
