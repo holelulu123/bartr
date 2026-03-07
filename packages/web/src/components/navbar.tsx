@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useCrypto } from '@/contexts/crypto-context';
 import { useMessageSidebar } from '@/contexts/message-sidebar-context';
 import { useThreads } from '@/hooks/use-messages';
-import { useUnreadThreads, isThreadUnread } from '@/hooks/use-unread-threads';
+import { useUnreadThreads } from '@/hooks/use-unread-threads';
 import { usePendingProposals } from '@/hooks/use-pending-proposals';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
@@ -62,33 +62,41 @@ export function Navbar() {
   const { notifications, hasNew: hasNewProposals, hasMore: hasMoreNotifs, loadMore: loadMoreNotifs, markAllRead } = usePendingProposals(isAuthenticated);
   const { isOpen: messagesOpen, openSidebar, openThread, closeSidebar: closeMessages } = useMessageSidebar();
 
-  // Auto-open chat when a new unread thread appears (new message from someone)
+  // Auto-open chat when a new message arrives from someone else
   const threads = threadsData?.threads ?? [];
   const myNick = user?.nickname ?? '';
-  const unreadThreadIds = useMemo(() => {
-    return new Set(threads.filter((t) => isThreadUnread(t, myNick)).map((t) => t.id));
-  }, [threads, myNick]);
 
-  const prevUnreadIds = useRef<Set<string>>(unreadThreadIds);
-  useEffect(() => {
-    // Find thread IDs that are newly unread (weren't in previous set)
-    const newlyUnread = [...unreadThreadIds].filter((id) => !prevUnreadIds.current.has(id));
-    prevUnreadIds.current = unreadThreadIds;
-
-    if (newlyUnread.length > 0) {
-      // Open the most recently active new unread thread
-      const newest = threads
-        .filter((t) => newlyUnread.includes(t.id))
-        .sort((a, b) => {
-          const aTime = a.last_message_at ?? a.created_at;
-          const bTime = b.last_message_at ?? b.created_at;
-          return bTime > aTime ? 1 : bTime < aTime ? -1 : 0;
-        })[0];
-      if (newest) {
-        openThread(newest.id);
+  // Build a map of threadId -> last_message_at for threads where the last sender is not me
+  const incomingTimestamps = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of threads) {
+      if (t.last_message_at && t.last_sender_nickname && t.last_sender_nickname !== myNick) {
+        map.set(t.id, t.last_message_at);
       }
     }
-  }, [unreadThreadIds, threads, openThread]);
+    return map;
+  }, [threads, myNick]);
+
+  const prevIncoming = useRef<Map<string, string>>(incomingTimestamps);
+  useEffect(() => {
+    const prev = prevIncoming.current;
+    prevIncoming.current = incomingTimestamps;
+
+    // Find threads where last_message_at is newer than what we saw before
+    let newestThread: { id: string; time: string } | null = null;
+    for (const [id, time] of incomingTimestamps) {
+      const prevTime = prev.get(id);
+      if (!prevTime || time > prevTime) {
+        if (!newestThread || time > newestThread.time) {
+          newestThread = { id, time };
+        }
+      }
+    }
+
+    if (newestThread) {
+      openThread(newestThread.id);
+    }
+  }, [incomingTimestamps, openThread]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
