@@ -85,9 +85,9 @@ async function getWrappingKeyImpl(): Promise<CryptoKey> {
   }
   if (!wrappingKey) {
     wrappingKey = await crypto.subtle.generateKey(
-      { name: 'AES-KW', length: 256 },
+      { name: 'AES-GCM', length: 256 },
       false, // non-extractable
-      ['wrapKey', 'unwrapKey'],
+      ['encrypt', 'decrypt'],
     );
     await storeWrappingKey(wrappingKey);
   }
@@ -108,13 +108,16 @@ function getWrappingKey(): Promise<CryptoKey> {
 async function cachePrivateKey(key: CryptoKey): Promise<void> {
   try {
     const wk = await getWrappingKey();
-    const wrapped = await crypto.subtle.wrapKey('pkcs8', key, wk, 'AES-KW');
-    // Use localStorage so the wrapped key survives browser restarts.
-    // The wrapping key in IndexedDB is non-extractable, so the blob is
-    // useless without access to this browser's IndexedDB.
-    localStorage.setItem(STORAGE_KEY, bufToBase64(wrapped));
+    const exported = await crypto.subtle.exportKey('pkcs8', key);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wk, exported);
+    // Store iv + ciphertext together
+    const blob = new Uint8Array(iv.byteLength + encrypted.byteLength);
+    blob.set(iv, 0);
+    blob.set(new Uint8Array(encrypted), iv.byteLength);
+    localStorage.setItem(STORAGE_KEY, bufToBase64(blob.buffer));
   } catch (err) {
-    console.warn('[E2E] Failed to cache private key:', err);
+    console.error('[E2E] Failed to cache private key:', err);
   }
 }
 
@@ -128,28 +131,21 @@ function clearCachedKey() {
 
 async function loadCachedKey(): Promise<CryptoKey | null> {
   try {
-    // Check localStorage first, fall back to sessionStorage for migration
     const b64 = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
     if (!b64) return null;
     const wk = await getWrappingKey();
-    const key = await crypto.subtle.unwrapKey(
+    const raw = new Uint8Array(base64ToBuf(b64));
+    const iv = raw.slice(0, 12);
+    const ciphertext = raw.slice(12);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, wk, ciphertext);
+    return crypto.subtle.importKey(
       'pkcs8',
-      base64ToBuf(b64),
-      wk,
-      'AES-KW',
+      decrypted,
       { name: 'ECDH', namedCurve: 'P-256' },
       true,
       ['deriveKey', 'deriveBits'],
     );
-    // Migrate from sessionStorage to localStorage if needed
-    if (!localStorage.getItem(STORAGE_KEY) && sessionStorage.getItem(STORAGE_KEY)) {
-      localStorage.setItem(STORAGE_KEY, sessionStorage.getItem(STORAGE_KEY)!);
-      sessionStorage.removeItem(STORAGE_KEY);
-    }
-    return key;
   } catch (err) {
-    // Don't destroy the cache on transient failures — only clear if the
-    // wrapping key definitely doesn't match (the data is unrecoverable).
     console.warn('[E2E] Failed to load cached key:', err);
     return null;
   }
