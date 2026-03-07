@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { buildApp } from '../app.js';
 import type { FastifyInstance } from 'fastify';
 import { signAccessToken } from '../lib/jwt.js';
+import { COMPLETION_WAIT_MS } from '../routes/trades.js';
 
 describe('Rating & Reputation routes', () => {
   let app: FastifyInstance;
@@ -85,6 +86,12 @@ describe('Rating & Reputation routes', () => {
       url: `/trades/${tradeId}/accept`,
       headers: { authorization: `Bearer ${sellerToken}` },
     });
+
+    // Fast-forward past completion wait
+    await app.pg.query(
+      `UPDATE trades SET updated_at = now() - interval '${Math.ceil(COMPLETION_WAIT_MS / 1000)} seconds' WHERE id = $1`,
+      [tradeId],
+    );
 
     // Both complete
     await app.inject({

@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 
+export const COMPLETION_WAIT_MS = 90 * 60 * 1000; // 90 minutes after acceptance
+
 export default async function tradeRoutes(fastify: FastifyInstance) {
   // Create a trade offer (buyer initiates on a listing or exchange offer)
   fastify.post<{
@@ -380,6 +382,14 @@ export default async function tradeRoutes(fastify: FastifyInstance) {
       }
       if (t.status !== 'accepted') {
         return reply.status(400).send({ error: `Cannot complete a trade with status: ${t.status}` });
+      }
+
+      // Enforce 90-minute wait after acceptance
+      const acceptedAt = new Date(t.updated_at).getTime();
+      const remaining = (acceptedAt + COMPLETION_WAIT_MS) - Date.now();
+      if (remaining > 0) {
+        const minsLeft = Math.ceil(remaining / 60_000);
+        return reply.status(400).send({ error: `Trade completion is available in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}` });
       }
 
       // Use a transaction with row-level locking to prevent race conditions

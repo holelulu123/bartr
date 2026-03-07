@@ -4,6 +4,7 @@ import * as argon2 from 'argon2';
 import { buildApp } from '../app.js';
 import type { FastifyInstance } from 'fastify';
 import { signAccessToken, signRefreshToken, verifyToken } from '../lib/jwt.js';
+import { COMPLETION_WAIT_MS } from '../routes/trades.js';
 
 /**
  * End-to-End API Integration Tests (Phase 13.9)
@@ -592,6 +593,12 @@ describe('E2E Integration — Trades', () => {
   });
 
   it('trade can be completed (both parties confirm)', async () => {
+    // Fast-forward past completion wait
+    await app.pg.query(
+      `UPDATE trades SET updated_at = now() - interval '${Math.ceil(COMPLETION_WAIT_MS / 1000)} seconds' WHERE id = $1`,
+      [tradeId],
+    );
+
     // Seller confirms
     const res1 = await app.inject({
       method: 'POST',

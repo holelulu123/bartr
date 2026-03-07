@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { buildApp } from '../app.js';
 import type { FastifyInstance } from 'fastify';
 import { signAccessToken } from '../lib/jwt.js';
+import { COMPLETION_WAIT_MS } from '../routes/trades.js';
 
 describe('Trade routes', () => {
   let app: FastifyInstance;
@@ -47,6 +48,14 @@ describe('Trade routes', () => {
 
   async function getToken(user: { id: string; nickname: string }) {
     return signAccessToken({ sub: user.id, nickname: user.nickname });
+  }
+
+  /** Fast-forward a trade past the completion wait window */
+  async function skipCompletionWait(tradeId: string) {
+    await app.pg.query(
+      `UPDATE trades SET updated_at = now() - interval '${Math.ceil(COMPLETION_WAIT_MS / 1000)} seconds' WHERE id = $1`,
+      [tradeId],
+    );
   }
 
   async function createListing(token: string) {
@@ -155,6 +164,9 @@ describe('Trade routes', () => {
       });
       expect(acceptRes.statusCode).toBe(200);
       expect(acceptRes.json().status).toBe('accepted');
+
+      // Fast-forward past completion wait
+      await skipCompletionWait(tradeId);
 
       // Buyer confirms completion
       const buyerCompleteRes = await app.inject({
@@ -291,6 +303,7 @@ describe('Trade routes', () => {
         url: `/trades/${tradeId}/accept`,
         headers: { authorization: `Bearer ${sellerToken}` },
       });
+      await skipCompletionWait(tradeId);
 
       // Buyer confirms once
       await app.inject({
