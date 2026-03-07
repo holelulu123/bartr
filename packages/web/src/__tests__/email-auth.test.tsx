@@ -34,17 +34,21 @@ vi.mock('@/contexts/auth-context', () => ({
 }));
 
 const mockCryptoRegister = vi.fn();
+const mockCryptoUnlock = vi.fn().mockResolvedValue(undefined);
 vi.mock('@/contexts/crypto-context', () => ({
-  useCrypto: () => ({ register: mockCryptoRegister }),
+  useCrypto: () => ({ register: mockCryptoRegister, unlock: mockCryptoUnlock }),
 }));
 
 const mockLogin = vi.fn();
 const mockRegister = vi.fn();
 
+const mockGetKeyBlobs = vi.fn().mockResolvedValue({ public_key: 'pk', private_key_blob: 'blob', recovery_key_blob: 'rec' });
+
 vi.mock('@/lib/api', () => ({
   auth: {
     login: (...args: unknown[]) => mockLogin(...args),
     register: (...args: unknown[]) => mockRegister(...args),
+    getKeyBlobs: (...args: unknown[]) => mockGetKeyBlobs(...args),
   },
 }));
 

@@ -15,7 +15,7 @@ import {
   base64ToBuf,
 } from '@/lib/crypto/e2e';
 
-const SESSION_KEY = 'bartr_e2e_priv';
+const STORAGE_KEY = 'bartr_e2e_priv';
 const IDB_NAME = 'bartr_keys';
 const IDB_STORE = 'wrapping';
 const IDB_KEY = 'wk';
@@ -96,19 +96,24 @@ async function cachePrivateKey(key: CryptoKey) {
   try {
     const wk = await getWrappingKey();
     const wrapped = await crypto.subtle.wrapKey('pkcs8', key, wk, 'AES-KW');
-    sessionStorage.setItem(SESSION_KEY, bufToBase64(wrapped));
+    // Use localStorage so the wrapped key survives browser restarts.
+    // The wrapping key in IndexedDB is non-extractable, so the blob is
+    // useless without access to this browser's IndexedDB.
+    localStorage.setItem(STORAGE_KEY, bufToBase64(wrapped));
   } catch { /* storage full or wrap error */ }
 }
 
 function clearCachedKey() {
-  try { sessionStorage.removeItem(SESSION_KEY); } catch { /* noop */ }
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+  try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* noop — clean up legacy */ }
   clearWrappingKey();
   wrappingKey = null;
 }
 
 async function loadCachedKey(): Promise<CryptoKey | null> {
   try {
-    const b64 = sessionStorage.getItem(SESSION_KEY);
+    // Check localStorage first, fall back to sessionStorage for migration
+    const b64 = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
     if (!b64) return null;
     const wk = await getWrappingKey();
     return crypto.subtle.unwrapKey(

@@ -20,12 +20,25 @@ Object.defineProperty(window, 'location', {
   writable: true,
 });
 
+// Mock localStorage
+const localStorageData: Record<string, string> = {};
+const mockLocalStorage = {
+  getItem: vi.fn((key: string) => localStorageData[key] ?? null),
+  setItem: vi.fn((key: string, value: string) => { localStorageData[key] = value; }),
+  removeItem: vi.fn((key: string) => { delete localStorageData[key]; }),
+  clear: vi.fn(() => { for (const k in localStorageData) delete localStorageData[k]; }),
+  get length() { return Object.keys(localStorageData).length; },
+  key: vi.fn((i: number) => Object.keys(localStorageData)[i] ?? null),
+};
+Object.defineProperty(window, 'localStorage', { value: mockLocalStorage, writable: true });
+
 import { IdleLogout } from '@/components/idle-logout';
 
 beforeEach(() => {
   vi.useFakeTimers();
   mockIsAuthenticated = true;
   mockLogout.mockResolvedValue(undefined);
+  mockLocalStorage.clear();
 });
 
 afterEach(() => {
@@ -74,6 +87,20 @@ describe('IdleLogout', () => {
       vi.advanceTimersByTime(1 * 60 * 1000); // 1 more minute = 15 total
     });
     expect(mockLogout).toHaveBeenCalledOnce();
+  });
+
+  it('logs out immediately when last activity was over 15 minutes ago', async () => {
+    // Simulate a timestamp from 20 minutes ago persisted in localStorage
+    const twentyMinsAgo = Date.now() - 20 * 60 * 1000;
+    localStorageData['bartr_last_activity'] = twentyMinsAgo.toString();
+
+    render(<IdleLogout />);
+    // The effect checks localStorage on mount and should log out immediately
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mockLogout).toHaveBeenCalledOnce();
+    expect(mockLocationReplace).toHaveBeenCalledWith('/');
   });
 
   it('does not set timer when not authenticated', () => {

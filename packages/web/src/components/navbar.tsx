@@ -8,6 +8,7 @@ import { Menu, X, MessageSquare, Store, ArrowLeftRight, Heart, Info, ShieldCheck
 import { useTheme } from 'next-themes';
 import { APP_NAME } from '@bartr/shared';
 import { useAuth } from '@/contexts/auth-context';
+import { useCrypto } from '@/contexts/crypto-context';
 import { useMessageSidebar } from '@/contexts/message-sidebar-context';
 import { useThreads } from '@/hooks/use-messages';
 import { useUnreadThreads, isThreadUnread } from '@/hooks/use-unread-threads';
@@ -46,6 +47,7 @@ const navLinks = [
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+  const { lock } = useCrypto();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
@@ -264,7 +266,7 @@ export function Navbar() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive cursor-pointer flex items-center gap-2"
-                    onClick={() => logout()}
+                    onClick={() => { lock(); logout(); }}
                   >
                     <LogOut className="h-4 w-4" />
                     Logout

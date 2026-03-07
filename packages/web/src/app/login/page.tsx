@@ -113,15 +113,20 @@ export default function LoginPage() {
       setTokens(tokens.access_token, tokens.refresh_token);
       await refreshUser();
       // Unlock E2E keys immediately using the password already in hand
+      let keysUnlocked = false;
       try {
         const blobs = await auth.getKeyBlobs();
         if (blobs.private_key_blob) {
           await unlock(blobs.private_key_blob, data.password);
+          keysUnlocked = true;
+        } else {
+          // No keys on server (shouldn't happen for normal accounts)
+          keysUnlocked = true;
         }
       } catch {
-        // Non-fatal — user can still browse, messaging just won't decrypt
+        // Unlock failed — send to unlock page so user can retry
       }
-      router.replace('/market');
+      router.replace(keysUnlocked ? '/market' : '/auth/unlock?next=/market');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '';
       if (msg.includes('429')) {

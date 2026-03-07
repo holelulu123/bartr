@@ -78,6 +78,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearRefreshTokenCookie();
       setUser(null);
       bootPromise = null;
+      // Clear E2E key cache and idle-logout timestamp
+      try { localStorage.removeItem('bartr_e2e_priv'); } catch { /* noop */ }
+      try { localStorage.removeItem('bartr_last_activity'); } catch { /* noop */ }
+      try { sessionStorage.removeItem('bartr_e2e_priv'); } catch { /* noop */ }
       if (typeof window !== 'undefined') {
         window.location.replace('/');
       }
@@ -160,6 +164,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearRefreshTokenCookie();
     setUser(null);
     bootPromise = null;
+    // Clear E2E key cache and idle-logout timestamp
+    try { localStorage.removeItem('bartr_e2e_priv'); } catch { /* noop */ }
+    try { localStorage.removeItem('bartr_last_activity'); } catch { /* noop */ }
+    try { sessionStorage.removeItem('bartr_e2e_priv'); } catch { /* noop */ }
   }, []);
 
   return (
