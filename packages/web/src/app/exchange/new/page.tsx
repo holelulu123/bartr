@@ -461,7 +461,7 @@ function CreateOfferForm() {
                   if (isValidMargin(val)) setValue('margin_percent', val);
                 }}
               />
-              <p className="text-xs text-muted-foreground">Positive = above market, negative = below</p>
+              <p className="text-sm text-muted-foreground">Positive = above market, negative = below</p>
             </div>
             <div className="space-y-1.5">
               <Label className="inline-flex items-center gap-1">
@@ -480,7 +480,7 @@ function CreateOfferForm() {
                     : '--'}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Price per 1 {cryptoCurrency}
               </p>
             </div>
@@ -628,7 +628,7 @@ function CreateOfferForm() {
             )}
           </div>
           {effectivePrice !== undefined && otherSideMin && otherSideMax && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {otherSideMin} – {otherSideMax} {otherSideSymbol}
             </p>
           )}
