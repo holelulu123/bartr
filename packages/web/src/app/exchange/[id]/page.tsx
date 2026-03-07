@@ -1069,6 +1069,7 @@ export default function OfferDetailPage() {
                   <li>Always verify payment before releasing crypto</li>
                   <li>Never share your private keys or recovery phrase</li>
                   <li>Use the messaging system for all trade communication</li>
+                  <li>Exchange wallet addresses only in the encrypted chat — it&apos;s the safest method</li>
                   <li>Report suspicious activity immediately</li>
                 </ul>
                 <Link href="/tips" className="text-sm text-primary hover:underline font-medium">
