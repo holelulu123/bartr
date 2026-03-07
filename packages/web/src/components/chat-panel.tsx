@@ -342,6 +342,20 @@ export function ChatPanel({ threadId, recipientNickname, contextLabel, className
         </div>
       )}
 
+      {/* Unlock banner */}
+      {!isUnlocked && !isLoading && (
+        <div className="px-3 py-2 border-b border-border bg-muted/50 shrink-0">
+          <p className="text-xs text-muted-foreground">
+            <AlertCircle className="h-3 w-3 inline mr-1 -mt-0.5" />
+            Messages are encrypted.{' '}
+            <Link href={`/auth/unlock?next=${typeof window !== 'undefined' ? encodeURIComponent(window.location.pathname) : '/'}`} className="text-primary hover:underline">
+              Unlock your keys
+            </Link>{' '}
+            to read and send messages.
+          </p>
+        </div>
+      )}
+
       {/* Message stream */}
       <div className="flex-1 overflow-y-auto px-3 py-3">
         {isLoading ? (

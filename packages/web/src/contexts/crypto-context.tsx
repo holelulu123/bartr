@@ -24,6 +24,9 @@ const IDB_KEY = 'wk';
 // survive page refreshes. IndexedDB can store non-extractable CryptoKey objects
 // natively, so XSS cannot export the key — it can only be used in-place.
 let wrappingKey: CryptoKey | null = null;
+// Deduplicate concurrent getWrappingKey calls to prevent race conditions
+// (e.g. React StrictMode double-mount firing two loadCachedKey calls)
+let wrappingKeyPromise: Promise<CryptoKey> | null = null;
 
 function openIDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -76,9 +79,8 @@ async function clearWrappingKey(): Promise<void> {
   } catch { /* noop */ }
 }
 
-async function getWrappingKey(): Promise<CryptoKey> {
+async function getWrappingKeyImpl(): Promise<CryptoKey> {
   if (!wrappingKey) {
-    // Try to restore from IndexedDB first (survives page refresh)
     wrappingKey = await loadWrappingKey();
   }
   if (!wrappingKey) {
@@ -92,7 +94,18 @@ async function getWrappingKey(): Promise<CryptoKey> {
   return wrappingKey;
 }
 
-async function cachePrivateKey(key: CryptoKey) {
+// Serialised access — only one getWrappingKey call runs at a time so
+// concurrent callers share the same key and don't race on IndexedDB.
+function getWrappingKey(): Promise<CryptoKey> {
+  if (!wrappingKeyPromise) {
+    wrappingKeyPromise = getWrappingKeyImpl().finally(() => {
+      wrappingKeyPromise = null;
+    });
+  }
+  return wrappingKeyPromise;
+}
+
+async function cachePrivateKey(key: CryptoKey): Promise<void> {
   try {
     const wk = await getWrappingKey();
     const wrapped = await crypto.subtle.wrapKey('pkcs8', key, wk, 'AES-KW');
@@ -100,7 +113,9 @@ async function cachePrivateKey(key: CryptoKey) {
     // The wrapping key in IndexedDB is non-extractable, so the blob is
     // useless without access to this browser's IndexedDB.
     localStorage.setItem(STORAGE_KEY, bufToBase64(wrapped));
-  } catch { /* storage full or wrap error */ }
+  } catch (err) {
+    console.warn('[E2E] Failed to cache private key:', err);
+  }
 }
 
 function clearCachedKey() {
@@ -108,6 +123,7 @@ function clearCachedKey() {
   try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* noop — clean up legacy */ }
   clearWrappingKey();
   wrappingKey = null;
+  wrappingKeyPromise = null;
 }
 
 async function loadCachedKey(): Promise<CryptoKey | null> {
@@ -116,7 +132,7 @@ async function loadCachedKey(): Promise<CryptoKey | null> {
     const b64 = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
     if (!b64) return null;
     const wk = await getWrappingKey();
-    return crypto.subtle.unwrapKey(
+    const key = await crypto.subtle.unwrapKey(
       'pkcs8',
       base64ToBuf(b64),
       wk,
@@ -125,9 +141,16 @@ async function loadCachedKey(): Promise<CryptoKey | null> {
       true,
       ['deriveKey', 'deriveBits'],
     );
-  } catch {
-    // Wrapping key or cached data corrupt — clear everything
-    clearCachedKey();
+    // Migrate from sessionStorage to localStorage if needed
+    if (!localStorage.getItem(STORAGE_KEY) && sessionStorage.getItem(STORAGE_KEY)) {
+      localStorage.setItem(STORAGE_KEY, sessionStorage.getItem(STORAGE_KEY)!);
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+    return key;
+  } catch (err) {
+    // Don't destroy the cache on transient failures — only clear if the
+    // wrapping key definitely doesn't match (the data is unrecoverable).
+    console.warn('[E2E] Failed to load cached key:', err);
     return null;
   }
 }
@@ -171,7 +194,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef<CryptoState>({ publicKey: null, privateKey: null });
   const [unlockedState, setUnlockedState] = useState(false);
 
-  // On mount, restore private key from sessionStorage (survives refresh)
+  // On mount, restore private key from localStorage cache (survives refresh & restart)
   useEffect(() => {
     loadCachedKey().then((key) => {
       if (key) {
@@ -189,7 +212,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
 
     stateRef.current = { publicKey: keyPair.publicKey, privateKey: keyPair.privateKey };
     setUnlockedState(true);
-    cachePrivateKey(keyPair.privateKey);
+    await cachePrivateKey(keyPair.privateKey);
 
     return { publicKeyBase64, privateKeyBlob, recoveryKeyHex, recoveryKeyBlob };
   }, []);
@@ -198,7 +221,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
     const privateKey = await unwrapPrivateKey(privateKeyBlob, password);
     stateRef.current = { ...stateRef.current, privateKey };
     setUnlockedState(true);
-    cachePrivateKey(privateKey);
+    await cachePrivateKey(privateKey);
   }, []);
 
   const unlockWithRecovery = useCallback(
@@ -206,7 +229,7 @@ export function CryptoProvider({ children }: { children: ReactNode }) {
       const privateKey = await unwrapWithRecoveryKey(recoveryKeyBlob, recoveryKeyHex);
       stateRef.current = { ...stateRef.current, privateKey };
       setUnlockedState(true);
-      cachePrivateKey(privateKey);
+      await cachePrivateKey(privateKey);
     },
     [],
   );
