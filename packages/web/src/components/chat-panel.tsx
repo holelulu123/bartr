@@ -325,7 +325,7 @@ export function ChatPanel({ threadId, recipientNickname, contextLabel, className
     }
   }
 
-  if (isError) {
+  if (isError && !data) {
     return (
       <div className={cn('flex items-center justify-center p-6 text-sm text-muted-foreground', className)}>
         Failed to load messages.

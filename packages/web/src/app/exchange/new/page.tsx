@@ -203,17 +203,16 @@ function CreateOfferForm() {
     setGeoError('');
     setGeoLoading(true);
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }),
-      );
-      const { latitude, longitude } = pos.coords;
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`,
-        { headers: { 'User-Agent': 'Bartr/1.0' } },
-      );
+      const res = await fetch('http://ip-api.com/json/?fields=status,countryCode,city');
       const data = await res.json();
-      const countryCode = data.address?.country_code?.toUpperCase();
-      const cityName = data.address?.city || data.address?.town || data.address?.village || '';
+
+      if (data.status !== 'success') {
+        setGeoError('Could not detect location. Please try again.');
+        return;
+      }
+
+      const countryCode = data.countryCode?.toUpperCase();
+      const cityName = data.city || '';
 
       if (!countryCode || !COUNTRIES.find((c) => c.code === countryCode)) {
         setGeoError('Your country is not in our supported list');
@@ -223,24 +222,8 @@ function CreateOfferForm() {
       if (cityName && isValidCity(cityName)) {
         setCity(cityName);
       }
-    } catch (err) {
-      if (err instanceof GeolocationPositionError) {
-        switch (err.code) {
-          case err.PERMISSION_DENIED:
-            setGeoError('Location access denied. Please allow location permission in your browser settings.');
-            break;
-          case err.POSITION_UNAVAILABLE:
-            setGeoError('Location unavailable. Your device could not determine your position.');
-            break;
-          case err.TIMEOUT:
-            setGeoError('Location request timed out. Please try again.');
-            break;
-          default:
-            setGeoError('Could not detect location. Please try again.');
-        }
-      } else {
-        setGeoError('Failed to look up your location. The geocoding service may be temporarily unavailable.');
-      }
+    } catch {
+      setGeoError('Could not detect location. Please try again.');
     } finally {
       setGeoLoading(false);
     }
