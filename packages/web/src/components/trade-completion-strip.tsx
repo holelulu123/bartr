@@ -155,7 +155,7 @@ export function TradeCompletionStrip({
       {/* Dual checkmarks */}
       <div className="group relative flex items-center gap-0.5 shrink-0">
         {timerActive && (
-          <span className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-sm text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-75 pointer-events-none z-[100]">
+          <span className="absolute top-1/2 -translate-y-1/2 left-full ml-2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-sm text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-75 pointer-events-none z-[100]">
             The trade could be completed in {Math.ceil(remaining / 60_000)} minutes
           </span>
         )}
