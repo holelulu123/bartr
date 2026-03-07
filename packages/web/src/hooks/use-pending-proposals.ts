@@ -5,7 +5,7 @@ import { useTrades } from './use-trades';
 import type { TradeSummary } from '@/lib/api';
 
 const STORAGE_KEY = 'bartr_notif_read';
-const PAGE_SIZE = 7; // days per "page"
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function getStoredReadAt(): Date {
   if (typeof window === 'undefined') return new Date(0);
@@ -21,48 +21,46 @@ export interface Notification {
 }
 
 export function usePendingProposals(enabled: boolean) {
-  // Seller: incoming offers (status=offered)
+  // Fetch ALL trades as seller (any status) — captures incoming offers even after accept/decline
   const { data: sellerData } = useTrades(
-    { role: 'seller', status: 'offered' },
+    { role: 'seller', limit: 50 },
     { enabled, refetchInterval: 30_000 },
   );
 
-  // Buyer: accepted offers
-  const { data: buyerAccepted } = useTrades(
-    { role: 'buyer', status: 'accepted' },
-    { enabled, refetchInterval: 30_000 },
-  );
-
-  // Buyer: declined offers
-  const { data: buyerDeclined } = useTrades(
-    { role: 'buyer', status: 'declined' },
+  // Fetch ALL trades as buyer (any status) — captures accepted/declined responses
+  const { data: buyerData } = useTrades(
+    { role: 'buyer', limit: 50 },
     { enabled, refetchInterval: 30_000 },
   );
 
   const [readAt, setReadAt] = useState(getStoredReadAt);
-  const [daysShown, setDaysShown] = useState(PAGE_SIZE);
 
-  // Build unified notification list
+  const cutoff = new Date(Date.now() - ONE_WEEK_MS).toISOString();
+
+  // Build unified notification list from all trades in the last week
   const all: Notification[] = [];
 
   for (const t of (sellerData?.trades ?? []).filter((t) => t.offer_id && t.offer_summary)) {
-    all.push({ id: `offer-${t.id}`, type: 'incoming_offer', trade: t, timestamp: t.created_at });
+    // Every trade where I'm seller = someone offered me
+    if (t.created_at >= cutoff) {
+      all.push({ id: `offer-${t.id}`, type: 'incoming_offer', trade: t, timestamp: t.created_at });
+    }
   }
 
-  for (const t of (buyerAccepted?.trades ?? []).filter((t) => t.offer_id && t.offer_summary)) {
-    all.push({ id: `accepted-${t.id}`, type: 'offer_accepted', trade: t, timestamp: t.updated_at });
-  }
-
-  for (const t of (buyerDeclined?.trades ?? []).filter((t) => t.offer_id && t.offer_summary)) {
-    all.push({ id: `declined-${t.id}`, type: 'offer_declined', trade: t, timestamp: t.updated_at });
+  for (const t of (buyerData?.trades ?? []).filter((t) => t.offer_id && t.offer_summary)) {
+    // Trades where I'm buyer and status changed to accepted or declined
+    if (t.status === 'accepted' || t.status === 'completed') {
+      if (t.updated_at >= cutoff) {
+        all.push({ id: `accepted-${t.id}`, type: 'offer_accepted', trade: t, timestamp: t.updated_at });
+      }
+    } else if (t.status === 'declined') {
+      if (t.updated_at >= cutoff) {
+        all.push({ id: `declined-${t.id}`, type: 'offer_declined', trade: t, timestamp: t.updated_at });
+      }
+    }
   }
 
   all.sort((a, b) => (a.timestamp > b.timestamp ? -1 : 1));
-
-  // Filter to current window
-  const cutoff = new Date(Date.now() - daysShown * 24 * 60 * 60 * 1000).toISOString();
-  const visible = all.filter((n) => n.timestamp >= cutoff);
-  const hasMore = all.length > visible.length;
 
   const hasNew = all.some((n) => new Date(n.timestamp) > readAt);
 
@@ -72,9 +70,5 @@ export function usePendingProposals(enabled: boolean) {
     localStorage.setItem(STORAGE_KEY, now.toISOString());
   }
 
-  function loadMore() {
-    setDaysShown((d) => d + PAGE_SIZE);
-  }
-
-  return { notifications: visible, hasNew, hasMore, loadMore, markAllRead };
+  return { notifications: all, hasNew, hasMore: false, loadMore: () => {}, markAllRead };
 }

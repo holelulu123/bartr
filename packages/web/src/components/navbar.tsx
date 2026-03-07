@@ -59,7 +59,7 @@ export function Navbar() {
     user?.nickname ?? '',
   );
 
-  const { notifications, hasNew: hasNewProposals, hasMore: hasMoreNotifs, loadMore: loadMoreNotifs, markAllRead } = usePendingProposals(isAuthenticated);
+  const { notifications, hasNew: hasNewProposals, markAllRead } = usePendingProposals(isAuthenticated);
   const { isOpen: messagesOpen, openSidebar, openThread, closeSidebar: closeMessages } = useMessageSidebar();
 
   // Auto-open chat when a new message arrives from someone else
@@ -172,7 +172,7 @@ export function Navbar() {
                       No notifications
                     </div>
                   ) : (
-                    <>
+                    <div className="max-h-56 overflow-y-auto">
                       {notifications.map((n) => {
                         const t = n.trade;
                         const pair = t.offer_summary?.replace(/^(buy|sell)\s+/i, '') ?? '';
@@ -197,25 +197,14 @@ export function Navbar() {
                             >
                               <UserAvatar nickname={otherNickname} size={28} />
                               <span className="text-sm flex-1">{label}</span>
-                              <span className={cn('text-xs font-medium shrink-0', n.type === 'offer_accepted' ? 'text-green-500' : n.type === 'offer_declined' ? 'text-red-500' : 'text-orange-500')}>
+                              <span className="text-xs font-medium shrink-0 text-orange-500">
                                 {timeAgo(n.timestamp)}
                               </span>
                             </Link>
                           </DropdownMenuItem>
                         );
                       })}
-                      {hasMoreNotifs && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={(e) => { e.preventDefault(); loadMoreNotifs(); }}
-                            className="justify-center text-xs text-muted-foreground cursor-pointer py-2"
-                          >
-                            Load more
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </>
+                    </div>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
