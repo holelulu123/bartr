@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 
-export const COMPLETION_WAIT_MS = 90 * 60 * 1000; // 90 minutes after acceptance
+export const COMPLETION_WAIT_MS = 120 * 60 * 1000; // 120 minutes after acceptance
 
 export default async function tradeRoutes(fastify: FastifyInstance) {
   // Create a trade offer (buyer initiates on a listing or exchange offer)
