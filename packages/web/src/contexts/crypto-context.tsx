@@ -81,7 +81,12 @@ async function clearWrappingKey(): Promise<void> {
 
 async function getWrappingKeyImpl(): Promise<CryptoKey> {
   if (!wrappingKey) {
-    wrappingKey = await loadWrappingKey();
+    const loaded = await loadWrappingKey();
+    // Only accept AES-GCM keys — discard legacy AES-KW keys that can't
+    // encrypt/decrypt (they only had wrapKey/unwrapKey usages).
+    if (loaded && loaded.algorithm.name === 'AES-GCM') {
+      wrappingKey = loaded;
+    }
   }
   if (!wrappingKey) {
     wrappingKey = await crypto.subtle.generateKey(
