@@ -7,7 +7,7 @@ const VALID_SETTLEMENT_METHODS = [
   'cash', 'bank_transfer', 'paypal', 'wise', 'revolut',
   'zelle', 'venmo', 'sepa', 'interac', 'pix',
   'upi', 'mpesa', 'skrill', 'neteller', 'western_union',
-  'moneygram', 'gift_card', 'other',
+  'moneygram', 'gift_card', 'paybox', 'bit', 'other',
 ];
 const VALID_PRICE_SOURCES = ['coingecko', 'binance', 'kraken'];
 

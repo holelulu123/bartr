@@ -34,7 +34,7 @@ export type PaymentMethod =
   | 'cash' | 'bank_transfer' | 'paypal' | 'wise' | 'revolut'
   | 'zelle' | 'venmo' | 'sepa' | 'interac' | 'pix'
   | 'upi' | 'mpesa' | 'skrill' | 'neteller' | 'western_union'
-  | 'moneygram' | 'gift_card' | 'other';
+  | 'moneygram' | 'gift_card' | 'paybox' | 'bit' | 'other';
 
 export type SettlementMethod = PaymentMethod;
 
@@ -64,6 +64,8 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   western_union: 'Western Union',
   moneygram: 'MoneyGram',
   gift_card: 'Gift card',
+  paybox: 'PayBox',
+  bit: 'Bit',
   other: 'Other',
 };
 

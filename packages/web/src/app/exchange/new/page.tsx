@@ -365,7 +365,7 @@ function CreateOfferForm() {
               </button>
             </div>
           </div>
-          <div className="flex-1 space-y-1.5">
+          <div className="w-44 space-y-1.5">
             <Label htmlFor="crypto">Crypto</Label>
             <Select value={cryptoCurrency} onValueChange={setCryptoCurrency}>
               <SelectTrigger id="crypto" aria-label="Cryptocurrency">
@@ -383,7 +383,10 @@ function CreateOfferForm() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex-1 space-y-1.5">
+          <span className="hidden sm:flex items-end pb-2.5 text-sm font-medium w-8 justify-center shrink-0">
+            {offerType === 'buy' ? 'with' : 'for'}
+          </span>
+          <div className="w-32 space-y-1.5">
             <Label htmlFor="fiat">Fiat</Label>
             <Select value={fiatCurrency} onValueChange={setFiatCurrency}>
               <SelectTrigger id="fiat" aria-label="Fiat currency">
@@ -455,7 +458,15 @@ function CreateOfferForm() {
         {rateType === 'market' ? (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="margin_percent">Margin %</Label>
+              <Label htmlFor="margin_percent" className="inline-flex items-center gap-1">
+                Margin %
+                <span className="group relative">
+                  <span className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-border text-xs text-muted-foreground cursor-help">?</span>
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-52 rounded bg-popover border border-border px-2.5 py-1.5 text-xs text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-75 pointer-events-none z-[100]">
+                    How much above or below the market price you want to trade. E.g. +2% means 2% above market.
+                  </span>
+                </span>
+              </Label>
               <Input
                 id="margin_percent"
                 type="text"
@@ -470,7 +481,15 @@ function CreateOfferForm() {
               <p className="text-xs text-muted-foreground">Positive = above market, negative = below</p>
             </div>
             <div className="space-y-1.5">
-              <Label>Effective price</Label>
+              <Label className="inline-flex items-center gap-1">
+                Effective price
+                <span className="group relative">
+                  <span className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-border text-xs text-muted-foreground cursor-help">?</span>
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-52 rounded bg-popover border border-border px-2.5 py-1.5 text-xs text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-75 pointer-events-none z-[100]">
+                    The actual price per coin after applying your margin to the market price.
+                  </span>
+                </span>
+              </Label>
               <div className="flex items-center h-10 rounded-md border border-border bg-muted/50 px-3">
                 <span className="text-sm font-medium">
                   {effectivePrice !== undefined
@@ -525,7 +544,15 @@ function CreateOfferForm() {
         {/* Trade limits — single row with fiat/crypto toggle */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm">Trade limits ({limitsView === 'fiat' ? fiatCurrency : cryptoCurrency})</Label>
+            <Label className="text-sm inline-flex items-center gap-1">
+              Trade limits ({limitsView === 'fiat' ? fiatCurrency : cryptoCurrency})
+              <span className="group relative">
+                <span className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-border text-xs text-muted-foreground cursor-help">?</span>
+                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-52 rounded bg-popover border border-border px-2.5 py-1.5 text-xs text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-75 pointer-events-none z-[100]">
+                  The minimum and maximum trade amount you&apos;re willing to accept per transaction.
+                </span>
+              </span>
+            </Label>
             <button
               type="button"
               onClick={() => setLimitsView((v) => v === 'fiat' ? 'crypto' : 'fiat')}
@@ -626,7 +653,15 @@ function CreateOfferForm() {
 
         {/* Settlement methods */}
         <div className="space-y-2">
-          <Label>Settlement methods</Label>
+          <Label className="inline-flex items-center gap-1">
+            Settlement methods
+            <span className="group relative">
+              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full border border-border text-xs text-muted-foreground cursor-help">?</span>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-52 rounded bg-popover border border-border px-2.5 py-1.5 text-xs text-popover-foreground shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-75 pointer-events-none z-[100]">
+                How you want to send or receive payment. Select all methods you accept.
+              </span>
+            </span>
+          </Label>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Settlement methods">
             {SETTLEMENT_OPTIONS.map(([value, label]) => (
               <button
